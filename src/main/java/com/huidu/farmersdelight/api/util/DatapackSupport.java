@@ -1,10 +1,15 @@
 package com.huidu.farmersdelight.api.util;
 
+import io.papermc.paper.datapack.Datapack;
+import io.papermc.paper.datapack.DatapackRegistrar;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.World;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -12,14 +17,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.util.Objects;
+import java.util.List;
 import java.util.Comparator;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
-// Shared helpers for the datapack installers (loot + damage type). Each installer writes its own
-// world datapack folder from the bundled resources; these methods keep the IO/idempotence logic in
-// one place so the installers stay thin.
+// Shared file and discovery helpers; registry content loads before plugin enable.
 public final class DatapackSupport {
 
     private DatapackSupport() {
@@ -80,87 +86,30 @@ public final class DatapackSupport {
 
     // Exposed with an explicit version so installers can be unit-tested without a live server.
     public static String renderPackMetadata(String description, String version) {
-        PackFormat format = serverDataPackFormat();
-        if (format == null) {
-            format = packFormatFor(version);
-        }
+        PackFormat format = packFormatFor(version);
         String line = format.range
                 ? "    \"min_format\": " + format.value + ",\n    \"max_format\": " + MAX_RANGE_FORMAT
                 : "    \"pack_format\": " + format.value;
         return "{\n  \"pack\": {\n" + line + ",\n    \"description\": \"" + description + "\"\n  }\n}\n";
     }
 
-    // Ask the running server for its own data-pack format instead of mapping it from the version string.
-    // The table below only ever knew the releases it was written for, and it answered 88 for everything
-    // newer -- 88 is 26.2's RESOURCE pack major, while its DATA major is 107, so the generated packs
-    // declared a format outside the server's accepted range and were skipped. A skipped pack still has
-    // its tag files read, so minecraft:on_random_loot ended up referencing an enchantment that was never
-    // registered, and every vanilla loot table using that tag failed to parse.
-    //
-    // The int-returning getPackVersion(PackType) spelling is the 1.21.5~1.21.8 form; 26.x renamed it to
-    // packVersion(PackType) and returns a PackFormat record. Both are reached reflectively so one jar
-    // covers the whole range.
-    private static PackFormat serverDataPackFormat() {
-        try {
-            Class<?> shared = Class.forName("net.minecraft.SharedConstants");
-            Object worldVersion = null;
-            for (String name : new String[]{"getCurrentVersion", "currentVersion"}) {
-                try {
-                    worldVersion = shared.getMethod(name).invoke(null);
-                    break;
-                } catch (NoSuchMethodException ignored) {
-                    // try the other spelling
-                }
-            }
-            if (worldVersion == null) {
-                return null;
-            }
-            Class<?> packTypeClass = Class.forName("net.minecraft.server.packs.PackType");
-            Object serverData = null;
-            for (Object constant : packTypeClass.getEnumConstants()) {
-                if ("SERVER_DATA".equals(((Enum<?>) constant).name())) {
-                    serverData = constant;
-                    break;
-                }
-            }
-            if (serverData == null) {
-                return null;
-            }
-            for (String name : new String[]{"packVersion", "getPackVersion"}) {
-                try {
-                    Object result = worldVersion.getClass()
-                            .getMethod(name, packTypeClass).invoke(worldVersion, serverData);
-                    if (result instanceof Integer value) {
-                        // 1.21.5-1.21.8: a bare major, written as a single pack_format.
-                        return new PackFormat(value, false);
-                    }
-                    // 1.21.9+: a PackFormat record; its major is what pack.mcmeta needs.
-                    Object major = result.getClass().getMethod("major").invoke(result);
-                    return new PackFormat(((Number) major).intValue(), true);
-                } catch (NoSuchMethodException ignored) {
-                    // try the other spelling
-                }
-            }
-        } catch (Throwable ignored) {
-            // Any linkage or access failure falls back to the version table below.
-        }
-        return null;
-    }
-
     private static final int MAX_RANGE_FORMAT = 150;
 
     private static final PackFormat PACK_FORMAT_1_21_5 = new PackFormat(71, false);
-    private static final PackFormat PACK_FORMAT_1_21_6_8 = new PackFormat(80, false);
+    private static final PackFormat PACK_FORMAT_1_21_6 = new PackFormat(80, false);
+    private static final PackFormat PACK_FORMAT_1_21_7_8 = new PackFormat(81, false);
     private static final PackFormat PACK_FORMAT_RANGE = new PackFormat(88, true);
 
-    // Data pack format history: 1.21.5=71, 1.21.6/7/8=80; 1.21.9 and every 26.x release use
-    // the min_format/max_format range form (88 is the 1.21.9 data pack major format).
+    // Releases before 1.21.9 require an exact format; later releases accept the declared range.
     private static PackFormat packFormatFor(String version) {
         if (version.contains("1.21.5")) {
             return PACK_FORMAT_1_21_5;
         }
-        if (version.contains("1.21.6") || version.contains("1.21.7") || version.contains("1.21.8")) {
-            return PACK_FORMAT_1_21_6_8;
+        if (version.startsWith("1.21.6")) {
+            return PACK_FORMAT_1_21_6;
+        }
+        if (version.startsWith("1.21.7") || version.startsWith("1.21.8")) {
+            return PACK_FORMAT_1_21_7_8;
         }
         return PACK_FORMAT_RANGE;
     }
@@ -174,11 +123,21 @@ public final class DatapackSupport {
             return false;
         }
         try {
-            Path parent = dest.getParent();
+            Path parent = dest.toAbsolutePath().getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            Files.writeString(dest, content, StandardCharsets.UTF_8);
+            Path temporary = Files.createTempFile(parent, dest.getFileName().toString(), ".tmp");
+            try {
+                Files.writeString(temporary, content, StandardCharsets.UTF_8);
+                try {
+                    Files.move(temporary, dest, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException ignored) {
+                    Files.move(temporary, dest, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
             return true;
         } catch (IOException e) {
             throw new IllegalStateException("Failed to write " + dest, e);
@@ -193,6 +152,90 @@ public final class DatapackSupport {
         try (InputStream in = jar.getInputStream(entry)) {
             Files.copy(in, dest, StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+
+
+    public static Path managedPack(Path dataDirectory, String name) {
+        return dataDirectory.resolve("datapacks").resolve(name);
+    }
+
+    public static YamlConfiguration startupConfiguration(Path file, InputStream defaults)
+            throws IOException, InvalidConfigurationException {
+        YamlConfiguration config = new YamlConfiguration();
+        try (InputStream bundled = defaults) {
+            if (Files.exists(file)) {
+                config.load(file.toFile());
+            } else {
+                config.load(new InputStreamReader(Objects.requireNonNull(bundled), StandardCharsets.UTF_8));
+            }
+        }
+        return config;
+    }
+
+    public static void discoverPack(DatapackRegistrar registrar, Path dataDirectory, String name,
+                                    boolean enabled) throws IOException {
+        Path pack = managedPack(dataDirectory, name);
+        if (!enabled || Files.exists(pack.resolve(".legacy-migrated"))) {
+            registrar.removeDiscoveredPack("file/" + name);
+        }
+        if (enabled && !Files.exists(pack.resolve(".legacy-migrated"))
+                && registrar.hasPackDiscovered("file/" + name)) {
+            return; // Preserve the legacy definitions during the migration boot.
+        }
+        if (enabled && Files.isRegularFile(pack.resolve("pack.mcmeta"))) {
+            // Required packs compare Adventure titles before registry initialization on Paper 26.2.
+            if (registrar.discoverPack(pack, name,
+                    options -> options.position(false, Datapack.Position.TOP)) == null) {
+                throw new IOException("Could not discover managed datapack " + pack);
+            }
+        }
+    }
+
+    // Keep the old pack for the migration boot, then remove it after copying its definitions.
+    public static void migrateLegacyPack(Path worldRoot, Path dataDirectory, String name) throws IOException {
+        migrateLegacyPacks(List.of(worldRoot.resolve("datapacks").resolve(name)), dataDirectory, name);
+    }
+
+    public static void migrateLegacyPack(World world, Path dataDirectory, String name) throws IOException {
+        Path root = worldRoot(world).resolve("datapacks").resolve(name);
+        Path direct = world.getWorldFolder().toPath().resolve("datapacks").resolve(name);
+        migrateLegacyPacks(sameNormalizedPath(root, direct) ? List.of(root) : List.of(direct, root),
+                dataDirectory, name);
+    }
+
+    private static void migrateLegacyPacks(List<Path> sources, Path dataDirectory, String name) throws IOException {
+        Path managed = managedPack(dataDirectory, name);
+        for (Path legacy : sources) {
+            if (!Files.exists(legacy)) continue;
+            if (Files.isSymbolicLink(legacy)) {
+                throw new IOException("Refusing to migrate a linked datapack " + legacy);
+            }
+            try (Stream<Path> paths = Files.walk(legacy)) {
+                for (Path source : paths.filter(Files::isRegularFile).toList()) {
+                    if (Files.isSymbolicLink(source)) {
+                        throw new IOException("Refusing to migrate a linked datapack file " + source);
+                    }
+                    Path target = managed.resolve(legacy.relativize(source));
+                    if (!source.getFileName().toString().equals("pack.mcmeta")) {
+                        Files.createDirectories(target.getParent());
+                        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+            deleteRecursively(legacy);
+        }
+        writeIfChanged(managed.resolve(".legacy-migrated"), "Migrated to plugin-managed discovery.\n");
+    }
+
+    public static void archiveLegacyPack(Path legacy, Path dataDirectory) throws IOException {
+        if (!Files.exists(legacy)) return;
+        if (Files.isSymbolicLink(legacy)) throw new IOException("Refusing to archive a linked datapack " + legacy);
+        Path backupRoot = dataDirectory.resolve("datapack-backups");
+        Files.createDirectories(backupRoot);
+        String name = legacy.getFileName().toString();
+        Path backup = backupRoot.resolve(name);
+        if (Files.exists(backup)) backup = backupRoot.resolve(name + "-" + System.currentTimeMillis());
+        Files.move(legacy, backup);
     }
 
     public static void deleteRecursively(Path root) throws IOException {

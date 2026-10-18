@@ -6,9 +6,8 @@ the field references instead. This removes the explanatory comments without touc
 first non-space character is '#' are dropped, and the script refuses to touch a comment that sits inside a YAML
 block scalar (a value introduced by '|' or '>'), which would be data rather than a comment.
 
-Repo-scoped: it walks the packs this repository ships (its own namespace and the standalone packs under packs/).
-The workspace-level copy in the monorepo parent directory checks every module's pack in one pass; this one exists
-so CI can enforce the rule on the files a change to this repository can actually affect.
+Scope: it walks the packs this repository ships (its own namespace and the standalone packs under packs/), so
+the rule is enforced on the files a change to this repository can actually affect.
 
     python tools/strip_ce_comments.py [--check]
 """

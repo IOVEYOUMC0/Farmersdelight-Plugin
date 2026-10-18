@@ -61,7 +61,7 @@ class OutputCapTest {
     void theDebugCommandSendsItsUnboundedReportThroughTheCap() throws IOException {
         String source = read(DEBUG_COMMAND);
         String diagnostics = read(DEBUG_COMMAND.resolveSibling("DebugReadOnlyCommands.java"));
-        String validation = methodBody(diagnostics, "void recipeValidate(Player player)");
+        String validation = methodBody(diagnostics, "void recipeValidate(Player player,");
         assertTrue(validation.contains("batches.start(player,"),
                 "recipe validation must run through the batch runner instead of one whole-list pass");
         assertTrue(validation.contains("sendCapped(player,"),

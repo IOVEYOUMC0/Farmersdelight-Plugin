@@ -43,6 +43,8 @@ Expanded Delight 仍在移植，不属于已发布附属。
 
 完整的玩家指南、服主指南、附属指南和 API 文档已迁移到 [FarmersdelightPluginWiKi](https://github.com/IOVEYOUMC0/FarmersdelightPluginWiKi)，该仓库可以通过 GitHub 集成连接到 GitBook。
 
+默认饮品营养与苹果酒时长的最新核对见[验证记录](docs/verification-upstream-values-2026-10-13.md)。已有 CE 文件需合并更新；有害效果、客户端和完整玩法不由数值测试证明。
+
 ## 构建
 
 ```text

@@ -6,8 +6,10 @@ import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.proxy.minecraft.network.protocol.game.ClientboundSetPlayerInventoryPacketProxy;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,6 +53,13 @@ public final class HandheldDisplays {
     @ApiStatus.Internal
     @Nullable
     public static Handle open(Player player, int slot, @Nullable ItemStack original, int duration) {
+        return open(player, slot, original, duration, null);
+    }
+
+    @ApiStatus.Internal
+    @Nullable
+    public static Handle open(Player player, int slot, @Nullable ItemStack original, int duration,
+                              @Nullable NamespacedKey model) {
         if (player == null || original == null || original.getType().isAir()) {
             return null;
         }
@@ -61,7 +70,7 @@ public final class HandheldDisplays {
             }
             HandheldCookingDisplay display =
                     new HandheldCookingDisplay(channel, slot, BukkitAdaptor.adapt(original.clone()).minecraftItem());
-            return new HandleImpl(player, slot, original.clone(), duration, display);
+            return new HandleImpl(player, slot, original.clone(), duration, display, model);
         } catch (RuntimeException | LinkageError error) {
             return null;
         }
@@ -74,6 +83,8 @@ public final class HandheldDisplays {
         private final ItemStack original;
         private final int duration;
         private final HandheldCookingDisplay display;
+        private final NamespacedKey model;
+        private ItemStack sourceSnapshot;
         // The display base is the real stack with the display-only max damage applied once; only the damage value
         // changes per update, so the item the client keeps re-rendering has a stable component set. The base is
         // rebuilt when the slot no longer holds the same stack.
@@ -82,12 +93,13 @@ public final class HandheldDisplays {
         private boolean closed;
 
         private HandleImpl(Player player, int slot, ItemStack original, int duration,
-                           HandheldCookingDisplay display) {
+                           HandheldCookingDisplay display, @Nullable NamespacedKey model) {
             this.player = player;
             this.slot = slot;
             this.original = original;
             this.duration = Math.max(1, duration);
             this.display = display;
+            this.model = model;
         }
 
         @Override
@@ -99,15 +111,21 @@ public final class HandheldDisplays {
                 int damage = Math.max(0, Math.min(this.duration, this.duration - progress));
                 ItemStack source = currentStack();
                 if (damage == this.displayedDamage && this.displayBase != null
-                        && sameStack(this.displayBase, source)) {
+                        && sameStack(this.sourceSnapshot, source)) {
                     // The bar would be identical, and re-sending it only makes the client redraw the item.
                     return;
                 }
-                if (this.displayBase == null || !sameStack(this.displayBase, source)) {
+                if (this.displayBase == null || !sameStack(this.sourceSnapshot, source)) {
                     // Rebuilt from the slot as it is now, not from the copy taken when the bar opened: a stack
                     // that changed size or was replaced must not keep showing the old item.
                     ItemStack base = source.clone();
+                    if (this.model != null) {
+                        ItemMeta meta = base.getItemMeta();
+                        meta.setItemModel(this.model);
+                        base.setItemMeta(meta);
+                    }
                     BukkitAdaptor.adapt(base).setJavaComponent(DataComponentKeys.MAX_DAMAGE, this.duration);
+                    this.sourceSnapshot = source.clone();
                     this.displayBase = base;
                 }
                 ItemStack copy = this.displayBase.clone();

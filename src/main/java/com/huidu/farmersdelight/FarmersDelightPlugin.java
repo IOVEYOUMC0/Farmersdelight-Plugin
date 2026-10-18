@@ -68,9 +68,7 @@ import com.huidu.farmersdelight.recipe.SpecialRecipeLoader;
 import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.startup.StartupVersionBanner;
-import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CommonTagResolver;
-import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CustomItemPresence;
@@ -93,8 +91,6 @@ import com.huidu.farmersdelight.config.CuttingBoardSounds;
 import net.momirealms.craftengine.bukkit.api.event.CraftEngineReloadEvent;
 import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
-import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
-import net.momirealms.craftengine.core.world.CEWorld;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
@@ -611,7 +607,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         runDisableStep("plugin.disable_step_cleanup_bossbars", () -> {
             if (buffBossbarManager != null) {
-                buffBossbarManager.stop();
+                // Already hidden by flushBeforeRuntimeDisable() while the scheduler still worked.
+                if (!runtimeFlushDone) {
+                    buffBossbarManager.stop();
+                }
                 buffBossbarManager = null;
             }
         });
@@ -688,7 +687,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         FarmersDelightCommandRegistrar.register(this);
     }
 
-    private void runDisableStep(String stepKey, Runnable action, Object... stepArgs) {
+    void runDisableStep(String stepKey, Runnable action, Object... stepArgs) {
         try {
             action.run();
         } catch (Throwable throwable) {
@@ -716,6 +715,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     private static final int DEFAULT_SHUTDOWN_WAIT_MILLIS = 5000;
     private ShutdownBudget disableBudget;
+    // Set by flushBeforeRuntimeDisable(): the buff/bossbar state is already persisted, so the budgeted
+    // onDisable steps must not repeat the work (and on Folia must not try the now-refused schedulers).
+    private volatile boolean runtimeFlushDone;
 
     private void cleanupPlacementCache() {
         BlockPlaceListener.cleanup();
@@ -726,6 +728,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void saveOnlinePlayerBuffs() {
+        if (runtimeFlushDone) {
+            return;
+        }
         List<Player> players = List.copyOf(getServer().getOnlinePlayers());
         if (players.isEmpty()) return;
         SchedulerAdapter currentScheduler = scheduler;
@@ -740,7 +745,21 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         CountDownLatch pending = new CountDownLatch(players.size());
+        int skipped = 0;
         for (Player player : players) {
+            if (Bukkit.isOwnedByCurrentRegion(player)) {
+                // The caller already owns this player's region (Paper always reports owned, and on Folia a
+                // flush started from a region thread owns that region's players). Saving inline here keeps
+                // the latch wait below from depending on a task queued onto the very thread that waits.
+                try {
+                    CustomBuffRegistry.saveAll(player);
+                } catch (Throwable ignored) {
+                    // Per-player isolation; a broken addon must not prevent other saves.
+                } finally {
+                    pending.countDown();
+                }
+                continue;
+            }
             try {
                 currentScheduler.runForEntity(player, () -> {
                     try {
@@ -751,7 +770,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                         pending.countDown();
                     }
                 }, pending::countDown);
-            } catch (Throwable ignored) {
+            } catch (Throwable rejected) {
+                // Folia marks the plugin disabled before onDisable and its schedulers then refuse every task.
+                // Count the miss and report it: a silent skip loses that player's buff state.
+                skipped++;
                 pending.countDown();
             }
         }
@@ -764,40 +786,37 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
+        if (skipped > 0) {
+            getLogger().warning(I18n.formatConsole(
+                    "plugin.disable_step_save_player_buffs_skipped", "count", String.valueOf(skipped)));
+        }
+    }
+
+    /**
+     * Persists the state that needs a live scheduler while the plugin is still enabled.
+     *
+     *
+     * Folia sets isEnabled(false) before onDisable, and its schedulers then refuse every task, so a
+     * buff save from onDisable would silently fail. CraftEngineWatchdogListener calls this before it disables
+     * us; on Paper it is a harmless synchronous save on the main thread. The onDisable steps that repeat this
+     * work skip themselves once the flag is set.
+     */
+    public void flushBeforeRuntimeDisable() {
+        if (runtimeFlushDone) {
+            return;
+        }
+        saveOnlinePlayerBuffs();
+        if (buffBossbarManager != null) {
+            buffBossbarManager.stop();
+        }
+        runtimeFlushDone = true;
     }
 
     // Every station manager owns its own state, so each flush is isolated: a manager that cannot write (a
     // missing class, a broken CraftEngine handle) must not skip the managers after it, and the shutdown path
     // has no retry. Each failure is logged with its own step name; the sequence itself never throws.
     private void saveAllBlockData() {
-        if (scheduler != null && scheduler.isFolia()) {
-            runDisableStep("plugin.disable_step_save_cooking_pot_data", CookingPotBlockBehavior::markAllBlockEntitiesDirty);
-            runDisableStep("plugin.disable_step_save_cutting_board_data", CuttingBoardBlockBehavior::markAllBlockEntitiesDirty);
-        } else {
-            runDisableStep("plugin.disable_step_save_cooking_pot_data", CookingPotBlockBehavior::saveAllData);
-            runDisableStep("plugin.disable_step_save_cutting_board_data", CuttingBoardBlockBehavior::saveAllData);
-        }
-        runDisableStep("plugin.disable_step_save_skillet_data", SkilletBlockBehavior::saveAllData);
-        runDisableStep("plugin.disable_step_save_stove_data", StoveCookingBlockBehavior::saveAllData);
-
-        flushCraftEngineWorldData();
-    }
-
-    private void flushCraftEngineWorldData() {
-        BukkitWorldManager worldManager = BukkitWorldManager.instance();
-        if (worldManager == null) {
-            return;
-        }
-
-        for (World world : getServer().getWorlds()) {
-            runDisableStep("plugin.disable_step_flush_craftengine_world", () -> {
-                CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
-                if (ceWorld != null) {
-                    ceWorld.saveChunks();
-                    ceWorld.saveSettings();
-                }
-            }, "world", world.getName());
-        }
+        WorldDataPersistence.saveAllBlockData(this);
     }
 
     // ignoreCancelled: WorldUnloadEvent is cancellable, and this handler passivates + drops skillet/stove
@@ -825,22 +844,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void saveWorldBlockData(World world) {
-        if (world == null) {
-            return;
-        }
-
-        for (BlockPosKey posKey : CookingPotBlockBehavior.getAllBlockEntities(world).keySet()) {
-            CookingPotBlockBehavior.saveBlockEntityData(world, posKey);
-        }
-        for (BlockPosKey posKey : CuttingBoardBlockBehavior.getAllBlockEntities(world).keySet()) {
-            CuttingBoardBlockBehavior.saveBlockEntityData(world, posKey);
-        }
-        if (skilletManager != null) {
-            skilletManager.saveWorldData(world);
-        }
-        if (stoveManager != null) {
-            stoveManager.saveWorldData(world);
-        }
+        WorldDataPersistence.saveWorldBlockData(this, world);
     }
 
     @EventHandler
@@ -964,8 +968,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         BehaviorRegistrar.replayContentRegistrations();
         long reloadStart = System.nanoTime();
         // One parse per user file for this whole pass: validation and the load pass read the same four files,
-        // and a reload could not see two different contents anyway. Cleared at the start of every reload.
+        // and a reload could not see two different contents anyway. Closed in the finally below, so a later
+        // `/fd reload gui` (which opens no pass of its own) reads the current file rather than this pass's parse.
         configBootstrap.beginReload();
+        try {
+            reloadCommonBody(reloadLanguages, reloadStart);
+        } finally {
+            configBootstrap.endReload();
+        }
+    }
+
+    private void reloadCommonBody(boolean reloadLanguages, long reloadStart) {
         resetReloadTimings();
         long phase = System.nanoTime();
         configBootstrap.ensureConfigDefaults();
@@ -2076,6 +2089,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      *  FarmersDelightEnchantments.register / addToPool from an addon's onEnable. A datapack registry object
      *  still needs a server restart to become usable — the installer prints its own banner. */
     public void refreshEnchantSystem() {
+        if (getServer().isStopping()) return; // Keep addon definitions cached for the next bootstrap.
         listeners.refreshEnchantmentFallback();
         listeners.reloadEnchantCandidates();
     }

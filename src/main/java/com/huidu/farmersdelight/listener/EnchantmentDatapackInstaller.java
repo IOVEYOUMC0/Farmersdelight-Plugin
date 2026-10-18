@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.datapack.FarmersDelightDatapacks;
 import com.huidu.farmersdelight.api.enchant.EnchantmentDefinition;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.config.EnchantmentSettings;
@@ -17,13 +18,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerLoadEvent;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,20 +29,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static com.huidu.farmersdelight.api.util.DatapackSupport.writeIfChanged;
+
 public final class EnchantmentDatapackInstaller implements Listener {
 
     private static final String DATAPACK_DIRECTORY = "farmersdelight_enchant";
     private static final String PACK_DESCRIPTION = "FarmersDelight configurable enchantments";
 
-    private static final int MIN_COST_BASE = 15;
-    private static final int MIN_COST_PER_LEVEL = 9;
-    private static final int MAX_COST_BASE = 50;
-    private static final int MAX_COST_PER_LEVEL = 8;
-    private static final int ANVIL_COST = 2;
-    private static final String FALLBACK_NAME = "Backstabbing";
-    private static final List<String> SLOTS = List.of("mainhand");
     private static final String SUPPORTED_ITEMS_TAG = "farmersdelight:enchantable/knife";
-    private static final List<String> SUPPORTED_ITEMS = List.of();
     private static final List<String> DISTRIBUTION_TAGS = List.of(
             "tradeable",
             "treasure",
@@ -66,12 +57,17 @@ public final class EnchantmentDatapackInstaller implements Listener {
         return plugin == null || plugin.getConfig().getBoolean("enchantments.install-datapack", true);
     }
 
-    // Registry-scoped datapack content (enchantments, enchantment tags) is loaded by the server from
-    // the primary world's datapacks folder and shared by every world, so the pack is written once into
-    // the primary world. Copies in non-primary worlds are removed.
+    // Export registry settings and migrate old world definitions.
     public void installToPrimaryWorld(World primaryWorld) {
         if (primaryWorld == null) {
             I18n.logWarning("plugin.enchantment_datapack_no_worlds");
+            return;
+        }
+        try {
+            DatapackSupport.migrateLegacyPack(primaryWorld,
+                    plugin.getDataFolder().toPath(), DATAPACK_DIRECTORY);
+        } catch (IOException | IllegalStateException failure) {
+            plugin.getLogger().warning("Could not preserve legacy enchant data pack: " + failure.getMessage());
             return;
         }
         EnchantmentSettings settings = plugin.getEnchantmentSettings();
@@ -79,8 +75,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         if (shouldInstall(settings)) {
             wrote = installToWorld(primaryWorld, settings);
         } else {
-            wrote = deletePack(DatapackSupport.worldRoot(primaryWorld)
-                    .resolve("datapacks").resolve(DATAPACK_DIRECTORY));
+            wrote = deletePack(DatapackSupport.managedPack(plugin.getDataFolder().toPath(), DATAPACK_DIRECTORY));
         }
         int cleaned = cleanupRedundantDatapacks(primaryWorld);
         if (wrote || cleaned > 0) {
@@ -88,8 +83,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
         }
     }
 
-    // Deletes the farmersdelight_enchant datapack from every non-primary world. The server scans only
-    // the primary world's datapacks/ folder, so these copies are ignored. Skips the primary world.
+    // Remove ignored copies outside the primary world's pack scan.
     private int cleanupRedundantDatapacks(World primaryWorld) {
         Path primaryDatapack = DatapackSupport.worldRoot(primaryWorld)
                 .resolve("datapacks")
@@ -144,9 +138,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     private boolean installToWorld(World world, EnchantmentSettings settings) {
-        Path datapackDir = DatapackSupport.worldRoot(world)
-                .resolve("datapacks")
-                .resolve(DATAPACK_DIRECTORY);
+        Path datapackDir = DatapackSupport.managedPack(plugin.getDataFolder().toPath(), DATAPACK_DIRECTORY);
         try {
             NamespacedId supportedTag = NamespacedId.parse(SUPPORTED_ITEMS_TAG);
             List<GeneratedFile> generated = new ArrayList<>();
@@ -206,6 +198,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 }
             }
             changed += deleteStaleFiles(datapackDir, generated);
+            writeIfChanged(datapackDir.resolve(".backstabbing-id"), settings.backstabbing().id());
             if (!pendingRestart.isEmpty()) {
                 I18n.logWarning("plugin.datapack_registry_pending_restart",
                         "ids", String.join(", ", pendingRestart),
@@ -230,18 +223,11 @@ public final class EnchantmentDatapackInstaller implements Listener {
                 .resolve(id.path() + ".json");
     }
 
-    /**
-     * Lists an enchantment in a vanilla distribution tag, but only when the running server has already loaded
-     * it: an enchantment written by this run is picked up on the next start, and a tag naming an entry the
-     * registry does not know makes the server's tag load fail (which on newer releases also takes every loot
-     * table that reads that tag down with it). Ids skipped here are reported so the operator knows a restart
-     * is what completes the install.
-     */
+    // These files load together on the next start; a newly written definition can safely enter its tags.
     private static void addDistributionEntry(Map<String, List<String>> distribution, String tag,
                                              String enchantmentId, List<String> pendingRestart) {
-        if (isEnchantmentRegistered(enchantmentId)) {
-            distribution.get(tag).add(enchantmentId);
-        } else if (!pendingRestart.contains(enchantmentId)) {
+        distribution.get(tag).add(enchantmentId);
+        if (!isEnchantmentRegistered(enchantmentId) && !pendingRestart.contains(enchantmentId)) {
             pendingRestart.add(enchantmentId);
         }
     }
@@ -255,7 +241,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     private void announceInstalled(World primaryWorld) {
         I18n.logInfo("plugin.datapack_installed",
                 "name", DATAPACK_DIRECTORY,
-                "dir", DatapackSupport.worldRoot(primaryWorld).resolve("datapacks").resolve(DATAPACK_DIRECTORY),
+                "dir", DatapackSupport.managedPack(plugin.getDataFolder().toPath(), DATAPACK_DIRECTORY),
                 "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
     }
 
@@ -264,126 +250,19 @@ public final class EnchantmentDatapackInstaller implements Listener {
     }
 
     static String renderDefinition(EnchantmentSettings.Backstabbing backstabbing) {
-        NamespacedId id = NamespacedId.parse(backstabbing.id());
-        return renderEnchantJson(
-                "enchantment." + id.namespace() + "." + id.path(), FALLBACK_NAME,
-                backstabbing.definition().weight(), backstabbing.definition().maxLevel(),
-                MIN_COST_BASE, MIN_COST_PER_LEVEL, MAX_COST_BASE, MAX_COST_PER_LEVEL, ANVIL_COST, SLOTS);
+        return FarmersDelightDatapacks.renderDefinition(backstabbing);
     }
 
     static String renderDefinition(EnchantmentDefinition definition) {
-        return renderEnchantJson(
-                definition.translationKey(), definition.fallbackName(),
-                definition.weight(), definition.maxLevel(),
-                definition.minCostBase(), definition.minCostPerLevel(),
-                definition.maxCostBase(), definition.maxCostPerLevel(),
-                definition.anvilCost(), definition.slots());
-    }
-
-    // All FarmersDelight-managed enchants (built-in backstab + API-registered) share the one empty
-    // supported-items tag, since the enchant filter — not vanilla supported_items — distributes them.
-    private static String renderEnchantJson(String translationKey, String fallbackName, int weight, int maxLevel,
-                                            int minCostBase, int minCostPerLevel, int maxCostBase,
-                                            int maxCostPerLevel, int anvilCost, List<String> slots) {
-        StringBuilder slotsJson = new StringBuilder();
-        for (String slot : slots) {
-            if (!slotsJson.isEmpty()) {
-                slotsJson.append(", ");
-            }
-            slotsJson.append('"').append(json(slot.toLowerCase(Locale.ROOT))).append('"');
-        }
-        return "{\n"
-                + "  \"description\": {\n"
-                + "    \"translate\": \"" + json(translationKey) + "\",\n"
-                + "    \"fallback\": \"" + json(fallbackName) + "\"\n"
-                + "  },\n"
-                + "  \"supported_items\": \"#" + json(SUPPORTED_ITEMS_TAG) + "\",\n"
-                + "  \"weight\": " + weight + ",\n"
-                + "  \"max_level\": " + maxLevel + ",\n"
-                + "  \"min_cost\": {\"base\": " + minCostBase
-                + ", \"per_level_above_first\": " + minCostPerLevel + "},\n"
-                + "  \"max_cost\": {\"base\": " + maxCostBase
-                + ", \"per_level_above_first\": " + maxCostPerLevel + "},\n"
-                + "  \"anvil_cost\": " + anvilCost + ",\n"
-                + "  \"slots\": [" + slotsJson + "],\n"
-                + "  \"effects\": {}\n"
-                + "}\n";
+        return FarmersDelightDatapacks.renderDefinition(definition);
     }
 
     static String renderSupportedItems() {
-        StringBuilder values = new StringBuilder();
-        for (String item : SUPPORTED_ITEMS) {
-            if (!values.isEmpty()) {
-                values.append(",\n");
-            }
-            values.append("    \"").append(json(item)).append('"');
-        }
-        return "{\n  \"replace\": true,\n  \"values\": ["
-                + (values.isEmpty() ? "" : "\n" + values + "\n  ")
-                + "]\n}\n";
+        return FarmersDelightDatapacks.renderSupportedItems();
     }
 
-    static String renderDistributionTag(List<String> enchantmentIds) {
-        StringBuilder values = new StringBuilder();
-        for (String id : enchantmentIds) {
-            if (!values.isEmpty()) {
-                values.append(", ");
-            }
-            values.append('"').append(json(id)).append('"');
-        }
-        return "{\n"
-                + "  \"replace\": false,\n"
-                + "  \"values\": [" + values + "]\n"
-                + "}\n";
-    }
-
-    private static boolean writeIfChanged(Path destination, String content) throws IOException {
-        byte[] desired = content.getBytes(StandardCharsets.UTF_8);
-        if (Files.isRegularFile(destination) && Arrays.equals(Files.readAllBytes(destination), desired)) {
-            return false;
-        }
-        Files.createDirectories(destination.getParent());
-        Path temporary = Files.createTempFile(
-                destination.getParent(), destination.getFileName().toString() + ".", ".tmp");
-        try {
-            Files.write(temporary, desired);
-            try {
-                Files.move(temporary, destination,
-                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException ignored) {
-                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(temporary);
-        }
-        return true;
-    }
-
-    private static String json(String value) {
-        StringBuilder escaped = new StringBuilder(value == null ? 0 : value.length() + 8);
-        if (value == null) {
-            return "";
-        }
-        for (int index = 0; index < value.length(); index++) {
-            char character = value.charAt(index);
-            switch (character) {
-                case '"' -> escaped.append("\\\"");
-                case '\\' -> escaped.append("\\\\");
-                case '\b' -> escaped.append("\\b");
-                case '\f' -> escaped.append("\\f");
-                case '\n' -> escaped.append("\\n");
-                case '\r' -> escaped.append("\\r");
-                case '\t' -> escaped.append("\\t");
-                default -> {
-                    if (character < 0x20) {
-                        escaped.append(String.format("\\u%04x", (int) character));
-                    } else {
-                        escaped.append(character);
-                    }
-                }
-            }
-        }
-        return escaped.toString();
+    static String renderDistributionTag(List<String> ids) {
+        return FarmersDelightDatapacks.renderDistributionTag(ids);
     }
 
     private boolean deletePack(Path datapackDir) {
@@ -426,7 +305,9 @@ public final class EnchantmentDatapackInstaller implements Listener {
     private record NamespacedId(String namespace, String path) {
         static NamespacedId parse(String value) {
             int separator = value.indexOf(':');
-            if (separator <= 0 || separator == value.length() - 1) {
+            if (NamespacedKey.fromString(value) == null || value.contains("/../")
+                    || value.endsWith("/..") || value.contains(":../") || value.contains(":./")
+                    || value.contains("/./") || value.endsWith("/.") || separator <= 0) {
                 throw new IllegalArgumentException("Invalid namespaced id: " + value);
             }
             return new NamespacedId(value.substring(0, separator), value.substring(separator + 1));

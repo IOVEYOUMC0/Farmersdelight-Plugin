@@ -1,0 +1,27 @@
+templates:
+  farmersdelight:hand_cooking_display:
+    material: stick
+    client-bound-model: false
+    model:
+      type: minecraft:model
+      path: ${__NAMESPACE__}:item/${__ID__}
+      generation:
+        parent: ${__NAMESPACE__}:item/${skewer}
+        display:
+          firstperson_righthand:
+            rotation: -75,-90,25
+            translation: 1.13,3.2,1.13
+            scale: 0.68,0.68,0.68
+          firstperson_lefthand:
+            rotation: -75,90,-25
+            translation: 1.13,3.2,1.13
+            scale: 0.68,0.68,0.68
+items:
+  farmersdelight:meat_skewer_hand_cooking_display:
+    template: farmersdelight:hand_cooking_display
+    arguments:
+      skewer: meat_skewer
+  farmersdelight:vegetable_skewer_hand_cooking_display:
+    template: farmersdelight:hand_cooking_display
+    arguments:
+      skewer: vegetable_skewer

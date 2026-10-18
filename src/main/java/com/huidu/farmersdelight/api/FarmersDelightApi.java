@@ -240,19 +240,31 @@ public final class FarmersDelightApi {
             List<RecipeType> types, Function<ViewableRecipe, String> itemIdResolver) {
         Map<String, List<JumpTarget>> next = new LinkedHashMap<>();
         for (RecipeType type : types) {
-            for (ViewableRecipe recipe : type.recipes()) {
-                if (recipe == null || recipe.id() == null) {
-                    continue;
-                }
-                String itemId = itemIdResolver.apply(recipe);
-                if (itemId != null) {
-                    next.computeIfAbsent(itemId, ignored -> new ArrayList<>(1))
-                            .add(new JumpTarget(type.id(), recipe.id()));
-                }
+            try {
+                addRecipeTypeToIndex(next, type, itemIdResolver);
+            } catch (RuntimeException | LinkageError failure) {
+                // One addon's broken recipe list must not stop the rest of the index from being built, nor
+                // abort the caller's own registration/reload steps by rethrowing out of this loop.
+                I18n.logWarning("plugin.recipe_index_type_failed",
+                        "type", String.valueOf(type.id()), "error", String.valueOf(failure.getMessage()));
             }
         }
         next.replaceAll((itemId, targets) -> List.copyOf(targets));
         return Collections.unmodifiableMap(next);
+    }
+
+    private static void addRecipeTypeToIndex(Map<String, List<JumpTarget>> next, RecipeType type,
+                                             Function<ViewableRecipe, String> itemIdResolver) {
+        for (ViewableRecipe recipe : type.recipes()) {
+            if (recipe == null || recipe.id() == null) {
+                continue;
+            }
+            String itemId = itemIdResolver.apply(recipe);
+            if (itemId != null) {
+                next.computeIfAbsent(itemId, ignored -> new ArrayList<>(1))
+                        .add(new JumpTarget(type.id(), recipe.id()));
+            }
+        }
     }
 
     /** Returns all registered recipes producing the item without scanning recipe collections. */

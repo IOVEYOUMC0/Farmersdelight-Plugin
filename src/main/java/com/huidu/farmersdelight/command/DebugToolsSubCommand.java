@@ -23,7 +23,7 @@ final class DebugToolsSubCommand extends SubCommand {
 
     private DebugToolsSubCommand(Object delegate, Method executeMethod,
                                  Method tabCompleteMethod, Logger logger) {
-        super("debugtools", List.of("debug"), "farmersdelight.admin", "literal:debug performance tools");
+        super("debugtools", List.of(), "farmersdelight.admin", "literal:debug performance tools");
         this.delegate = delegate;
         this.executeMethod = executeMethod;
         this.tabCompleteMethod = tabCompleteMethod;

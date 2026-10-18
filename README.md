@@ -43,6 +43,8 @@ Install CraftEngine first, then place the FarmersDelight jar in `plugins/`. Use 
 
 The complete player, server, addon and API documentation is maintained in the [FarmersdelightPluginWiKi](https://github.com/IOVEYOUMC0/FarmersdelightPluginWiKi) repository. It can be connected to GitBook through its GitHub integration.
 
+Drink food defaults and cider duration are covered by the [verification record](docs/verification-upstream-values-2026-10-13.md). Existing CE files require merging; numeric checks do not prove equivalence of all effects or gameplay.
+
 ## Building
 
 ```text

@@ -159,6 +159,16 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         return CustomBlockUtils.getBehavior(state, SkilletBlockBehavior.class);
     }
 
+    /**
+     * CraftEngine skips useOnBlock for a sneaking player who holds an item unless the behavior opts in here.
+     * The skillet keeps the non-sneaking semantics for every item (a held skillet still passes through to
+     * vanilla placement), so sneak + item must reach this behavior.
+     */
+    @Override
+    public boolean canUseOnBlockIfSecondaryUseActive(UseOnContext context, ImmutableBlockState state) {
+        return true;
+    }
+
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) {

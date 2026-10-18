@@ -30,7 +30,37 @@ class HandheldSkewerIntegrationTest {
     private static final Path CAMPFIRE = BBQD.resolve("campfire_recipes.yml");
 
     @Test
+    void rawSkewersDeclareTheirOwnHandheldTagAndPoseModels() {
+        for (String namespace : List.of("farmersdelight", "barbequesdelight")) {
+            boolean addon = !namespace.equals("farmersdelight");
+            if (addon && !Files.isDirectory(BBQD.getParent())) {
+                // A standalone checkout (the plugin's own CI) has no sibling addon repositories; the
+                // workspace checkout runs this branch.
+                continue;
+            }
+            Path folder = addon ? BBQD.getParent() : FD_RESOURCES.resolve("craftengine/farmersdelight/configuration");
+            var items = YamlConfiguration.loadConfiguration(folder.resolve("items.yml").toFile());
+            var poses = YamlConfiguration.loadConfiguration(folder.resolve("handheld_skewers.yml").toFile());
+            int tagged = 0;
+            for (String id : items.getConfigurationSection("items").getKeys(false)) {
+                List<String> tags = items.getStringList("items." + id + ".settings.tags");
+                if (!tags.contains(CampfireSkewerResults.HAND_COOKABLE_TAG)) continue;
+                tagged++;
+                assertTrue(id.contains("skewer") && !id.contains("cooked") && !id.contains("grilled"), id);
+                String pose = "items." + id + "_hand_cooking_display";
+                assertTrue(poses.contains(pose), id + " needs its pose model");
+                assertTrue(id.endsWith(":" + poses.getString(pose + ".arguments.skewer")), id);
+            }
+            assertTrue(tagged == (namespace.equals("farmersdelight") ? 2 : 10), namespace + ": " + tagged);
+        }
+    }
+
+    @Test
     void everyRawSkewerHasACampfireRecipeMatchingItsGrillingResult() throws Exception {
+        if (!Files.isRegularFile(GRILLING) || !Files.isRegularFile(CAMPFIRE)) {
+            // The addon's recipe files only exist in a workspace checkout; the plugin's own CI has none.
+            return;
+        }
         YamlConfiguration grilling = YamlConfiguration.loadConfiguration(GRILLING.toFile());
         YamlConfiguration campfire = YamlConfiguration.loadConfiguration(CAMPFIRE.toFile());
         ConfigurationSection raw = grilling.getConfigurationSection("grilling_recipes");

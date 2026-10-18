@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import com.huidu.farmersdelight.util.PeriodicStagger;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -47,9 +49,9 @@ class DisplayCullerRemovalTest {
     @Test
     void onlyTheSlotsWithAConsumerStayAndTheRemovedOneIsRejected() {
         assertEquals(List.of("tick-cleanup", "display-sync"),
-                com.huidu.farmersdelight.util.PeriodicStagger.slots(), "the slot list follows its consumers");
+                PeriodicStagger.slots(), "the slot list follows its consumers");
         assertThrows(IllegalArgumentException.class,
-                () -> com.huidu.farmersdelight.util.PeriodicStagger.initialDelay("display-cull", 20L),
+                () -> PeriodicStagger.initialDelay("display-cull", 20L),
                 "the removed culling slot must not be usable again");
     }
 

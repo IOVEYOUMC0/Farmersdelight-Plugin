@@ -14,6 +14,7 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.context.UseOnContext;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -92,9 +93,9 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         for (int dx = -4; dx <= 4; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 for (int dz = -4; dz <= 4; dz++) {
-                    // Chunks that are not loaded are skipped: counting them would mean loading them from a
-                    // random tick just to answer a spread-limit question.
-                    if (!world.isChunkLoaded((origin.getX() + dx) >> 4, (origin.getZ() + dz) >> 4)) {
+                    // Skip unloaded chunks and regions owned by another thread.
+                    if (!world.isChunkLoaded((origin.getX() + dx) >> 4, (origin.getZ() + dz) >> 4)
+                            || !Bukkit.isOwnedByCurrentRegion(world, (origin.getX() + dx) >> 4, (origin.getZ() + dz) >> 4)) {
                         continue;
                     }
                     Block near = world.getBlockAt(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
@@ -126,6 +127,9 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private boolean canPlaceAt(Block target) {
+        World world = target.getWorld();
+        if (!world.isChunkLoaded(target.getX() >> 4, target.getZ() >> 4)
+                || !Bukkit.isOwnedByCurrentRegion(world, target.getX() >> 4, target.getZ() >> 4)) return false;
         if (!target.getType().isAir()) {
             return false;
         }

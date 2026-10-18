@@ -11,15 +11,10 @@ config-version: 1
 # Affects plugin logs, console text and text with no player context; player GUI/messages still prefer the player client language.
 language: ''
 
-# Datapacks are server-wide when loaded from the primary world's datapacks folder, so ALL registry
-# data packs (tags, enchantments, damage types, advancements) are written there once and shared by
-# every world. CraftEngine items keep their tags in the CE configs.
+# Paper loads registry packs from plugins/FarmersDelight/datapacks before worlds start.
+# Tags, enchantments and damage types are server-wide. CraftEngine items keep their tags in CE configs.
 datapacks:
-  # Whether to export the common-item tags (farmersdelight_tags) into the primary world's datapacks
-  # folder. Only vanilla members are written; CraftEngine items keep their tags in the CE configs.
-  # Registry tags are server-global (shared by every world), so the pack is written once into the
-  # primary world only - a per-world inject would be redundant. Bukkit/Paper reload it automatically;
-  # Changes here take effect after a server restart: registry data is not reloaded.
+  # Export vanilla common-tag members; new runtime addon registrations apply on the next start.
   tags-enabled: true
 
 # Enchantments added by FarmersDelight. Knife and skillet enchantments are configured separately.
@@ -27,11 +22,8 @@ datapacks:
 # these lists only decide what each FarmersDelight item group may receive.
 enchantments:
   enabled: true
-  # Whether to install the built-in enchantment datapack (farmersdelight_enchant, contains the
-  # backstabbing enchant definition + tag files). The datapack is installed into the primary
-  # world's datapacks/ folder and requires a server restart (or /reload) to take effect; admin
-  # edits to already-installed files survive plugin updates. Set to false to skip the install
-  # (e.g. when authoring the enchantment yourself). Reinstall via /fd reload enchant.
+  # Paper discovers farmersdelight_enchant at startup. Use false for an externally supplied definition.
+  # Configure generated definitions below; /fd reload enchant saves them for the next server start.
   install-datapack: true
   compatibility:
     # When another enchantment plugin is detected, stand down only FarmersDelight's custom backstab enchant so
@@ -142,11 +134,8 @@ debug:
   categories:
     # No entries.
     []
-# Vanilla damage-type injection (farmersdelight_damage datapack): the custom farmersdelight:stove_burn
-# damage type used by the stove grilling surface, plus its no_knockback tag entry. Installed into
-# the primary world's datapacks/ folder and requires a server restart (or /reload) to take effect.
-# Damage files under the obsolete loot datapack are migrated and removed during installation.
-# Reinstall via /fd reload damage.
+# Paper loads farmersdelight_damage at startup, including stove_burn and its vanilla damage tags.
+# /fd reload damage saves files for the next start. Legacy world packs are backed up on migration.
 damage-type:
   install-datapack: true
 
@@ -783,13 +772,10 @@ handheld-skewer:
   cooking-time-ticks: 120
   progress-display:
     # Rewrites the held skewer for that viewer only, showing the cooking as a client-only durability bar
-    # (real durability is never touched). Five packets per second, the same cadence the handheld skillet uses.
+    # and its hand_cooking_display model when available. Real item data is unchanged; five updates per second.
     enabled: true
-  # Raw skewer -> cooked skewer. This table is an OVERRIDE in front of the campfire cooking recipe, which is
-  # what Farmer's Delight 1.4 asks (RecipeUtils.getCampfireCookingRecipe): an id listed here wins, anything
-  # else falls through to the campfire recipe, and an input with neither never starts cooking. The recipe
-  # query shares the very same cache the skillet uses, so editing the pack's campfire recipe changes handheld
-  # cooking too.
+  # Only items tagged farmersdelight:hand_cookable can cook in hand.
+  # These overrides precede campfire recipes; tagged items still need a result.
   results:
     farmersdelight:meat_skewer: farmersdelight:cooked_meat_skewer
     farmersdelight:vegetable_skewer: farmersdelight:cooked_vegetable_skewer

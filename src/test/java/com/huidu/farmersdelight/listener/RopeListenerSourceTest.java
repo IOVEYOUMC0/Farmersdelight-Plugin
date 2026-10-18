@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The rope path must never cancel an interaction it does not own — the live defect behind "the bell at the top
@@ -43,10 +44,6 @@ class RopeListenerSourceTest {
                 "the block behavior reports InteractionResult instead of cancelling events");
         assertTrue(source.contains("RopeBellScan.findBellOffset("),
                 "the bell scan is shared by both empty-hand entry points");
-    }
-
-    private static void assertTrue(boolean value, String message) {
-        org.junit.jupiter.api.Assertions.assertTrue(value, message);
     }
 
     /** Finds the source from the test working directory the same way the other source assertions do. */

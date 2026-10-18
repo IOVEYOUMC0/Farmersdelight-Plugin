@@ -17,8 +17,8 @@ texture) prunes the now-invalid icon instead of leaving a dead entry behind:
 * vanilla results (``minecraft:*``) are registered by the FarmersDelight pack and reference the client's own
   vanilla texture, so no local file is required for them.
 
-Repo-scoped: this repository ships only the farmersdelight pack. The standalone packs under ``packs/`` and the
-addons' packs live in the monorepo parent directory (``tools/meal_icons.py`` there covers them).
+Scope: this repository ships only the farmersdelight pack; the standalone packs under ``packs/`` and the
+addons' packs are not part of it and are not covered here.
 
 Usage:
     python tools/meal_icons.py            # rewrite the meal_icons.yml files

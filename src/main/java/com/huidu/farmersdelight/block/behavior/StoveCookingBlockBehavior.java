@@ -264,6 +264,16 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         return CustomBlockUtils.getBehavior(state, StoveCookingBlockBehavior.class);
     }
 
+    /**
+     * CraftEngine skips useOnBlock for a sneaking player who holds an item unless the behavior opts in here.
+     * The stove has no sneak gate of its own, so a sneaking player must still reach the place-food
+     * interaction instead of falling through to vanilla's eat-the-item.
+     */
+    @Override
+    public boolean canUseOnBlockIfSecondaryUseActive(UseOnContext context, ImmutableBlockState state) {
+        return true;
+    }
+
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) {
@@ -301,15 +311,13 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
 
         if (isEquippable(heldItem)) {
             // Passing through lets vanilla equip the held armor after CraftEngine has processed the stove
-            // interaction. Cancel this before the sneak bypass too, and for either hand, so a second
-            // right-click cannot consume the replaced piece.
+            // interaction. Cancel it for either hand, so a second right-click cannot consume the replaced
+            // piece.
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
-        if (player.isSneaking()) {
-            return InteractionResult.PASS;
-        }
-
+        // No sneak gate: a sneaking player still places food here instead of having the held item eaten by
+        // vanilla.
         if (heldItem == null || heldItem.getType().isAir()) {
             return InteractionResult.PASS;
         }
@@ -345,7 +353,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
                 setLit(block, state, false);
                 SoundUtils.play(block.getWorld(), center(block), extinguishSound,
                         Sound.BLOCK_FIRE_EXTINGUISH, SoundCategory.BLOCKS, 1.0F, 1.0F);
-                FarmersDelightItems.damage(heldItem, stateChangeToolDamage, center(block));
+                damageTool(player, heldItem, block);
                 ItemUtils.swingHand(player, context.getHand());
                 return InteractionResult.SUCCESS_AND_CANCEL;
             }
@@ -373,7 +381,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
                 setLit(block, state, true);
                 SoundUtils.play(block.getWorld(), center(block), igniteSound,
                         Sound.ITEM_FLINTANDSTEEL_USE, SoundCategory.BLOCKS, 1.0F, 1.0F);
-                FarmersDelightItems.damage(heldItem, stateChangeToolDamage, center(block));
+                damageTool(player, heldItem, block);
                 ItemUtils.swingHand(player, context.getHand());
                 return InteractionResult.SUCCESS_AND_CANCEL;
             }
@@ -389,6 +397,13 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             }
         }
         return InteractionResult.PASS;
+    }
+
+    /** Wears the tool down, except in creative mode where vanilla never consumes durability. */
+    private void damageTool(Player player, ItemStack tool, Block block) {
+        if (player.getGameMode() != GameMode.CREATIVE) {
+            FarmersDelightItems.damage(tool, stateChangeToolDamage, center(block));
+        }
     }
 
     /** Which state change a right-click performs: a stove is only ever lit or put out, never both. */

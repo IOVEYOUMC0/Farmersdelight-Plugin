@@ -11,15 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Pack guard for the live defect "the enchanting table offers nothing clickable for the knives and the skillet,
- * while vanilla items are fine".
- *
- *
- * Vanilla computes a cost per offer only when the stack is single and carries minecraft:enchantable
- * with a value above zero; without the component the costs stay 0, so the offers are drawn but a click is a
- * no-op. This asserts the declaration exists for every knife and the skillet, so dropping it again is red.
- */
+/** Ensures tool carriers declare the vanilla prerequisites for table enchanting. */
 class EnchantablePackItemsTest {
 
     private static final String[] KNIVES = {
@@ -51,14 +43,9 @@ class EnchantablePackItemsTest {
         int enchantable = block.indexOf("minecraft:enchantable:");
         assertTrue(enchantable >= 0, item + " must declare minecraft:enchantable, or the table's costs stay 0 "
                 + "and the options cannot be clicked");
-        // Scalar payload on purpose: that is the shape this pack uses for every other single-field component
-        // (minecraft:max_stack_size: 1) and the one CraftEngine hands to the vanilla component codec. The map
-        // form ({value: N}) is what silently did nothing in the field, so it must fail here.
         String tail = block.substring(enchantable);
         List<String> lines = tail.lines().map(String::trim).filter(line -> !line.isEmpty()).toList();
-        // Map shape on purpose: the pack's data.components path hands the value to the vanilla component
-        // codec, and that codec wants the record form ({value: N}). A bare integer fails to load there
-        // ("Not a map: 14"), which is exactly what the 26.9.2 log showed.
+        // The generic CE components codec expects the record form, not a bare integer.
         assertEquals("minecraft:enchantable:", lines.get(0), item + " declares the component");
         assertTrue(lines.get(1).matches("value:\\s*[1-9]\\d*"),
                 item + " must declare minecraft:enchantable as a map with a value above zero");

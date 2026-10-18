@@ -2,17 +2,15 @@
 
 Why this matters: a duplicated block is not a YAML error. Every constructor-based reader — including
 `yaml.safe_load`, which the other checks in this directory use — keeps the LAST value of a repeated key and
-reports nothing, so the duplicate silently overrides the first block. The 1.4 migration shipped exactly that:
-`farmersdelight:cocoa_beans_bag` carried two `states:` blocks, and the second one both hid the first and stole
-`rice_bag`'s block. `yaml.safe_load` saw a clean document, and CraftEngine's own duplicate-tolerant loader
-would have loaded only the second block.
+reports nothing, so the duplicate silently overrides the first block. CraftEngine's own loader is
+duplicate-tolerant in the same way, so a second `states:` block would hide the first without any error.
 
 So this check walks the *node* tree from `yaml.compose`, where a mapping is still a list of key/value pairs and
 a repeated key is visible, instead of loading the document. It never writes to a file.
 
-Scope: `<module>/src/main/resources/**/*.yml` and `*.yaml` — the CraftEngine packs, `lang/*.yml`,
-`paper-plugin.yml`, `config.yml`, `common-tags.yml`, ... The standalone packs under the monorepo's `packs/`
-are not in this repository; a workspace-level copy of this script scans them by listing `packs` in SCAN_ROOTS.
+Scope: `src/main/resources/**/*.yml` and `*.yaml` — the CraftEngine packs, `lang/*.yml`, `paper-plugin.yml`,
+`config.yml`, `common-tags.yml`, ... The standalone packs under the workspace's `packs/` are not part of this
+repository and are not scanned here.
 
 Non-strict YAML is skipped, not guessed at: a scanner/parser/composer error, a second document, or a file that
 is not UTF-8 is reported as `skipped: <path>: <reason>` and does not by itself fail the check, so a custom macro
@@ -37,8 +35,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Directories scanned relative to the repository root. Kept as a list so a workspace-level copy can add the
-# monorepo's standalone `packs` directory without touching the walking code.
+# Directories scanned relative to the repository root.
 SCAN_ROOTS = ["src/main/resources"]
 SUFFIXES = (".yml", ".yaml")
 SKIP_PARTS = ("\\build\\", "/build/", "\\Reference\\", "/Reference/")
