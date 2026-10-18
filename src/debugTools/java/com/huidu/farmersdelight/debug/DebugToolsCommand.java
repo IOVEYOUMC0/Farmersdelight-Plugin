@@ -671,9 +671,10 @@ public final class DebugToolsCommand {
         diagnostics.sendCapped(player, lines, REPORT_CAP, "verified setup(s)");
         // One verdict line so a run is machine-readable at a glance: any unverified fill is a failure, not a
         // detail buried in the per-station list.
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>Recipe setups verified: " + setups.size()
-                + ", failed/skipped=" + skipped + ", loaded recipes for " + type + "=" + loaded
-                + " - " + (skipped == 0 ? "<green>PASS</green>" : "<red>FAIL</red>")));
+        player.sendMessage(I18n.getComponent(skipped == 0
+                        ? "command.debug_recipe_verified" : "command.debug_recipe_unverified", player,
+                Map.of("setups", String.valueOf(setups.size()), "skipped", String.valueOf(skipped),
+                        "type", type, "loaded", String.valueOf(loaded))));
     }
 
     // Stable spacing keeps recipe stations and heat sources from overlapping.

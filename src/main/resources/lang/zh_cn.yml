@@ -473,6 +473,8 @@ command:
   debug_batch_unknown: "<red>未知的调试目标：{target}</red>"
   debug_batch_addon_folia: "<yellow>Folia 下请使用附属自己的区域调度；FD 只对内置目标提供分批测试。</yellow>"
   debug_batch_failed: "<red>调试批次在第 {count} 个位置后停止，请查看控制台。</red>"
+  debug_recipe_verified: "<gray>配方配置校验：{setups} 个，失败/跳过={skipped}，{type} 已加载配方={loaded} - <green>PASS</green></gray>"
+  debug_recipe_unverified: "<gray>配方配置校验：{setups} 个，失败/跳过={skipped}，{type} 已加载配方={loaded} - <red>FAIL</red></gray>"
   buff_usage: "<yellow>/fd buff give <player> <buff> <time> <level></yellow>\n<dark_gray>  </dark_gray><gray>player</gray> <dark_gray>-</dark_gray> <gray>目标（名字或 @a/@p/@s）</gray> <gray>·</gray> <gray>buff</gray> <dark_gray>-</dark_gray> <gray>buff ID</gray>\n<dark_gray>  </dark_gray><gray>time</gray> <dark_gray>-</dark_gray> <gray>时长（秒，默认 30）</gray> <gray>·</gray> <gray>level</gray> <dark_gray>-</dark_gray> <gray>等级（默认 1）</gray>\n<yellow>/fd buff clear <player> [buff]</yellow>\n<dark_gray>  </dark_gray><gray>player</gray> <dark_gray>-</dark_gray> <gray>目标（名字或 @a/@p/@s）</gray> <gray>·</gray> <gray>buff</gray> <dark_gray>-</dark_gray> <gray>buff ID（省略则清除全部）</gray>"
   buff_given: "{prefix}<white>已给 <white>{player}</white> <gray>发放</gray> <yellow>{buff}</yellow> <gray>等级</gray> <white>{level}</white><gray>，持续</gray> <white>{seconds} 秒</white></white>"
   buff_cleared_all: "{prefix}<white>已清除 <white>{player}</white> <gray>的</gray> <white>{count}</white> <gray>个 buff</gray></white>"
