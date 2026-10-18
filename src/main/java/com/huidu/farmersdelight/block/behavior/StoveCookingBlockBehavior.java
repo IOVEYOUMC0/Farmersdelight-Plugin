@@ -353,7 +353,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
                 setLit(block, state, false);
                 SoundUtils.play(block.getWorld(), center(block), extinguishSound,
                         Sound.BLOCK_FIRE_EXTINGUISH, SoundCategory.BLOCKS, 1.0F, 1.0F);
-                FarmersDelightItems.damage(heldItem, stateChangeToolDamage, center(block));
+                damageTool(player, heldItem, block);
                 ItemUtils.swingHand(player, context.getHand());
                 return InteractionResult.SUCCESS_AND_CANCEL;
             }
@@ -381,7 +381,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
                 setLit(block, state, true);
                 SoundUtils.play(block.getWorld(), center(block), igniteSound,
                         Sound.ITEM_FLINTANDSTEEL_USE, SoundCategory.BLOCKS, 1.0F, 1.0F);
-                FarmersDelightItems.damage(heldItem, stateChangeToolDamage, center(block));
+                damageTool(player, heldItem, block);
                 ItemUtils.swingHand(player, context.getHand());
                 return InteractionResult.SUCCESS_AND_CANCEL;
             }
@@ -397,6 +397,13 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             }
         }
         return InteractionResult.PASS;
+    }
+
+    /** Wears the tool down, except in creative mode where vanilla never consumes durability. */
+    private void damageTool(Player player, ItemStack tool, Block block) {
+        if (player.getGameMode() != GameMode.CREATIVE) {
+            FarmersDelightItems.damage(tool, stateChangeToolDamage, center(block));
+        }
     }
 
     /** Which state change a right-click performs: a stove is only ever lit or put out, never both. */

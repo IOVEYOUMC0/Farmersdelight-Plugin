@@ -243,7 +243,9 @@ public final class DebugToolsCommand {
 
     private void test(Player player, String[] args) {
         Integer count = parseOptionalInt(args, 3, 64);
-        Integer ticks = parseOptionalInt(args, 4, 200);
+        // Above the 600-tick campfire/stove cooking time, so a default run reaches completion instead of
+        // reporting completed=0 that reads like a failure.
+        Integer ticks = parseOptionalInt(args, 4, 700);
         if (args.length < 3 || args.length > 5 || !withAll(testTargets()).contains(normalize(args[2]))
                 || count == null || count <= 0 || ticks == null || ticks < 20 || ticks > 12000) {
             player.sendMessage(I18n.getComponent("command.debug_test_usage", player));
@@ -659,16 +661,19 @@ public final class DebugToolsCommand {
         for (RecipeSetup setup : setups) {
             Location location = setup.location();
             String coords = location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ();
-            lines.add("<green>Filled</green> <yellow>" + setup.recipeId()
+            lines.add("<green>Verified</green> <yellow>" + setup.recipeId()
                     + "</yellow> <gray>station=" + setup.target() + " @ " + coords + " with "
                     + setup.ingredients().size() + " ingredient(s): " + ingredientSummary(setup) + "</gray>");
             if (setup.addon() != null && !setup.addon().hint().isEmpty()) {
                 lines.add("<gray>" + MINI_MESSAGE.escapeTags(setup.addon().hint()) + "</gray>");
             }
         }
-        diagnostics.sendCapped(player, lines, REPORT_CAP, "placed setup(s)");
-        player.sendMessage(MINI_MESSAGE.deserialize("<gray>Recipe setups placed: " + setups.size()
-                + ", skipped positions=" + skipped + ", loaded recipes for " + type + "=" + loaded + "</gray>"));
+        diagnostics.sendCapped(player, lines, REPORT_CAP, "verified setup(s)");
+        // One verdict line so a run is machine-readable at a glance: any unverified fill is a failure, not a
+        // detail buried in the per-station list.
+        player.sendMessage(MINI_MESSAGE.deserialize("<gray>Recipe setups verified: " + setups.size()
+                + ", failed/skipped=" + skipped + ", loaded recipes for " + type + "=" + loaded
+                + " - " + (skipped == 0 ? "<green>PASS</green>" : "<red>FAIL</red>")));
     }
 
     // Stable spacing keeps recipe stations and heat sources from overlapping.
@@ -748,6 +753,7 @@ public final class DebugToolsCommand {
 
     private void activateBatch(Player player, PlacementBatch batch, String target, Runnable finished) {
         int[] activated = {0};
+        int[] failed = {0};
         if (!batches.start(player, batch.activations.size(), index -> {
             PendingActivation activation = batch.activations.get(index);
             if (!("all".equals(target) || target.equals(activation.target()))
@@ -761,8 +767,10 @@ public final class DebugToolsCommand {
                         activation.location().clone().add(0.5, 0.5, 0.5), new ItemStack(Material.WHEAT_SEEDS, 16));
                 activated[0]++;
             } else if (isBuiltInTarget(activation.target())) {
-                activateScheduled(activation);
-                activated[0]++;
+                // Count only a verified activation: the report used to tick the counter before the station
+                // actually changed state, so a failed reflection write still read as a success.
+                if (activateScheduled(activation)) activated[0]++;
+                else failed[0]++;
             } else {
                 DebugToolExtension extension = DebugToolRegistry.find(activation.target());
                 if (extension != null && extension.supportsActivation()) {
@@ -774,7 +782,7 @@ public final class DebugToolsCommand {
             }
         }, () -> {
             player.sendMessage(I18n.getComponent("command.debug_batch_activated", player,
-                    Map.of("count", String.valueOf(activated[0]))));
+                    Map.of("count", String.valueOf(activated[0]), "failed", String.valueOf(failed[0]))));
             finished.run();
         })) player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
     }
@@ -1068,6 +1076,18 @@ public final class DebugToolsCommand {
         saveCookingPotData(location, entity, posKey);
         markCookingPotActive(location.getWorld(), posKey);
         syncCookingPotTray(location);
+        // Verify the insert actually resolved to the intended recipe: tag membership and amounts can make a
+        // "complete" insert match a different recipe or none, and an unverified insert would report a fill the
+        // station never accepted.
+        entity.canCook();
+        CookingPotRecipe matched = entity.getCurrentRecipe();
+        if (matched == null || !setup.recipeId().equals(matched.id())) {
+            plugin.getLogger().warning(I18n.formatConsole("debug.cooking_pot_recipe_mismatch",
+                    "location", ManagerSupport.formatLocation(location),
+                    "expected", setup.recipeId(),
+                    "actual", matched == null ? "(none)" : matched.id()));
+            return false;
+        }
         return true;
     }
 
@@ -1201,40 +1221,42 @@ public final class DebugToolsCommand {
         }
     }
 
-    private void activateScheduled(PendingActivation activation) {
+    private boolean activateScheduled(PendingActivation activation) {
         if (activation == null) {
-            return;
+            return false;
         }
         Location location = activation.location();
         String target = activation.target();
         if (location == null || location.getWorld() == null) {
-            return;
+            return false;
         }
 
         if ("cooking_pot".equals(target) && isPlacedCustomBlock(location, Constants.BLOCK_COOKING_POT)) {
-            activateCookingPot(location, true);
-        } else if ("skillet".equals(target) && isPlacedCustomBlock(location, Constants.BLOCK_SKILLET)) {
-            activateSkillet(location);
-        } else if (("stove".equals(target) || "stove_blocked".equals(target)) && isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) {
-            activateStove(location);
-        } else if ("cooking_pot".equals(target)) {
+            return activateCookingPot(location, true);
+        }
+        if ("skillet".equals(target) && isPlacedCustomBlock(location, Constants.BLOCK_SKILLET)) {
+            return activateSkillet(location);
+        }
+        if (("stove".equals(target) || "stove_blocked".equals(target)) && isPlacedCustomBlock(location, Constants.BLOCK_STOVE)) {
+            return activateStove(location);
+        }
+        if ("cooking_pot".equals(target)) {
             plugin.getLogger().warning(I18n.formatConsole("debug.cooking_pot_activation_skipped",
                     "location", ManagerSupport.formatLocation(location),
                     "id", CustomBlockUtils.getId(location.getBlock())));
         }
+        return false;
     }
 
     // Only stations captured in the player's placement batch can reach this mutation.
-    private void activateCookingPot(Location location, boolean verify) {
+    private boolean activateCookingPot(Location location, boolean verify) {
         CookingPotBlockEntity entity = CookingPotBlockBehavior.getOrCreateBlockEntity(location);
         applyCookingPotDebugState(entity, location);
         BlockPosKey posKey = new BlockPosKey(location);
         saveCookingPotData(location, entity, posKey);
         markCookingPotActive(location.getWorld(), posKey);
         syncCookingPotTray(location);
-        if (verify) {
-            verifyCookingPotFilled(location);
-        }
+        return !verify || verifyCookingPotFilled(location);
     }
 
     private void syncCookingPotTray(Location location) {
@@ -1244,22 +1266,24 @@ public final class DebugToolsCommand {
         plugin.getTrayManager().checkAndPlaceTray(location);
     }
 
-    private void verifyCookingPotFilled(Location location) {
+    private boolean verifyCookingPotFilled(Location location) {
         CookingPotBlockEntity entity = CookingPotBlockBehavior.getBlockEntity(location);
         if (entity == null) {
             plugin.getLogger().warning(I18n.formatConsole("debug.cooking_pot_no_entity",
                     "location", ManagerSupport.formatLocation(location)));
-            return;
+            return false;
         }
         if (!entity.hasStoredContents() || !entity.hasInput()) {
             plugin.getLogger().warning(I18n.formatConsole("debug.cooking_pot_empty",
                     "location", ManagerSupport.formatLocation(location)));
-            return;
+            return false;
         }
         if (!entity.canCook()) {
             plugin.getLogger().warning(I18n.formatConsole("debug.cooking_pot_no_recipe",
                     "location", ManagerSupport.formatLocation(location)));
+            return false;
         }
+        return true;
     }
 
     private void applyCookingPotDebugState(CookingPotBlockEntity entity, Location location) {
@@ -1297,10 +1321,10 @@ public final class DebugToolsCommand {
         CookingPotBlockBehavior.saveBlockEntityData(location.getWorld(), posKey);
     }
 
-    private void activateSkillet(Location location) {
+    private boolean activateSkillet(Location location) {
         SkilletManager manager = plugin.getSkilletManager();
         if (manager == null) {
-            return;
+            return false;
         }
         ItemStack skillet = item(Constants.ITEM_SKILLET, 1);
         manager.recordPlacedSkillet(location, skillet);
@@ -1309,16 +1333,16 @@ public final class DebugToolsCommand {
         if (!manager.canCook(food)) {
             food = item("minecraft:porkchop", 16);
         }
-        setSkilletStoredItem(manager, location, food);
+        return setSkilletStoredItem(manager, location, food);
     }
 
-    private void activateStove(Location location) {
+    private boolean activateStove(Location location) {
         StoveManager manager = plugin.getStoveManager();
         if (manager == null || location == null || location.getWorld() == null) {
-            return;
+            return false;
         }
         if (!isStoveLit(location)) {
-            return;
+            return false;
         }
 
         Object stove = manager.getOrCreateStove(location);
@@ -1327,7 +1351,7 @@ public final class DebugToolsCommand {
             food = item("minecraft:porkchop", 1);
         }
         if (food == null || food.getType().isAir()) {
-            return;
+            return false;
         }
 
         try {
@@ -1350,16 +1374,19 @@ public final class DebugToolsCommand {
                         location, stove, slot, facing);
             }
             invoke(manager, "saveStove", new Class<?>[]{Location.class, stove.getClass()}, location, stove);
+            // The reflective write is the only proof; count only a slot that actually holds the food now.
+            return items.length > 0 && items[0] != null && !items[0].getType().isAir();
         } catch (ReflectiveOperationException | ClassCastException e) {
             plugin.getLogger().warning(I18n.formatConsole("debug.stove_activation_failed",
                     "location", location,
                     "error", e.getMessage()));
+            return false;
         }
     }
 
-    private void setSkilletStoredItem(SkilletManager manager, Location location, ItemStack food) {
+    private boolean setSkilletStoredItem(SkilletManager manager, Location location, ItemStack food) {
         if (manager == null || location == null || food == null || food.getType().isAir()) {
-            return;
+            return false;
         }
 
         try {
@@ -1377,10 +1404,14 @@ public final class DebugToolsCommand {
             setField(skillet, "cookingProgress", 0);
             invoke(manager, "createVisual", new Class<?>[]{Location.class, skillet.getClass()}, location, skillet);
             invoke(manager, "saveSkillet", new Class<?>[]{Location.class, skillet.getClass()}, location, skillet);
+            // Verify through the manager's public snapshot, not another reflective field read.
+            ItemStack stored = manager.getStoredItemSnapshot(location);
+            return stored != null && !stored.getType().isAir();
         } catch (ReflectiveOperationException | ClassCastException e) {
             plugin.getLogger().warning(I18n.formatConsole("debug.skillet_activation_failed",
                     "location", location,
                     "error", e.getMessage()));
+            return false;
         }
     }
 
