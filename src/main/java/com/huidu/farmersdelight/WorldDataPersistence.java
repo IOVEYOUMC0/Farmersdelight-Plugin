@@ -6,7 +6,6 @@ import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
 import net.momirealms.craftengine.core.world.CEWorld;
 import org.bukkit.World;
 
@@ -61,10 +60,6 @@ final class WorldDataPersistence {
         // closed by the time this runs. It has already saved its own world data on the way down; touching
         // its classes here would throw NoClassDefFoundError. Flush only when it is still enabled.
         if (!plugin.getServer().getPluginManager().isPluginEnabled("CraftEngine")) {
-            return;
-        }
-        BukkitWorldManager worldManager = BukkitWorldManager.instance();
-        if (worldManager == null) {
             return;
         }
         for (World world : plugin.getServer().getWorlds()) {
