@@ -100,6 +100,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private int expandedIngredientPage;
     private DetailState ingredientOptionsOrigin;
     final RecipeDetailRenderer detailRenderer = new RecipeDetailRenderer(this);
+    final RecipeListRenderer listRenderer = new RecipeListRenderer(this);
     // Ingredient/tool preview rotation: this many GUI tick callbacks, and each callback is
     // GuiTickManager.TICK_INTERVAL (4) game ticks, so the preview switches every 80 ticks (4s).
     static final int INGREDIENT_SWITCH_CALLBACKS = 20;
@@ -503,12 +504,12 @@ public class RecipeViewGui extends AbstractInventoryGui {
                     CookingPotRecipe potRecipe = (CookingPotRecipe) recipe;
                     displayItem = RecipeViewCache.displayCache().computeIfAbsent(
                             cacheKeyPrefix + potRecipe.getId() + '|' + locale,
-                            k -> createCookingPotRecipeDisplayItem(potRecipe, player)).clone();
+                            k -> listRenderer.createCookingPotRecipeDisplayItem(potRecipe, player)).clone();
                 } else {
                     CuttingBoardRecipe boardRecipe = (CuttingBoardRecipe) recipe;
                     displayItem = RecipeViewCache.displayCache().computeIfAbsent(
                             cacheKeyPrefix + boardRecipe.getId() + '|' + locale,
-                            k -> createCuttingBoardRecipeDisplayItem(boardRecipe, player)).clone();
+                            k -> listRenderer.createCuttingBoardRecipeDisplayItem(boardRecipe, player)).clone();
                 }
                 inventory.setItem(recipeSlots.get(i), displayItem);
             }
@@ -1069,10 +1070,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return toolPreviewRenderer.createToolDisplayItem(tool, totalTools, currentIndex, player);
     }
 
-    private ItemStack createToolPreviewItem(CuttingBoardRecipe.ToolRequirement tool) {
-        return toolPreviewRenderer.createToolPreviewItem(tool);
-    }
-
     private int resolveToolPreviewOptionsSize(CuttingBoardRecipe.ToolRequirement tool) {
         return toolPreviewRenderer.resolveToolPreviewOptionsSize(tool);
     }
@@ -1184,99 +1181,8 @@ public class RecipeViewGui extends AbstractInventoryGui {
         return background == null ? Background.ITEM.clone() : background.createItem();
     }
 
-    private ItemStack createCookingPotRecipeDisplayItem(CookingPotRecipe recipe, Player player) {
-        ItemStack result = recipe.getResult().clone();
-        ItemMeta meta = result.getItemMeta();
-
-        List<Component> lore = new ArrayList<>();
-        // Keep the result item's own description instead of replacing it, matching the addon recipe books.
-        List<Component> originalLore = meta.lore();
-        if (originalLore != null && !originalLore.isEmpty()) {
-            lore.addAll(originalLore);
-            lore.add(Component.text(""));
-        }
-        lore.add(tr("gui.recipe.ingredients_label", NamedTextColor.GRAY));
-        List<RecipeIngredient> ingredients = recipe.getIngredients();
-        int displayedIngredients = Math.min(ingredients.size(), config.getRecipeListMaxPreviewIngredients());
-        for (int i = 0; i < displayedIngredients; i++) {
-            ingredientDisplay.appendCompactIngredientLore(lore, ingredients.get(i), player);
-        }
-        ingredientDisplay.appendMoreIngredientsLine(lore, ingredients.size() - displayedIngredients, player);
-        if (recipe.needsContainer() && recipe.getContainer() != null) {
-            lore.add(tr("gui.recipe.container_line",
-                    itemNameComponent(recipe.getContainer(), player).colorIfAbsent(NamedTextColor.AQUA)));
-        }
-        if (recipe.getExperience() > 0.0D || recipe.getCookTime() > 0) {
-            // Use the shared cookTimeSeconds() (ceil, min 1s) so the list preview matches the detail
-            // screen; raw integer /20 shows a misleading "0s" for sub-20-tick recipes.
-            String cookTimeStr = cookTimeSeconds(recipe)
-                    + i18nOrDefault(player);
-            lore.add(tr("gui.recipe.cook_time_line",
-                    Component.text(cookTimeStr).color(NamedTextColor.AQUA)));
-        }
-        lore.add(Component.text(""));
-        lore.add(tr("gui.recipe.click_to_view", NamedTextColor.YELLOW));
-
-        meta.lore(lore);
-        result.setItemMeta(meta);
-        return result;
-    }
-
-    private ItemStack createCuttingBoardRecipeDisplayItem(CuttingBoardRecipe recipe, Player player) {
-        ItemStack input = recipe.getInputDisplay().clone();
-        ItemMeta meta = input.getItemMeta();
-
-        List<Component> lore = new ArrayList<>();
-        // Keep the input item's own description instead of replacing it, matching the addon recipe books.
-        List<Component> originalLore = meta.lore();
-        if (originalLore != null && !originalLore.isEmpty()) {
-            lore.addAll(originalLore);
-            lore.add(Component.text(""));
-        }
-        lore.add(tr("gui.recipe.tool_line",
-                formatToolListComponent(recipe.getTools(), player).colorIfAbsent(NamedTextColor.YELLOW)));
-        // Show the input type so players can see when multiple alternatives exist without opening details.
-        ingredientDisplay.appendCuttingBoardInputLore(lore, recipe.getInput(), player);
-        lore.add(tr("gui.recipe.results_label", NamedTextColor.GRAY));
-        int maxPreview = config.getRecipeListMaxPreviewIngredients();
-        List<CuttingBoardRecipe.ResultEntry> results = recipe.getResults();
-        int displayed = Math.min(results.size(), maxPreview);
-        for (int i = 0; i < displayed; i++) {
-            CuttingBoardRecipe.ResultEntry result = results.get(i);
-            Component line = itemNameComponent(result.item(), player).colorIfAbsent(NamedTextColor.WHITE);
-            if (result.chance() < 1.0d) {
-                line = line.append(Component.text(" (" + (int) Math.round(result.chance() * 100) + "%)", NamedTextColor.GRAY));
-            }
-            lore.add(colored("&8- ").append(line));
-            if (config.isShowIngredientIds()) {
-                lore.add(colored("&7  " + RecipeIngredientIcons.buildIngredientDisplayKey(result.item())));
-            }
-        }
-        int remaining = results.size() - displayed;
-        if (remaining > 0) {
-            lore.add(tr("gui.recipe.more_items", remaining));
-        }
-        lore.add(Component.text(""));
-        lore.add(tr("gui.recipe.click_to_view", NamedTextColor.YELLOW));
-
-        meta.lore(lore);
-        input.setItemMeta(meta);
-        return input;
-    }
-
     ItemStack createIngredientDisplay(RecipeIngredient ingredient, Player player, int slot) {
         return ingredientDisplay.createIngredientDisplay(ingredient, player, slot);
-    }
-
-    private Component formatToolListComponent(List<CuttingBoardRecipe.ToolRequirement> tools, Player player) {
-        Component result = Component.empty();
-        for (int i = 0; i < tools.size(); i++) {
-            if (i > 0) {
-                result = result.append(Component.text(", ", NamedTextColor.GRAY));
-            }
-            result = result.append(itemNameComponent(createToolPreviewItem(tools.get(i)), player));
-        }
-        return result;
     }
 
     Component itemNameComponent(ItemStack item, Player player) {
