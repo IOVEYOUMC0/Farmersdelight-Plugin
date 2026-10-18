@@ -209,6 +209,7 @@ console:
     recipe_issues_header: "在文件“{file}”中发现 {count} 个配方问题："
     recipe_issue_detail: "[{index}] {detail}"
     recipe_api_registration_failed: "附属通过 API 注册 {type} 配方 {id} 失败：{error}"
+    recipe_index_type_failed: "跳过配方类型 {type} 的关联配方索引：{error}"
     disable_step_failed: "禁用插件时执行 {step} 失败；将继续关闭流程。"
     disable_step_stop_tick_manager: "停止 tick 管理器"
     disable_step_save_recipe_discovery: "保存配方解锁数据"

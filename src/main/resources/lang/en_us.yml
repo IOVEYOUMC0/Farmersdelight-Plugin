@@ -209,6 +209,7 @@ console:
     recipe_issues_header: "Found {count} recipe issue(s) in file \"{file}\":"
     recipe_issue_detail: "[{index}] {detail}"
     recipe_api_registration_failed: "Addon API registration of {type} recipe {id} failed: {error}"
+    recipe_index_type_failed: "Skipped the linked-recipe index for recipe type {type}: {error}"
     disable_step_failed: "Failed to {step} during disable; continuing shutdown."
     disable_step_stop_tick_manager: "stop tick manager"
     disable_step_save_recipe_discovery: "save recipe discovery"

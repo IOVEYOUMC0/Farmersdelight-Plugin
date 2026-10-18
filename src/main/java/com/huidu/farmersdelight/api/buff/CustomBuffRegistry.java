@@ -88,7 +88,7 @@ public final class CustomBuffRegistry {
         try {
             level = Math.max(0, buff.level(player));
             remaining = level > 0 ? Math.max(0, buff.remainingSeconds(player)) : 0;
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // A broken addon reporter must not break the caller that triggered the sync.
             return false;
         }
@@ -119,7 +119,7 @@ public final class CustomBuffRegistry {
     private static void callChange(FarmersDelightBuffChangeEvent event) {
         try {
             Bukkit.getPluginManager().callEvent(event);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // A listener throwing must not roll back the buff change that already happened.
         }
     }
@@ -190,7 +190,7 @@ public final class CustomBuffRegistry {
         for (CustomBuff buff : ENTRIES) {
             try {
                 buff.saveState(player);
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 // Per-buff isolation — a broken addon serializer must not abort the others.
             }
         }
@@ -203,7 +203,7 @@ public final class CustomBuffRegistry {
         for (CustomBuff buff : ENTRIES) {
             try {
                 buff.restoreState(player);
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 // Per-buff isolation — see saveAll.
                 continue;
             }
@@ -222,7 +222,7 @@ public final class CustomBuffRegistry {
         boolean applied;
         try {
             applied = buff.apply(player, level, durationSeconds);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // A misbehaving addon's apply must not crash the command handler.
             return false;
         }
@@ -243,7 +243,7 @@ public final class CustomBuffRegistry {
                     buff.remove(player);
                     removed++;
                 }
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 // A misbehaving addon shouldn't break the whole milk wipe; swallow per-buff so the
                 // remaining registry entries still get their chance.
                 continue;
@@ -261,7 +261,7 @@ public final class CustomBuffRegistry {
         try {
             if (!buff.isActive(player)) return false;
             buff.remove(player);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             return false;
         }
         syncState(player, buff);
@@ -278,7 +278,7 @@ public final class CustomBuffRegistry {
                 if (buff.isActive(player)) {
                     active.add(buff);
                 }
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
             }
         }
         return active;
@@ -295,7 +295,7 @@ public final class CustomBuffRegistry {
                     continue;
                 }
                 buff.remove(player);
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 continue;
             }
             syncState(player, buff);
@@ -304,7 +304,7 @@ public final class CustomBuffRegistry {
         if (lowPriorityFallback != null) {
             try {
                 lowPriorityFallback.remove(player);
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 return null;
             }
             syncState(player, lowPriorityFallback);
