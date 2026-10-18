@@ -458,5 +458,9 @@
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
   "farmersdelight.category.deprecated": "Deprecated items",
   "farmersdelight.tooltip.deprecated": "Deprecated item",
-  "item.farmersdelight.pumpkin_pie_slice": "パンプキンパイの一切れ"
+  "item.farmersdelight.pumpkin_pie_slice": "パンプキンパイの一切れ",
+  "block.farmersdelight.wild_carrots": "野生のニンジン",
+  "block.farmersdelight.wild_potatoes": "野生のジャガイモ",
+  "block.farmersdelight.wild_beetroots": "シービート",
+  "block.farmersdelight.sandy_shrub": "砂地の草"
 }

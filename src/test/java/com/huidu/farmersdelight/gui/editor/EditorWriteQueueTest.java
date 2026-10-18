@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -100,7 +101,7 @@ class EditorWriteQueueTest {
         assertTrue(queue.submit(refusing, Runnable::run, reported::add));
 
         assertEquals(List.of("simulated refusal"), reported, "the failure reaches the caller with its reason");
-        assertTrue(java.util.Arrays.equals(original, Files.readAllBytes(file)),
+        assertTrue(Arrays.equals(original, Files.readAllBytes(file)),
                 "a failed write must not damage the file");
     }
 

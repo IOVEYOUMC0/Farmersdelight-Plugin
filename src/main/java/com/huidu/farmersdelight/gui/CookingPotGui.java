@@ -13,10 +13,6 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.momirealms.craftengine.bukkit.api.CraftEngineImages;
-import net.momirealms.craftengine.core.font.Image;
-import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Sound;
@@ -46,21 +42,15 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
-import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
 public class CookingPotGui extends AbstractInventoryGui {
 
     static final Map<UUID, CookingPotGui> activeGuis = new ConcurrentHashMap<>();
-    private static final Pattern SHIFT_TAG_PATTERN = Pattern.compile("<shift:([+-]?\\d+)>");
-    private static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<image:([a-z0-9_./-]+:[a-z0-9_./-]+)>");
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
     private final CookingPotBlockEntity blockEntity;
     // Injectable region seam for the pot's store writes; built from the plugin on first use.
@@ -232,80 +222,7 @@ public class CookingPotGui extends AbstractInventoryGui {
     }
 
     private Component resolveTitleComponent() {
-        String title = blockBehavior != null && blockBehavior.getTitleOverride() != null
-                ? blockBehavior.getTitleOverride()
-                : config.getTitle();
-        return MINI_MESSAGE.deserialize(resolveTitleLayout(title));
-    }
-
-    private String resolveTitleLayout(String rawTitle) {
-        String title = "Cooking Pot";
-        if (rawTitle != null) {
-            title = rawTitle;
-        }
-        title = title.replace("<offset>", resolveLayoutToken(config.getTitleLayoutOffset()));
-        title = title.replace("<icon>", resolveLayoutToken(config.getTitleLayoutIcon()));
-        return resolveLayoutToken(title);
-    }
-
-    private String resolveLayoutToken(String value) {
-        if (value == null || value.isEmpty()) {
-            return "";
-        }
-        String resolved = replaceShiftTags(value);
-        return replaceImageTags(resolved);
-    }
-
-    private String replaceShiftTags(String text) {
-        return replaceShiftTags(text, plugin.getCraftEngine().fontManager()::createMiniMessageOffsets);
-    }
-
-    // Package-private so the offline test can drive the real loop with a stub offset renderer. A tag whose
-    // digits do not fit an int keeps its place in the output while its neighbours are still replaced.
-    static String replaceShiftTags(String text, IntFunction<String> offsetRenderer) {
-        Matcher matcher = SHIFT_TAG_PATTERN.matcher(text);
-        StringBuilder buffer = new StringBuilder();
-        while (matcher.find()) {
-            Integer offset = parseShiftOffset(matcher.group(1));
-            if (offset == null) {
-                // Digits that do not fit an int: leave the matched token untouched. Skipping the match
-                // without calling appendReplacement is what keeps it in the output — the matcher only
-                // copies text up to the position the last replacement consumed.
-                continue;
-            }
-            String replacement = offsetRenderer.apply(offset);
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
-        }
-        matcher.appendTail(buffer);
-        return buffer.toString();
-    }
-
-    // The pixel offset a <shift:N> tag asks for, or null when the digits do not fit an int.
-    // A null result leaves the tag verbatim in the title instead of aborting it: the pattern accepts any
-    // number of digits, this runs while a GUI title is built (including from the constructor), and an
-    // oversized value in gui.yml must not make the pot GUI fail to open. Every value that does fit keeps
-    // its sign and magnitude untouched, so legal tags behave exactly as before.
-    static Integer parseShiftOffset(String digits) {
-        try {
-            return Integer.parseInt(digits);
-        } catch (NumberFormatException outOfIntRange) {
-            return null;
-        }
-    }
-
-    private String replaceImageTags(String text) {
-        Matcher matcher = IMAGE_TAG_PATTERN.matcher(text);
-        StringBuilder buffer = new StringBuilder();
-        while (matcher.find()) {
-            Image image = CraftEngineImages.byId(Key.of(matcher.group(1)));
-            String replacement = matcher.group(0);
-            if (image != null) {
-                replacement = image.miniMessageAt(0, 0);
-            }
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
-        }
-        matcher.appendTail(buffer);
-        return buffer.toString();
+        return CookingPotTitle.resolve(blockBehavior, config, plugin);
     }
 
     private boolean isPlayerInputSlot(int slot) {

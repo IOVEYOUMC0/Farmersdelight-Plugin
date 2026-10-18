@@ -8,25 +8,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Locks the <shift:N> handling of the pot GUI title against a value that cannot be laid out.
+ * Locks the shift-tag handling of the pot GUI title against a value that cannot be laid out.
  *
  *
- * The tag pattern accepts any number of digits and the title is laid out from the GUI constructor, so an
- * oversized value in gui.yml used to throw NumberFormatException and the pot GUI would not open at all. A
- * value that does not fit an int now leaves its tag verbatim in the title, while every representable value
- * keeps the sign and magnitude it had before. The offset renderer is stubbed, so the real replacement loop
- * runs without a server and without CraftEngine.
+ * The tag pattern accepts any number of digits and the title is laid out from the GUI constructor, so a value
+ * that does not fit an int must leave its tag verbatim in the title instead of aborting it; every
+ * representable value keeps its sign and magnitude. The offset renderer is stubbed, so the real replacement
+ * loop runs without a server and without CraftEngine.
  */
 class CookingPotGuiShiftTagTest {
 
     private static final IntFunction<String> STUB_RENDERER = offset -> "[" + offset + "]";
 
     private static Integer offset(String digits) {
-        return CookingPotGui.parseShiftOffset(digits);
+        return CookingPotTitle.parseShiftOffset(digits);
     }
 
     private static String replace(String title) {
-        return CookingPotGui.replaceShiftTags(title, STUB_RENDERER);
+        return CookingPotTitle.replaceShiftTags(title, STUB_RENDERER);
     }
 
     @Test
@@ -45,7 +44,7 @@ class CookingPotGuiShiftTagTest {
         assertNull(offset("2147483648"), "one past Integer.MAX_VALUE");
         assertNull(offset("-2147483649"), "one past Integer.MIN_VALUE");
         assertNull(offset("+2147483648"), "an overflowing value with an explicit plus sign");
-        assertNull(offset("99999999999"), "the value that used to break the GUI constructor");
+        assertNull(offset("99999999999"), "a value far past the int range");
     }
 
     @Test

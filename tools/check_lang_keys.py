@@ -13,9 +13,8 @@ What it reports:
   * dynamic   - call sites whose key is composed at runtime (shown so they can be checked by hand),
   * unused    - keys nothing references statically (informational; some are reached dynamically).
 
-Repo-scoped: this copy checks this repository's own language files. The workspace-level copy in the monorepo
-parent directory additionally checks the addons' language files in one pass; the addon namespaces it scans from
-this repository's sources (``*Lang.get("...")`` call sites) are listed in ADDON_CALL_SITES below.
+Scope: it checks this repository's own language files; the addon namespaces it scans from this repository's
+sources (``*Lang.get("...")`` call sites) are listed in ADDON_CALL_SITES below.
 
     python tools/check_lang_keys.py [--quiet]
 

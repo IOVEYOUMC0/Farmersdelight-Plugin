@@ -23,6 +23,12 @@ final class DebugProfileRunner {
         var manager = plugin.getTickManager();
         var feature = Arrays.stream(PerformanceMonitor.Feature.values())
                 .filter(value -> value.id().equals(featureId)).findFirst().orElse(null);
+        if (feature == null) {
+            // An addon/unknown target has no FD performance feature, so this samples every FD tick feature
+            // instead. Say so up front; otherwise the numbers read as if the addon's own work was measured.
+            player.sendMessage(I18n.getComponent("command.debug_test_addon_metrics", player,
+                    Map.of("target", featureId)));
+        }
         long id = manager.startPerformanceProfile(feature);
         if (id == 0L) {
             player.sendMessage(I18n.getComponent("command.stats_profile_busy", player));

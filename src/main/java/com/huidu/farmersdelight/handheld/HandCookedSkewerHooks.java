@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import io.papermc.paper.event.player.PlayerStopUsingItemEvent;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
@@ -44,6 +45,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 /**
@@ -208,7 +210,7 @@ public final class HandCookedSkewerHooks implements Listener {
     private volatile Function<ItemStack, String> idResolver = ItemUtils::resolveItemId;
     private volatile Function<String, ItemStack> itemFactory = ItemUtils::createItem;
     /** The clock the input grace is measured against; a seam so a test can age a click without sleeping. */
-    private volatile java.util.function.LongSupplier clock = System::currentTimeMillis;
+    private volatile LongSupplier clock = System::currentTimeMillis;
 
     public HandCookedSkewerHooks(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -240,7 +242,7 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /** Replaces the input clock; null restores the wall clock. Used by the wiring tests only. */
     @ApiStatus.Internal
-    void setClock(@Nullable java.util.function.LongSupplier source) {
+    void setClock(@Nullable LongSupplier source) {
         this.clock = source == null ? System::currentTimeMillis : source;
     }
 
@@ -283,7 +285,8 @@ public final class HandCookedSkewerHooks implements Listener {
         // Resolve configured overrides before campfire recipes, using the
         // very same cache instance the skillet queries (one recipe-table scan per rebuild).
         setResultSource(new CampfireSkewerResults(() -> results,
-                () -> active.getSkilletManager() == null ? null : active.getSkilletManager().campfireRecipes()));
+                () -> active.getSkilletManager() == null ? null : active.getSkilletManager().campfireRecipes(),
+                held -> ItemUtils.matchesCustomOrVanillaTag(held, CampfireSkewerResults.HAND_COOKABLE_TAG)));
         // Literal path again, for the same guard reason as above.
         this.progressDisplayEnabled = active.getConfigBoolean(true, "handheld-skewer.progress-display.enabled");
         this.cookingTicks = Math.max(1, active.getConfigInt(HandCookedSkewerService.COOKING_TICKS,
@@ -1085,7 +1088,12 @@ public final class HandCookedSkewerHooks implements Listener {
         HeldSkewerProgressDisplay(FarmersDelightPlugin plugin) {
             this(plugin,
                     id -> plugin == null ? null : plugin.getServer().getPlayer(id),
-                    HandheldDisplays::open,
+                    (player, slot, original, duration) -> {
+                        String id = ItemUtils.resolveItemId(original);
+                        ItemStack pose = id == null ? null : ItemUtils.createItem(id + "_hand_cooking_display");
+                        NamespacedKey model = pose == null ? null : pose.getItemMeta().getItemModel();
+                        return HandheldDisplays.open(player, slot, original, duration, model);
+                    },
                     ItemUtils::resolveItemId);
         }
 

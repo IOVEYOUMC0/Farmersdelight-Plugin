@@ -35,9 +35,7 @@ public final class BackstabListener implements Listener {
 
     public BackstabListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
-        // The config read is left to reload(...), which the registration path calls right after construction
-        // and the reload path calls again. Keeping it out of the constructor lets the handler be built
-        // without a live plugin (the registry's order is asserted by a test).
+        // Registration applies configuration after construction.
     }
 
     public void reload(EnchantmentSettings enchantmentSettings, boolean effectiveEnabled) {

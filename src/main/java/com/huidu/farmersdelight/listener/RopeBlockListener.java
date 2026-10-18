@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RopeGateWallBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
@@ -21,10 +22,13 @@ import net.momirealms.craftengine.core.world.chunk.PalettedContainer;
 import org.bukkit.Chunk;
 import org.bukkit.GameMode;
 import org.bukkit.Sound;
+import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockSupport;
+import org.bukkit.block.data.type.Wall;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -49,6 +53,8 @@ public class RopeBlockListener implements Listener {
     // (flowing water / redstone / pistons near ropes), so each position is scanned and refreshed at most
     // once per tick rather than once per update.
     private final Set<Cell> pendingRopeRefreshes = ConcurrentHashMap.newKeySet();
+    private record WallEdge(Cell cell, BlockFace side) {}
+    private final Map<WallEdge, Boolean> pendingWallConnections = new ConcurrentHashMap<>();
     private volatile boolean stopped;
     // Tracked rope positions. Maintained by CustomBlockPlace/Break, rebuilt per chunk on ChunkLoad, and
     // drained on chunk/world unload. Gives scheduleRopeRefreshIfNearby a Set.isEmpty() / Set.contains()
@@ -116,6 +122,7 @@ public class RopeBlockListener implements Listener {
         }
         stopped = true;
         pendingRopeRefreshes.clear();
+        pendingWallConnections.clear();
         placedRopes.clear();
     }
 
@@ -147,6 +154,34 @@ public class RopeBlockListener implements Listener {
             return;
         }
         listener.queueRefresh(world, pos);
+    }
+
+    public static void queueWallConnection(World world, BlockPos pos, BlockFace side, boolean connected) {
+        RopeBlockListener listener = active;
+        if (listener == null || listener.stopped) return;
+        Location location = new Location(world, pos.x(), pos.y(), pos.z());
+        if (listener.plugin.scheduler().isOwnedByCurrentRegion(location)
+                && (!world.isChunkLoaded(pos.x() >> 4, pos.z() >> 4)
+                || !Tag.WALLS.isTagged(world.getBlockAt(pos.x(), pos.y(), pos.z()).getType()))) return;
+        WallEdge edge = new WallEdge(new Cell(world.getUID(), pos.x(), pos.y(), pos.z()), side);
+        if (listener.pendingWallConnections.put(edge, connected) != null) return;
+        listener.plugin.scheduler().runLaterAt(location, () -> {
+            Boolean desired = listener.pendingWallConnections.remove(edge);
+            if (desired == null || listener.stopped || !world.isChunkLoaded(pos.x() >> 4, pos.z() >> 4)) return;
+            Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
+            if (!(block.getBlockData() instanceof Wall wall) || CraftEngineBlocks.isCustomBlock(block)) return;
+            Wall.Height previous = wall.getHeight(side);
+            Wall.Height next = Wall.Height.NONE;
+            if (desired) {
+                boolean tall = previous == Wall.Height.TALL
+                        || block.getRelative(BlockFace.UP).getBlockData().isFaceSturdy(BlockFace.DOWN, BlockSupport.FULL);
+                next = tall ? Wall.Height.TALL : Wall.Height.LOW;
+            }
+            if (previous == next) return;
+            wall.setHeight(side, next);
+            // Avoid a physics loop: native walls cannot recognize CE's custom gate class.
+            block.setBlockData(wall, false);
+        }, 1L);
     }
 
     private void queueRefresh(World world, BlockPos pos) {
@@ -348,6 +383,11 @@ public class RopeBlockListener implements Listener {
             int baseY = section.sectionY() << 4;
             for (int index = 0; index < SECTION_VOLUME; index++) {
                 ImmutableBlockState state = section.getBlockState(index);
+                if (CustomBlockUtils.hasBehavior(state, RopeGateWallBehavior.class)) {
+                    state.behavior().getFirst(RopeGateWallBehavior.class).refreshConnections(world,
+                            new BlockPos(baseX + (index & 15), baseY + ((index >> 8) & 15),
+                                    baseZ + ((index >> 4) & 15)), state);
+                }
                 if (!CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)) {
                     continue;
                 }
@@ -386,7 +426,8 @@ public class RopeBlockListener implements Listener {
             return false;
         }
         try {
-            return states.hasAny(state -> CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class));
+            return states.hasAny(state -> CustomBlockUtils.hasBehavior(state, RopeBlockBehavior.class)
+                    || CustomBlockUtils.hasBehavior(state, RopeGateWallBehavior.class));
         } catch (IllegalStateException unreadablePalette) {
             // Reporting rather than swallowing: returning "no ropes here" for a section that could not
             // be read leaves its ropes outside the index, which silently reinstates the stale-index

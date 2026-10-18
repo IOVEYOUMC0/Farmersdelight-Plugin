@@ -44,7 +44,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         register(new SubCommand("help", List.of("?"), null, "command.help_help") {
             @Override
             void execute(CommandSender sender, String label, String[] args) {
-                sendHelp(sender);
+                sendHelp(sender, label);
             }
 
             @Override
@@ -76,13 +76,13 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            sendHelp(sender);
+            sendHelp(sender, label);
             return true;
         }
 
         SubCommand subCommand = commands.get(normalize(args[0]));
         if (subCommand == null) {
-            sendHelp(sender);
+            sendHelp(sender, label);
             return true;
         }
 
@@ -90,7 +90,7 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
             // A subcommand whose feature is switched off is refused as unknown rather than as a permission
             // problem: the sender may well hold the permission, the feature just is not running.
             if (!subCommand.isAvailable()) {
-                sendHelp(sender);
+                sendHelp(sender, label);
             } else {
                 sendNoPermission(sender);
             }
@@ -125,15 +125,22 @@ public class FarmersDelightCommand implements CommandExecutor, TabCompleter {
         return subCommand.tabComplete(sender, args);
     }
 
-    private void sendHelp(CommandSender sender) {
+    private void sendHelp(CommandSender sender, String label) {
         sender.sendMessage(MINI.deserialize(I18n.get("command.help_title")));
         for (SubCommand command : commandList) {
             if (!command.canUse(sender)) {
                 continue;
             }
-            sender.sendMessage(MINI.deserialize(
-                    "<yellow>/fd " + command.name() + "</yellow> <gray>-</gray> " + resolveHelpText(command)
-            ));
+            // Show the label the sender actually typed and list the aliases, so a player who knows
+            // /fd recipebook can find the entry instead of guessing from the bare subcommand name.
+            StringBuilder line = new StringBuilder("<yellow>/").append(label).append(' ').append(command.name())
+                    .append("</yellow>");
+            if (!command.aliases().isEmpty()) {
+                line.append(" <dark_gray>(").append(String.join(", ", command.aliases()))
+                        .append(")</dark_gray>");
+            }
+            line.append(" <gray>-</gray> ").append(resolveHelpText(command));
+            sender.sendMessage(MINI.deserialize(line.toString()));
         }
     }
 

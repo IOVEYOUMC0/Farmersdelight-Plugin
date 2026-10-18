@@ -159,6 +159,8 @@ items:
   farmersdelight:cooking_pot:
     data:
       item-name: <!i><lang:block.farmersdelight.cooking_pot>
+      components:
+        minecraft:max_stack_size: 1
     model: farmersdelight:block/cooking_pot
     behavior:
       type: ground_block_item

@@ -458,5 +458,9 @@
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
   "farmersdelight.category.deprecated": "废弃物品",
   "farmersdelight.tooltip.deprecated": "废弃物品",
-  "item.farmersdelight.pumpkin_pie_slice": "南瓜批片"
+  "item.farmersdelight.pumpkin_pie_slice": "南瓜批片",
+  "block.farmersdelight.wild_carrots": "野生紅蘿蔔",
+  "block.farmersdelight.wild_potatoes": "野生薯仔",
+  "block.farmersdelight.wild_beetroots": "野生紅菜頭",
+  "block.farmersdelight.sandy_shrub": "沙化灌木"
 }

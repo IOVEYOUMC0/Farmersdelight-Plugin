@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -62,7 +63,7 @@ class RecipeFileStampsTest {
     }
 
     /** One loader pass over the file, returning how many parses it needed. */
-    private static int pass(java.io.File file) {
+    private static int pass(File file) {
         RecipeFileStamps.Stamp stamp = RecipeFileStamps.Stamp.of(file);
         YamlConfiguration cached = RecipeFileStamps.cached(file.getName(), stamp);
         if (cached != null) {

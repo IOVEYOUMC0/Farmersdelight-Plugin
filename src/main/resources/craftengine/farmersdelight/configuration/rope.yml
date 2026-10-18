@@ -786,12 +786,13 @@ blocks:
         place: minecraft:block.wood.place
         step: minecraft:block.wood.step
     behavior:
-      type: fence_gate_block
+    - type: fence_gate_block
       can_open_with_hand: true
       can_open_by_wind_charge: true
       sounds:
         open: minecraft:block.fence_gate.open
         close: minecraft:block.fence_gate.close
+    - type: farmersdelight:rope_gate_wall
     states:
       properties:
         facing:

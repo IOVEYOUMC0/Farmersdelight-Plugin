@@ -7,6 +7,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -142,7 +143,7 @@ class CookingPotRecipeManagerTest {
         var second = new CookingPotRecipeManager.PublishedState(Map.of("a", recipe("a")),
                 Map.of("group", Map.of("b", recipe("b"))), Map.of(), Map.of(), List.of(), Map.of(),
                 Map.of(), Map.of(), Set.of("marker"), 2, true);
-        var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        var executor = Executors.newSingleThreadExecutor();
         try {
             var writer = executor.submit(() -> {
                 for (int i = 0; i < 2000; i++) manager.restorePublished(i % 2 == 0 ? first : second);

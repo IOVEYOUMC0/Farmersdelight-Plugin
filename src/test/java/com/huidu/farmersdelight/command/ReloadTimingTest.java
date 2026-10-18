@@ -2,6 +2,9 @@ package com.huidu.farmersdelight.command;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,13 +47,13 @@ class ReloadTimingTest {
     }
 
     private static String read(String name) throws Exception {
-        java.nio.file.Path cursor = java.nio.file.Path.of("").toAbsolutePath();
+        Path cursor = Path.of("").toAbsolutePath();
         for (int depth = 0; depth < 4 && cursor != null; depth++) {
             for (String prefix : new String[]{"FarmersDelight/src/main/java/com/huidu/farmersdelight/",
                     "src/main/java/com/huidu/farmersdelight/"}) {
-                java.nio.file.Path candidate = cursor.resolve(prefix + name);
-                if (java.nio.file.Files.isRegularFile(candidate)) {
-                    return java.nio.file.Files.readString(candidate);
+                Path candidate = cursor.resolve(prefix + name);
+                if (Files.isRegularFile(candidate)) {
+                    return Files.readString(candidate);
                 }
             }
             cursor = cursor.getParent();

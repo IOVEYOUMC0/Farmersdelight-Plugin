@@ -47,16 +47,38 @@ final class StatsSubCommand extends SubCommand {
 
     @Override
     void execute(CommandSender sender, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(I18n.getComponent("command.player_only"));
-            return;
-        }
+        // The overview is plain read-only text, so the console can run it too (the admin command exists for
+        // exactly that diagnosis). Sampling and the addon status lines stay player-bound: the first finishes on
+        // the player's region, the second is produced per player by the extension contract.
+        Player player = sender instanceof Player online ? online : null;
         String action = args.length >= 2 ? normalize(args[1]) : "";
         switch (action) {
-            case "profile", "sample" -> profile(player, args);
-            case "addon", "addons" -> addon(player, args);
-            default -> overview(player);
+            case "profile", "sample" -> {
+                if (player == null) {
+                    sender.sendMessage(I18n.getComponent("command.stats_player_only"));
+                    return;
+                }
+                profile(player, args);
+            }
+            case "addon", "addons" -> {
+                if (player == null) {
+                    sender.sendMessage(I18n.getComponent("command.stats_addon_player_only"));
+                    return;
+                }
+                addon(player, args);
+            }
+            default -> overview(sender, player);
         }
+    }
+
+    private static void send(CommandSender sender, Player player, String key) {
+        sender.sendMessage(player == null ? I18n.getComponent(key) : I18n.getComponent(key, player));
+    }
+
+    private static void send(CommandSender sender, Player player, String key, Map<String, String> placeholders) {
+        sender.sendMessage(player == null
+                ? I18n.getComponent(key, placeholders)
+                : I18n.getComponent(key, player, placeholders));
     }
 
     @Override
@@ -87,39 +109,38 @@ final class StatsSubCommand extends SubCommand {
         return "addon".equals(action) || "addons".equals(action);
     }
 
-    private void overview(Player player) {
+    private void overview(CommandSender sender, Player player) {
         TickManager tickManager = plugin.getTickManager();
         if (tickManager == null) {
-            player.sendMessage(I18n.getComponent("command.stats_tickmanager_unavailable", player));
+            send(sender, player, "command.stats_tickmanager_unavailable");
             return;
         }
-        player.sendMessage(I18n.getComponent("command.stats_title", player));
+        send(sender, player, "command.stats_title");
         TickManager.PerformanceSnapshot snapshot = tickManager.getPerformanceSnapshot();
         // Live counters (active/snapshot/pending) are always valid, but the per-tick samples are only
         // collected while a profile is running; without one the avg/max lines read 0 and mislead.
         if (!snapshot.statsEnabled() && snapshot.samples() == 0
                 && snapshot.features().values().stream().allMatch(timing -> timing.calls() == 0)) {
-            player.sendMessage(I18n.getComponent("command.stats_feature_sampling_off", player));
+            send(sender, player, "command.stats_feature_sampling_off");
         }
-        sendPerformanceSnapshot(player, snapshot);
-        appendProxyDisplayStats(player);
-        appendAsyncPoolStats(player);
-        sendEnabledAddons(player);
+        sendPerformanceSnapshot(sender, player, snapshot);
+        appendProxyDisplayStats(sender, player);
+        appendAsyncPoolStats(sender, player);
+        sendEnabledAddons(sender, player);
         // List each registered addon as a clickable name that drills into /fd stats addon <name>;
         // each addon's own status lines are shown only on demand to keep the overview readable.
         List<DebugToolExtension> extensions = new ArrayList<>(DebugToolRegistry.all());
-        player.sendMessage(I18n.getComponent("command.stats_addons_title", player));
+        send(sender, player, "command.stats_addons_title");
         if (extensions.isEmpty()) {
-            player.sendMessage(I18n.getComponent("command.stats_addon_empty", player));
+            send(sender, player, "command.stats_addon_empty");
         } else {
             for (DebugToolExtension extension : extensions) {
-                player.sendMessage(I18n.getComponent("command.stats_addon_link", player,
-                        Map.of("name", extension.name())));
+                send(sender, player, "command.stats_addon_link", Map.of("name", extension.name()));
             }
         }
     }
 
-    private void sendEnabledAddons(Player player) {
+    private void sendEnabledAddons(CommandSender sender, Player player) {
         List<String> addons = Arrays.stream(plugin.getServer().getPluginManager().getPlugins())
                 .filter(Plugin::isEnabled)
                 .filter(other -> other != plugin)
@@ -127,13 +148,12 @@ final class StatsSubCommand extends SubCommand {
                 .map(Plugin::getName)
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
-        player.sendMessage(I18n.getComponent("command.stats_enabled_addons_title", player));
+        send(sender, player, "command.stats_enabled_addons_title");
         if (addons.isEmpty()) {
-            player.sendMessage(I18n.getComponent("command.stats_enabled_addons_empty", player));
+            send(sender, player, "command.stats_enabled_addons_empty");
             return;
         }
-        player.sendMessage(I18n.getComponent("command.stats_enabled_addons_line", player,
-                Map.of("addons", String.join(", ", addons))));
+        send(sender, player, "command.stats_enabled_addons_line", Map.of("addons", String.join(", ", addons)));
     }
 
     private boolean dependsOnFarmersDelight(Plugin other) {
@@ -167,24 +187,24 @@ final class StatsSubCommand extends SubCommand {
         }
     }
 
-    private void appendProxyDisplayStats(Player player) {
+    private void appendProxyDisplayStats(CommandSender sender, Player player) {
         ItemDisplayManager manager = plugin.getItemDisplayManager();
         if (!(manager instanceof ProxyItemDisplayManager proxy)) {
             return;
         }
         for (String line : proxy.debugStats()) {
-            player.sendMessage(I18n.getComponent("command.stats_proxy_line", player, Map.of("line", line)));
+            send(sender, player, "command.stats_proxy_line", Map.of("line", line));
         }
     }
 
-    private void appendAsyncPoolStats(Player player) {
+    private void appendAsyncPoolStats(CommandSender sender, Player player) {
         AsyncSnapshot pool = plugin.scheduler().asyncSnapshot();
-        player.sendMessage(I18n.getComponent("command.stats_async_pool", player, Map.of(
+        send(sender, player, "command.stats_async_pool", Map.of(
                 "submitted", String.valueOf(pool.submitted()),
                 "completed", String.valueOf(pool.completed()),
                 "rejected", String.valueOf(pool.rejected()),
                 "inFlight", String.valueOf(pool.inFlight()),
-                "queued", String.valueOf(pool.queueDepth()))));
+                "queued", String.valueOf(pool.queueDepth())));
     }
 
     private void profile(Player player, String[] args) {
@@ -220,7 +240,7 @@ final class StatsSubCommand extends SubCommand {
                 plugin.scheduler().runForEntity(player, () -> {
                     if (!player.isOnline()) return;
                     player.sendMessage(I18n.getComponent("command.stats_title", player));
-                    sendPerformanceSnapshot(player, snapshot);
+                    sendPerformanceSnapshot(player, player, snapshot);
                 });
             }, durationTicks);
             player.sendMessage(I18n.getComponent("command.stats_feature_profile_started", player,
@@ -233,41 +253,43 @@ final class StatsSubCommand extends SubCommand {
         }
     }
 
-    private void sendPerformanceSnapshot(Player player, TickManager.PerformanceSnapshot snapshot) {
-        int worldPots = countCookingPots(player.getWorld());
-        player.sendMessage(I18n.getComponent("command.stats_profile_overview", player, Map.of(
+    private void sendPerformanceSnapshot(CommandSender sender, Player player, TickManager.PerformanceSnapshot snapshot) {
+        // From the console there is no "current world"; the pot counter is then reported as 0 rather than
+        // silently assuming one world.
+        int worldPots = countCookingPots(player == null ? null : player.getWorld());
+        send(sender, player, "command.stats_profile_overview", Map.of(
                 "samples", String.valueOf(snapshot.samples()),
                 "elapsed", formatMillis(snapshot.elapsedNanos()),
                 "interval", String.valueOf(snapshot.tickInterval()),
                 "budget", String.valueOf(snapshot.tickBudget()),
-                "sampling", snapshot.statsEnabled() ? "on" : "off")));
-        player.sendMessage(I18n.getComponent("command.stats_active", player, Map.of(
+                "sampling", snapshot.statsEnabled() ? "on" : "off"));
+        send(sender, player, "command.stats_active", Map.of(
                 "current", String.valueOf(snapshot.currentActiveBlocks()),
                 "snapshot", String.valueOf(snapshot.snapshotActiveBlocks()),
                 "last", String.valueOf(snapshot.lastActiveBlocks()),
                 "add", String.valueOf(snapshot.pendingAdditions()),
                 "rem", String.valueOf(snapshot.pendingRemovals()),
-                "pots", String.valueOf(worldPots))));
-        player.sendMessage(I18n.getComponent("command.stats_dispatch", player, Map.of(
+                "pots", String.valueOf(worldPots)));
+        send(sender, player, "command.stats_dispatch", Map.of(
                 "avg", formatMillis(snapshot.averageNanos()),
                 "max", formatMillis(snapshot.maxNanos()),
                 "last", formatMillis(snapshot.lastNanos()),
-                "processed", String.valueOf(snapshot.lastProcessedBlocks()))));
-        appendTimingDistribution(player, snapshot);
-        appendFeatureStats(player, snapshot);
+                "processed", String.valueOf(snapshot.lastProcessedBlocks())));
+        appendTimingDistribution(sender, player, snapshot);
+        appendFeatureStats(sender, player, snapshot);
     }
 
     // Percentiles describe recent dispatch passes; block costs are measured inside the region task.
-    private void appendTimingDistribution(Player player, TickManager.PerformanceSnapshot snapshot) {
+    private void appendTimingDistribution(CommandSender sender, Player player, TickManager.PerformanceSnapshot snapshot) {
         long[] history = snapshot.historyNanos();
         if (history != null && history.length > 0) {
             long[] sorted = history.clone();
             Arrays.sort(sorted);
-            player.sendMessage(I18n.getComponent("command.stats_dispatch_percentile", player, Map.of(
+            send(sender, player, "command.stats_dispatch_percentile", Map.of(
                     "p50", formatMillis(percentile(sorted, 50)),
                     "p95", formatMillis(percentile(sorted, 95)),
                     "p99", formatMillis(percentile(sorted, 99)),
-                    "max", formatMillis(sorted[sorted.length - 1]))));
+                    "max", formatMillis(sorted[sorted.length - 1])));
         }
         Map<PerformanceMonitor.Hotspot, Long> blockNanos = snapshot.blockNanos();
         if (blockNanos == null || blockNanos.isEmpty()) {
@@ -276,30 +298,28 @@ final class StatsSubCommand extends SubCommand {
         List<Map.Entry<PerformanceMonitor.Hotspot, Long>> tops = new ArrayList<>(blockNanos.entrySet());
         tops.sort(Map.Entry.<PerformanceMonitor.Hotspot, Long>comparingByValue().reversed());
         int shown = Math.min(5, tops.size());
-        player.sendMessage(I18n.getComponent("command.stats_hotspot_title", player,
-                Map.of("count", String.valueOf(shown))));
+        send(sender, player, "command.stats_hotspot_title", Map.of("count", String.valueOf(shown)));
         for (int i = 0; i < shown; i++) {
             Map.Entry<PerformanceMonitor.Hotspot, Long> entry = tops.get(i);
             BlockPosKey key = entry.getKey().position();
             World world = Bukkit.getWorld(entry.getKey().worldId());
-            player.sendMessage(I18n.getComponent("command.stats_hotspot_world_line", player, Map.of(
+            send(sender, player, "command.stats_hotspot_world_line", Map.of(
                     "rank", String.valueOf(i + 1),
                     "world", world == null ? entry.getKey().worldId().toString() : world.getName(),
                     "x", String.valueOf(key.x()),
                     "y", String.valueOf(key.y()),
                     "z", String.valueOf(key.z()),
-                    "time", formatMillis(entry.getValue()))));
+                    "time", formatMillis(entry.getValue())));
         }
         if (snapshot.omittedHotspotCalls() > 0) {
-            player.sendMessage(I18n.getComponent("command.stats_hotspot_capped", player,
-                    Map.of("count", String.valueOf(snapshot.omittedHotspotCalls()))));
+            send(sender, player, "command.stats_hotspot_capped",
+                    Map.of("count", String.valueOf(snapshot.omittedHotspotCalls())));
         }
     }
 
-    private void appendFeatureStats(Player player, TickManager.PerformanceSnapshot snapshot) {
+    private void appendFeatureStats(CommandSender sender, Player player, TickManager.PerformanceSnapshot snapshot) {
         if (snapshot.features().isEmpty()) return;
-        player.sendMessage(I18n.getComponent("command.stats_features_title", player,
-                Map.of("elapsed", formatMillis(snapshot.elapsedNanos()))));
+        send(sender, player, "command.stats_features_title", Map.of("elapsed", formatMillis(snapshot.elapsedNanos())));
         List<Map.Entry<PerformanceMonitor.Feature, PerformanceMonitor.TimingSnapshot>> features =
                 new ArrayList<>(snapshot.features().entrySet());
         features.sort(Comparator
@@ -308,17 +328,18 @@ final class StatsSubCommand extends SubCommand {
                 .thenComparing(entry -> entry.getKey().id()));
         for (var entry : features) {
             var timing = entry.getValue();
-            player.sendMessage(I18n.getComponent("command.stats_feature_line", player, Map.of(
-                    "feature", I18n.get("command.stats_feature_" + entry.getKey().id(), player),
+            String featureKey = "command.stats_feature_" + entry.getKey().id();
+            send(sender, player, "command.stats_feature_line", Map.of(
+                    "feature", player == null ? I18n.get(featureKey) : I18n.get(featureKey, player),
                     "calls", String.valueOf(timing.calls()),
                     "rate", String.format(Locale.ROOT, "%.1f", snapshot.elapsedNanos() <= 0 ? 0
                             : timing.calls() * 1_000_000_000.0 / snapshot.elapsedNanos()),
                     "total", formatMillis(timing.totalNanos()),
                     "avg", formatMillis(timing.averageNanos()),
                     "p95", formatMillis(timing.percentile(95)),
-                    "max", formatMillis(timing.maxNanos()))));
+                    "max", formatMillis(timing.maxNanos())));
         }
-        player.sendMessage(I18n.getComponent("command.stats_features_note", player));
+        send(sender, player, "command.stats_features_note");
     }
 
     private static double percentile(long[] sorted, int p) {

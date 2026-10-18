@@ -1,0 +1,19 @@
+damage-types:
+  farmersdelight:stove_burn:
+    effects: burning
+    exhaustion: 0.1
+    message_id: farmersdelight.stove
+    scaling: when_caused_by_living_non_player
+tags:
+  minecraft:burn_from_stepping:
+    replace: false
+    values:
+    - farmersdelight:stove_burn
+  minecraft:is_fire:
+    replace: false
+    values:
+    - farmersdelight:stove_burn
+  minecraft:no_knockback:
+    replace: false
+    values:
+    - farmersdelight:stove_burn

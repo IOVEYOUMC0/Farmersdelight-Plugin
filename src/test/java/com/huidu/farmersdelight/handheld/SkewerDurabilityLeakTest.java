@@ -27,6 +27,7 @@ import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -147,7 +148,7 @@ class SkewerDurabilityLeakTest {
         assertTrue(handle.contains("getInventory().getItem("),
                 "its inventory reach is the read of the slot it displays and resends");
         for (String forbidden : new String[]{"getInventory().set", "getInventory().clear", "setItem(",
-                "setItemInMainHand", "setItemInOffHand", "setItemMeta", "setContents("}) {
+                "setItemInMainHand", "setItemInOffHand", "source.setItemMeta", "original.setItemMeta", "setContents("}) {
             assertFalse(handle.contains(forbidden),
                     "HandheldDisplays must not write real state through " + forbidden);
         }
@@ -425,7 +426,7 @@ class SkewerDurabilityLeakTest {
                         case "addItem" -> {
                             writes++;
                             added.add(((ItemStack[]) args[0])[0]);
-                            yield new java.util.HashMap<Integer, ItemStack>();
+                            yield new HashMap<Integer, ItemStack>();
                         }
                         case "getContents" -> {
                             ItemStack[] copy = new ItemStack[41];

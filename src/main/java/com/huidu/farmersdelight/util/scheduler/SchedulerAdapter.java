@@ -7,6 +7,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.bukkit.plugin.IllegalPluginAccessException;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
@@ -14,6 +15,7 @@ import java.util.Objects;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SchedulerAdapter implements RegionDispatcher {
@@ -272,50 +274,99 @@ public final class SchedulerAdapter implements RegionDispatcher {
     }
 
     private static final class FoliaTasks {
+        // A refusal is expected while the plugin is shutting down (Folia sets isEnabled(false) before
+        // onDisable, and its schedulers then refuse every task). Report the first one instead of handing a
+        // stack trace to every caller on the way down.
+        private static final AtomicBoolean REFUSAL_LOGGED = new AtomicBoolean();
+
         private FoliaTasks() { }
 
+        private static void refused(FarmersDelightPlugin plugin, RuntimeException failure) {
+            if (REFUSAL_LOGGED.compareAndSet(false, true)) {
+                plugin.getLogger().fine(
+                        "Dropped a scheduled task because the plugin is disabled or the scheduler halted: "
+                                + failure.getMessage());
+            }
+        }
+
         private static void globalExecute(FarmersDelightPlugin plugin, Runnable task) {
-            Bukkit.getGlobalRegionScheduler().execute(plugin, task);
+            try {
+                Bukkit.getGlobalRegionScheduler().execute(plugin, task);
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+            }
         }
 
         private static void regionExecute(FarmersDelightPlugin plugin, World world, int chunkX, int chunkZ, Runnable task) {
-            Bukkit.getRegionScheduler().execute(plugin, world, chunkX, chunkZ, task);
+            try {
+                Bukkit.getRegionScheduler().execute(plugin, world, chunkX, chunkZ, task);
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+            }
         }
 
         private static PluginTask globalRunLater(FarmersDelightPlugin plugin, Runnable task, long delayTicks) {
-            var scheduler = Bukkit.getGlobalRegionScheduler();
-            return wrap(delayTicks <= 0L ? scheduler.run(plugin, ignored -> task.run())
-                    : scheduler.runDelayed(plugin, ignored -> task.run(), delayTicks));
+            try {
+                var scheduler = Bukkit.getGlobalRegionScheduler();
+                return wrap(delayTicks <= 0L ? scheduler.run(plugin, ignored -> task.run())
+                        : scheduler.runDelayed(plugin, ignored -> task.run(), delayTicks));
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+                return PluginTask.NOOP;
+            }
         }
 
         private static void regionRunLater(FarmersDelightPlugin plugin, World world, int chunkX, int chunkZ,
                                                  Runnable task, long delayTicks) {
-            var scheduler = Bukkit.getRegionScheduler();
-            if (delayTicks <= 0L) scheduler.run(plugin, world, chunkX, chunkZ, ignored -> task.run());
-            else scheduler.runDelayed(plugin, world, chunkX, chunkZ, ignored -> task.run(), delayTicks);
+            try {
+                var scheduler = Bukkit.getRegionScheduler();
+                if (delayTicks <= 0L) scheduler.run(plugin, world, chunkX, chunkZ, ignored -> task.run());
+                else scheduler.runDelayed(plugin, world, chunkX, chunkZ, ignored -> task.run(), delayTicks);
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+            }
         }
 
         private static PluginTask globalRunRepeating(FarmersDelightPlugin plugin, Runnable task, long delayTicks, long periodTicks) {
-            return wrap(Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, ignored -> task.run(),
-                    Math.max(1L, delayTicks), Math.max(1L, periodTicks)));
+            try {
+                return wrap(Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, ignored -> task.run(),
+                        Math.max(1L, delayTicks), Math.max(1L, periodTicks)));
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+                return PluginTask.NOOP;
+            }
         }
 
         private static PluginTask regionRunRepeating(FarmersDelightPlugin plugin, World world, int chunkX, int chunkZ,
                                                      Runnable task, long delayTicks, long periodTicks) {
-            return wrap(Bukkit.getRegionScheduler().runAtFixedRate(plugin, world, chunkX, chunkZ,
-                    ignored -> task.run(), Math.max(1L, delayTicks), Math.max(1L, periodTicks)));
+            try {
+                return wrap(Bukkit.getRegionScheduler().runAtFixedRate(plugin, world, chunkX, chunkZ,
+                        ignored -> task.run(), Math.max(1L, delayTicks), Math.max(1L, periodTicks)));
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+                return PluginTask.NOOP;
+            }
         }
 
         private static void entityRun(FarmersDelightPlugin plugin, Entity entity, Runnable task, Runnable retired) {
-            ScheduledTask scheduled = entity.getScheduler().run(plugin, ignored -> task.run(), retired);
-            // An already-retired entity rejects scheduling without invoking its callback.
-            if (scheduled == null && retired != null) retired.run();
+            try {
+                ScheduledTask scheduled = entity.getScheduler().run(plugin, ignored -> task.run(), retired);
+                // An already-retired entity rejects scheduling without invoking its callback.
+                if (scheduled == null && retired != null) retired.run();
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+                if (retired != null) retired.run();
+            }
         }
 
         private static void entityRunLater(FarmersDelightPlugin plugin, Entity entity, Runnable task, long delayTicks) {
-            var scheduler = entity.getScheduler();
-            if (delayTicks <= 0L) scheduler.run(plugin, ignored -> task.run(), null);
-            else scheduler.runDelayed(plugin, ignored -> task.run(), null, delayTicks);
+            try {
+                var scheduler = entity.getScheduler();
+                if (delayTicks <= 0L) scheduler.run(plugin, ignored -> task.run(), null);
+                else scheduler.runDelayed(plugin, ignored -> task.run(), null, delayTicks);
+            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
+                refused(plugin, failure);
+            }
         }
     }
 }

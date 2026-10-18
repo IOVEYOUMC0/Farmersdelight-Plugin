@@ -452,7 +452,7 @@
   "effect.farmersdelight.comfort": "Comfort",
   "farmersdelight.tooltip.dog_food.when_feeding": "When fed to a tamed Wolf:",
   "farmersdelight.tooltip.horse_feed.when_feeding": "When fed to a tamed mount:",
-  "farmersdelight.tooltip.hot_cocoa.effect": "Removes some negative effects",
+  "farmersdelight.tooltip.hot_cocoa.effect": "Removes one random negative effect",
   "farmersdelight.tooltip.melon_juice.effect": "Restores a small amount of health instantly",
   "farmersdelight.tooltip.milk_bottle.effect": "Removes a random status effect",
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
@@ -463,5 +463,9 @@
   "block.farmersdelight.onions": "Onions",
   "block.farmersdelight.rice": "Rice Crops",
   "block.farmersdelight.tomatoes": "Tomato Vine",
-  "item.farmersdelight.pumpkin_pie_slice": "Slice of Pumpkin Pie"
+  "item.farmersdelight.pumpkin_pie_slice": "Slice of Pumpkin Pie",
+  "block.farmersdelight.wild_carrots": "Wild Carrot",
+  "block.farmersdelight.wild_potatoes": "Wild Potato",
+  "block.farmersdelight.wild_beetroots": "Sea Beet",
+  "block.farmersdelight.sandy_shrub": "Sandy Shrub"
 }

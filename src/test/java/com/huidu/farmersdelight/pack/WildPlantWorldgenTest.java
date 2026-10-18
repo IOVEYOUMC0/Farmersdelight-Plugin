@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,7 +52,7 @@ class WildPlantWorldgenTest {
     void everySkewerItemNameResolvesInEveryLocale() throws Exception {
         // Bukkit splits keys on dots, so read the quoted keys out of the file text instead.
         Set<String> skewers = new LinkedHashSet<>();
-        java.util.regex.Matcher keys = java.util.regex.Pattern
+        Matcher keys = Pattern
                 .compile("\"(item\\.farmersdelight\\.[a-z_]*skewer[a-z_]*)\"")
                 .matcher(Files.readString(LANG.resolve("en_us.json")));
         while (keys.find()) {

@@ -342,7 +342,7 @@ class HandCookedSkewerHooksTest {
         for (int tick = 0; tick < 8; tick++) {
             arm.runTick();
         }
-        assertEquals(java.util.List.of(4, 8), display.updates,
+        assertEquals(List.of(4, 8), display.updates,
                 "one update every four ticks, carrying the tick-based progress");
     }
 
@@ -456,7 +456,7 @@ class HandCookedSkewerHooksTest {
 
         private int starts;
         private int closes;
-        private final java.util.List<Integer> updates = new java.util.ArrayList<>();
+        private final List<Integer> updates = new ArrayList<>();
 
         @Override
         public void start(UUID player, int slot, String expectedId, int duration) {

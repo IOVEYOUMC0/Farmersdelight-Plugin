@@ -367,9 +367,10 @@ public class EffectListener implements Listener {
         if (!pool.isEmpty()) {
             try {
                 pool.get(ThreadLocalRandom.current().nextInt(pool.size())).run();
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException | LinkageError ignored) {
                 // A misbehaving addon buff's remove() shouldn't escape the consume event; per-buff
-                // isolation matching CustomBuffRegistry.clearAll/clearOne.
+                // isolation matching CustomBuffRegistry.clearAll/clearOne. LinkageError covers an addon
+                // whose classloader has gone away mid-consume.
             }
         }
     }

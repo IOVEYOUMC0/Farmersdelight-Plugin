@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -527,7 +528,7 @@ class HandCookedSkewerGateTest {
             }
             // Bukkit's addItem is declared to return a HashMap specifically, so the proxy cannot hand back
             // an immutable Map.of() here.
-            Map<Integer, ItemStack> overflow = new java.util.HashMap<>();
+            Map<Integer, ItemStack> overflow = new HashMap<>();
             for (ItemStack stack : items) {
                 added.add(stack);
                 slots.put(20 + added.size(), stack);

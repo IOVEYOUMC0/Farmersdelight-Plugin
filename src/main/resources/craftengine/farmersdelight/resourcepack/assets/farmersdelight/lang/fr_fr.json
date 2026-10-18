@@ -458,5 +458,9 @@
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
   "farmersdelight.category.deprecated": "Deprecated items",
   "farmersdelight.tooltip.deprecated": "Deprecated item",
-  "item.farmersdelight.pumpkin_pie_slice": "Part de tarte à la citrouille"
+  "item.farmersdelight.pumpkin_pie_slice": "Part de tarte à la citrouille",
+  "block.farmersdelight.wild_carrots": "Carotte sauvage",
+  "block.farmersdelight.wild_potatoes": "Pomme de terre sauvage",
+  "block.farmersdelight.wild_beetroots": "Betterave sauvage",
+  "block.farmersdelight.sandy_shrub": "Arbuste sablonneux"
 }

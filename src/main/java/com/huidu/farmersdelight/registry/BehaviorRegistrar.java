@@ -11,6 +11,7 @@ import com.huidu.farmersdelight.block.behavior.OrganicCompostBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RichSoilFarmlandBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
+import com.huidu.farmersdelight.block.behavior.RopeGateWallBehavior;
 import com.huidu.farmersdelight.block.behavior.SkilletBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
@@ -22,6 +23,9 @@ import com.huidu.farmersdelight.condition.IsAdultCondition;
 import com.huidu.farmersdelight.condition.IsBurningCondition;
 import com.huidu.farmersdelight.condition.IsKnifeCondition;
 import com.huidu.farmersdelight.effect.FoodBuffFunction;
+import com.huidu.farmersdelight.effect.HotCocoaFunction;
+import com.huidu.farmersdelight.loot.UniformBonusCount;
+import net.momirealms.craftengine.core.loot.function.formula.Formulas;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.item.behavior.ConditionalBlockPlantingItemBehavior;
 import com.huidu.farmersdelight.item.behavior.SkilletItemBehavior;
@@ -60,6 +64,7 @@ public final class BehaviorRegistrar {
         registerBehavior(Constants.BEHAVIOR_TATAMI, TatamiPairingBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_WILD_RICE, WildRiceBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_ROPE, RopeBlockBehavior.FACTORY);
+        registerBehavior("farmersdelight:rope_gate_wall", RopeGateWallBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_MUSHROOM_COLONY, MushroomColonyBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_WILD_PLANT, WildPlantBlockBehavior.FACTORY);
         registerBehavior(Constants.BEHAVIOR_TOMATO_VINE, TomatoVineBlockBehavior.FACTORY);
@@ -85,6 +90,7 @@ public final class BehaviorRegistrar {
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.COMFORT, CommonConditions::fromConfig));
         registerFunction("farmersdelight:nourishment",
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.NOURISHMENT, CommonConditions::fromConfig));
+        registerFunction("farmersdelight:hot_cocoa", HotCocoaFunction.factory(CommonConditions::fromConfig));
         ContentRegistration.apply(ContentRegistration.Kind.FUNCTION);
     }
 
@@ -99,6 +105,10 @@ public final class BehaviorRegistrar {
     }
 
     public static void registerLootFunctions() {
+        Key uniformBonus = Key.of("farmersdelight:uniform_bonus_count");
+        if (BuiltInRegistries.FORMULA_TYPE.getValue(uniformBonus) == null) {
+            Formulas.register(uniformBonus, UniformBonusCount.FACTORY);
+        }
         registerLootFunction(Constants.LOOT_FUNCTION_AWARD_ADVANCEMENT, AwardAdvancementFunction.FACTORY);
         ContentRegistration.apply(ContentRegistration.Kind.LOOT_FUNCTION);
     }

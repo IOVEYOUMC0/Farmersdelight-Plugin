@@ -26,7 +26,6 @@ final class ReloadBusyGuard {
 
     private final LongSupplier cooldownMillis;
     private final LongSupplier clock;
-    private final RejectionSink rejection;
 
     private boolean running;
     private boolean hasFinished;
@@ -37,12 +36,10 @@ final class ReloadBusyGuard {
      *                       edited config takes effect without a reload of its own; 0 still rejects an
      *                       in-flight reload
      * @param clock          supplies monotonic milliseconds, injected so the window is testable
-     * @param rejection      notified when a request is refused
      */
-    ReloadBusyGuard(LongSupplier cooldownMillis, LongSupplier clock, RejectionSink rejection) {
+    ReloadBusyGuard(LongSupplier cooldownMillis, LongSupplier clock) {
         this.cooldownMillis = cooldownMillis;
         this.clock = clock;
-        this.rejection = rejection;
     }
 
     /**
@@ -64,8 +61,16 @@ final class ReloadBusyGuard {
         return (int) ((remaining + 999L) / 1000L);
     }
 
-    /** True when the reload may proceed; otherwise the rejection has already been reported. */
-    boolean begin() {
+    /**
+     * True when the reload may proceed; otherwise the given sink has already been told why not.
+     *
+     *
+     * The sink is a parameter instead of a field, and the state below is guarded by this instance's monitor:
+     * on Folia a command runs on the sender's region thread, so two senders can reach this at the same time.
+     * A per-command field sink would then report through the other sender's message, and an unsynchronised
+     * read-modify-write would let both reloads through.
+     */
+    synchronized boolean begin(RejectionSink rejection) {
         if (running) {
             rejection.reject(null);
             return false;
@@ -85,7 +90,7 @@ final class ReloadBusyGuard {
     }
 
     /** Releases the guard and starts the cooldown. Call from a finally block so a failure cannot wedge it. */
-    void finish() {
+    synchronized void finish() {
         running = false;
         lastFinishedMillis = clock.getAsLong();
         hasFinished = true;

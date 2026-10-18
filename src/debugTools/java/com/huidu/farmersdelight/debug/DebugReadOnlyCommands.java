@@ -1,6 +1,9 @@
 package com.huidu.farmersdelight.debug;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.DebugToolExtension;
+import com.huidu.farmersdelight.api.util.DebugToolRegistry;
+import java.util.function.Function;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -277,7 +280,7 @@ final class DebugReadOnlyCommands {
         }
     }
 
-    void recipeValidate(Player player) {
+    void recipeValidate(Player player, Function<String, ItemStack> resolver) {
         if (batches.busy()) {
             player.sendMessage(I18n.getComponent("command.debug_batch_busy", player));
             return;
@@ -296,19 +299,32 @@ final class DebugReadOnlyCommands {
         List<CuttingBoardRecipe> boardRecipes = boardManager == null ? List.of() : boardManager.getSortedRecipes();
 
         List<String> issues = new ArrayList<>();
-        int total = potRecipes.size() + boardRecipes.size();
+        List<Runnable> addonChecks = new ArrayList<>();
+        for (DebugToolExtension extension : DebugToolRegistry.all()) {
+            for (String id : extension.recipeIds()) {
+                addonChecks.add(() -> {
+                    if (extension.recipe(id, resolver) == null) {
+                        issues.add("<red>[" + extension.name() + "] " + MINI_MESSAGE.escapeTags(id)
+                                + "</red> <gray>cannot resolve a complete setup</gray>");
+                    }
+                });
+            }
+        }
+        int total = potRecipes.size() + boardRecipes.size() + addonChecks.size();
         // One loaded recipe per slice, so the runner walks the set over several ticks instead of one pass; the
         // report is sent after the last slice, when the issue list can no longer grow.
         if (!batches.start(player, total, index -> {
             if (index < potRecipes.size()) {
                 checkPotRecipe(potManager, potRecipes.get(index), issues);
-            } else {
+            } else if (index < potRecipes.size() + boardRecipes.size()) {
                 checkBoardRecipe(potManager, boardRecipes.get(index - potRecipes.size()), issues);
+            } else {
+                addonChecks.get(index - potRecipes.size() - boardRecipes.size()).run();
             }
         }, () -> {
             player.sendMessage(MINI_MESSAGE.deserialize("<green>Recipe validation</green> <gray>scanned "
-                    + potRecipes.size() + " cooking-pot + " + boardRecipes.size() + " cutting-board recipes ("
-                    + total + " total)</gray>"));
+                    + potRecipes.size() + " cooking-pot + " + boardRecipes.size() + " cutting-board + "
+                    + addonChecks.size() + " addon-station recipes (" + total + " total)</gray>"));
             sendCapped(player, issues, REPORT_CAP, "issue(s)");
             if (issues.isEmpty()) {
                 player.sendMessage(MINI_MESSAGE.deserialize("<green>No unresolved item ids found.</green>"));

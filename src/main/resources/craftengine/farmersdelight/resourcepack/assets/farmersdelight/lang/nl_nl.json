@@ -458,5 +458,9 @@
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
   "farmersdelight.category.deprecated": "Deprecated items",
   "farmersdelight.tooltip.deprecated": "Deprecated item",
-  "item.farmersdelight.pumpkin_pie_slice": "Slice of Pumpkin Pie"
+  "item.farmersdelight.pumpkin_pie_slice": "Slice of Pumpkin Pie",
+  "block.farmersdelight.wild_carrots": "Wilde Wortels",
+  "block.farmersdelight.wild_potatoes": "Wilde Aardappelen",
+  "block.farmersdelight.wild_beetroots": "Strandbiet",
+  "block.farmersdelight.sandy_shrub": "Sandy Shrub"
 }

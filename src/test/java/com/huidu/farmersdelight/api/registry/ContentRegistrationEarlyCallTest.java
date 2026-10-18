@@ -6,6 +6,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -61,13 +64,13 @@ class ContentRegistrationEarlyCallTest {
 
 
     private static String read(String relative) throws Exception {
-        java.nio.file.Path cursor = java.nio.file.Path.of("").toAbsolutePath();
+        Path cursor = Path.of("").toAbsolutePath();
         for (int depth = 0; depth < 4 && cursor != null; depth++) {
             for (String prefix : new String[]{"FarmersDelight/src/main/java/com/huidu/farmersdelight/",
                     "src/main/java/com/huidu/farmersdelight/"}) {
-                java.nio.file.Path candidate = cursor.resolve(prefix + relative);
-                if (java.nio.file.Files.isRegularFile(candidate)) {
-                    return java.nio.file.Files.readString(candidate);
+                Path candidate = cursor.resolve(prefix + relative);
+                if (Files.isRegularFile(candidate)) {
+                    return Files.readString(candidate);
                 }
             }
             cursor = cursor.getParent();

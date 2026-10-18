@@ -12,7 +12,10 @@ import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,7 +160,7 @@ class TallCropBlockBehaviorTest {
     void resetToAgeIsDisabledByDefault() {
         TallCropBlockBehavior rice = crop("farmersdelight:rice", Map.of());
 
-        org.junit.jupiter.api.Assertions.assertNull(rice.resetToAge());
+        assertNull(rice.resetToAge());
         assertTrue(rice.resetsOnHarvest());
     }
 
@@ -209,9 +212,9 @@ class TallCropBlockBehaviorTest {
 
     private static String readBehaviorSource() {
         try {
-            return java.nio.file.Files.readString(java.nio.file.Path.of(
+            return Files.readString(Path.of(
                     "src/main/java/com/huidu/farmersdelight/block/behavior/TallCropBlockBehavior.java"));
-        } catch (java.io.IOException exception) {
+        } catch (IOException exception) {
             throw new AssertionError(exception);
         }
     }

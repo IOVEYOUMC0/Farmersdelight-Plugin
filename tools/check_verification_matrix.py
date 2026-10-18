@@ -4,7 +4,7 @@
 The matrix is only worth having if its claims can be followed: every row has to carry the seven columns, a
 conclusion from a fixed set, and — for a row that claims a pass — a reference to something that exists. Test
 references name a class, which has to be on disk under src/test/java in this repository; document references
-name a path, which is looked up in this repository first and beside it second (see DOC_ROOTS). Rows that are
+name a path inside this repository, so the evidence is versioned with the code it describes. Rows that are
 not verified yet are printed as the list of what is still open, which is the same list a release note would
 have to mention.
 
@@ -24,10 +24,7 @@ CONCLUSIONS = {"通过", "未验证", "不适用"}
 COLUMNS = 7
 # Test references resolve inside this repository only: a class named in the matrix has to be one of its tests.
 TEST_ROOTS = (os.path.join("src", "test", "java"),)
-# Document references resolve against these roots, in this order: the plugin repository first, then the
-# directory that holds it. Some evidence documents (the scratchpad reports) are written one level above the
-# repository, so a `doc:` path that is not inside it is looked up there before it is called missing.
-DOC_ROOTS = ("repo", "workspace")
+
 
 
 def repo_root():
@@ -35,19 +32,13 @@ def repo_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def doc_roots(root):
-    """The absolute roots a `doc:` reference is resolved against, in the order DOC_ROOTS names them."""
-    workspace = os.path.dirname(os.path.abspath(root))
-    return tuple(workspace if name == "workspace" else root for name in DOC_ROOTS)
-
-
 def doc_path(root, relative):
-    """The first existing file a `doc:` reference names, or None when no root holds it."""
-    for base in doc_roots(root):
-        candidate = os.path.join(base, relative)
-        if os.path.isfile(candidate):
-            return candidate
-    return None
+    """The file a `doc:` reference names, or None when it is not a file inside this repository."""
+    base = os.path.normpath(root)
+    candidate = os.path.normpath(os.path.join(base, relative))
+    if os.path.commonpath([base, candidate]) != base:
+        return None
+    return candidate if os.path.isfile(candidate) else None
 
 
 def read_rows(root):
@@ -106,8 +97,8 @@ def check(root):
         elif evidence.startswith("doc:"):
             relative = evidence[len("doc:"):]
             if doc_path(root, relative) is None:
-                problems.append("line %d: document %s does not exist under %s"
-                                % (number, relative, " or ".join(doc_roots(root))))
+                problems.append("line %d: document %s does not exist in this repository"
+                                % (number, relative))
         elif evidence.startswith("manual:"):
             problems.append("line %d: a manual note is not evidence for a pass; write it down as a document"
                             % number)

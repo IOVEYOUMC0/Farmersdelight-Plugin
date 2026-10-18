@@ -458,5 +458,9 @@
   "farmersdelight.tooltip.no_collision": "This block does not have collision yet.",
   "farmersdelight.category.deprecated": "Deprecated items",
   "farmersdelight.tooltip.deprecated": "Deprecated item",
-  "item.farmersdelight.pumpkin_pie_slice": "Шматок гарбузового пирога"
+  "item.farmersdelight.pumpkin_pie_slice": "Шматок гарбузового пирога",
+  "block.farmersdelight.wild_carrots": "Дика морква",
+  "block.farmersdelight.wild_potatoes": "Дика картопля",
+  "block.farmersdelight.wild_beetroots": "Морський буряк",
+  "block.farmersdelight.sandy_shrub": "Піщаний кущ"
 }

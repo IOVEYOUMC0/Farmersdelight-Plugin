@@ -264,7 +264,7 @@
   "block.farmersdelight.crimson_cabinet": "绯红木橱柜",
   "block.farmersdelight.cutting_board": "砧板",
   "block.farmersdelight.dark_oak_cabinet": "深色橡木橱柜",
-  "block.farmersdelight.egg_carton": "鸡蛋盒",
+  "block.farmersdelight.egg_carton": "蛋盒",
   "block.farmersdelight.gleaming_salad_block": "闪亮沙拉",
   "block.farmersdelight.glow_berries_bag": "袋装发光浆果",
   "block.farmersdelight.golden_apple_crate": "箱装金苹果",
@@ -452,7 +452,7 @@
   "effect.farmersdelight.comfort": "舒适",
   "farmersdelight.tooltip.dog_food.when_feeding": "喂给已驯服的狗时：",
   "farmersdelight.tooltip.horse_feed.when_feeding": "喂给已驯服的马时：",
-  "farmersdelight.tooltip.hot_cocoa.effect": "清除部分负面效果",
+  "farmersdelight.tooltip.hot_cocoa.effect": "随机清除一种负面效果",
   "farmersdelight.tooltip.melon_juice.effect": "瞬间恢复少量生命值",
   "farmersdelight.tooltip.milk_bottle.effect": "随机清除1个状态效果",
   "farmersdelight.tooltip.no_collision": "该方块暂未实现物理碰撞效果",
@@ -463,5 +463,9 @@
   "block.farmersdelight.onions": "洋葱",
   "block.farmersdelight.rice": "稻米",
   "block.farmersdelight.tomatoes": "番茄藤蔓",
-  "item.farmersdelight.pumpkin_pie_slice": "南瓜派切片"
+  "item.farmersdelight.pumpkin_pie_slice": "南瓜派切片",
+  "block.farmersdelight.wild_carrots": "野生胡萝卜",
+  "block.farmersdelight.wild_potatoes": "野生马铃薯",
+  "block.farmersdelight.wild_beetroots": "海甜菜",
+  "block.farmersdelight.sandy_shrub": "沙生灌木"
 }

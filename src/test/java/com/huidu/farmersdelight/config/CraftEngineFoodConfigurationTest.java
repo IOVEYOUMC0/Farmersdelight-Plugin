@@ -111,19 +111,17 @@ class CraftEngineFoodConfigurationTest {
         assertFalse(yaml.isSet(itemPath + ".settings.projectile"));
     }
 
-    /**
-     * Pins the Farmer's Delight 1.4 food values, which are absolute values in that release (the old
-     * nutrition x modifier x 2 numbers are gone). Read from the shipped YAML rather than from CraftEngine's
-     * parsed food component, because building an ItemStack needs a running server: the numbers below are
-     * exactly the fields CraftEngine feeds into the food component.
-     */
+    // Read shipped absolute food values without requiring a live server.
     @Test
-    void foodValuesMatchTheFourteenAbsoluteValues() {
+    void foodValuesMatchUpstreamAbsoluteValues() {
         Path path = Path.of("src", "main", "resources", "craftengine", "farmersdelight",
                 "configuration", "items.yml");
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(path.toFile());
 
         Map<String, List<Number>> expected = Map.ofEntries(
+                Map.entry("hot_cocoa", List.of(3, 6)),
+                Map.entry("apple_cider", List.of(1, 4)),
+                Map.entry("melon_juice", List.of(1, 4)),
                 Map.entry("cabbage", List.of(4, 2)),
                 Map.entry("tomato", List.of(1, 1)),
                 Map.entry("onion", List.of(2, 1)),
@@ -183,6 +181,11 @@ class CraftEngineFoodConfigurationTest {
             assertEquals(entry.getValue().get(1).doubleValue(), saturation, 0.0,
                     id + " saturation (1.4 absolute)");
         }
+        List<?> functions = (List<?>) yaml.getMapList("items.farmersdelight:apple_cider.events")
+                .getFirst().get("functions");
+        Map<?, ?> absorption = (Map<?, ?>) functions.getFirst();
+        assertEquals("minecraft:absorption", absorption.get("potion-effect"));
+        assertEquals(3600, ((Number) absorption.get("duration")).intValue());
     }
 
     /**

@@ -36,7 +36,7 @@ class ReloadBusyGuardTest {
     }
 
     private static ReloadBusyGuard guard(Clock clock, long cooldownMillis, List<Integer> refusals) {
-        return new ReloadBusyGuard(() -> cooldownMillis, clock, refusals::add);
+        return new ReloadBusyGuard(() -> cooldownMillis, clock);
     }
 
     @Test
@@ -45,9 +45,9 @@ class ReloadBusyGuardTest {
         List<Integer> refusals = new ArrayList<>();
         ReloadBusyGuard guard = guard(clock, 1000, refusals);
 
-        assertTrue(guard.begin(), "the first reload must be accepted");
+        assertTrue(guard.begin(refusals::add), "the first reload must be accepted");
         // No time passes: the command layer would call this again on the very same tick.
-        assertFalse(guard.begin(), "a concurrent reload must be rejected");
+        assertFalse(guard.begin(refusals::add), "a concurrent reload must be rejected");
         assertEquals(1, refusals.size(), "the rejection must be reported exactly once");
         // Still running, so the cooldown has not started and there is no countdown to show.
         assertNull(refusals.getFirst(), "a running reload reports no wait time");
@@ -59,11 +59,11 @@ class ReloadBusyGuardTest {
         List<Integer> refusals = new ArrayList<>();
         ReloadBusyGuard guard = guard(clock, 1000, refusals);
 
-        assertTrue(guard.begin());
+        assertTrue(guard.begin(refusals::add));
         guard.finish();
         // The addon cascade for the reload just accepted runs on the next tick, so an immediate repeat would
         // stack onto it. The cooldown exists to cover exactly that window.
-        assertFalse(guard.begin(), "a repeat inside the cooldown must be rejected");
+        assertFalse(guard.begin(refusals::add), "a repeat inside the cooldown must be rejected");
         assertEquals(1, refusals.size());
     }
 
@@ -73,13 +73,13 @@ class ReloadBusyGuardTest {
         List<Integer> refusals = new ArrayList<>();
         ReloadBusyGuard guard = guard(clock, 1000, refusals);
 
-        assertTrue(guard.begin());
+        assertTrue(guard.begin(refusals::add));
         guard.finish();
         clock.advance(999);
-        assertFalse(guard.begin(), "one millisecond short of the cooldown must still be rejected");
+        assertFalse(guard.begin(refusals::add), "one millisecond short of the cooldown must still be rejected");
 
         clock.advance(1);
-        assertTrue(guard.begin(), "at the cooldown boundary the guard must open again");
+        assertTrue(guard.begin(refusals::add), "at the cooldown boundary the guard must open again");
         assertEquals(1, refusals.size(), "only the rejected attempt is reported");
     }
 
@@ -89,11 +89,11 @@ class ReloadBusyGuardTest {
         List<Integer> refusals = new ArrayList<>();
         ReloadBusyGuard guard = guard(clock, 5000, refusals);
 
-        assertTrue(guard.begin());
+        assertTrue(guard.begin(refusals::add));
         // A reload that fails part-way still has to release the guard, or every later reload would be refused.
         guard.finish();
         clock.advance(5000);
-        assertTrue(guard.begin(), "a released guard must accept a reload once the cooldown passed");
+        assertTrue(guard.begin(refusals::add), "a released guard must accept a reload once the cooldown passed");
     }
 
     @Test
@@ -102,10 +102,10 @@ class ReloadBusyGuardTest {
         List<Integer> refusals = new ArrayList<>();
         ReloadBusyGuard guard = guard(clock, 0, refusals);
 
-        assertTrue(guard.begin());
-        assertFalse(guard.begin(), "even without a cooldown, an in-flight reload is exclusive");
+        assertTrue(guard.begin(refusals::add));
+        assertFalse(guard.begin(refusals::add), "even without a cooldown, an in-flight reload is exclusive");
         guard.finish();
-        assertTrue(guard.begin(), "with no cooldown the guard opens immediately after finishing");
+        assertTrue(guard.begin(refusals::add), "with no cooldown the guard opens immediately after finishing");
         assertEquals(1, refusals.size());
     }
 
@@ -115,10 +115,10 @@ class ReloadBusyGuardTest {
         List<Integer> refusals = new ArrayList<>();
         ReloadBusyGuard guard = guard(clock, 1000, refusals);
 
-        assertTrue(guard.begin());
+        assertTrue(guard.begin(refusals::add));
         guard.finish();
         clock.advance(400);
-        assertFalse(guard.begin());
+        assertFalse(guard.begin(refusals::add));
         assertEquals(List.of(1), refusals, "600ms left must be reported as one second, not zero");
     }
 
