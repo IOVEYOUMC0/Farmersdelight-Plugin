@@ -25,7 +25,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -101,6 +100,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private DetailState ingredientOptionsOrigin;
     final RecipeDetailRenderer detailRenderer = new RecipeDetailRenderer(this);
     final RecipeListRenderer listRenderer = new RecipeListRenderer(this);
+    final RecipeViewTitles titles = new RecipeViewTitles(this);
     // Ingredient/tool preview rotation: this many GUI tick callbacks, and each callback is
     // GuiTickManager.TICK_INTERVAL (4) game ticks, so the preview switches every 80 ticks (4s).
     static final int INGREDIENT_SWITCH_CALLBACKS = 20;
@@ -158,14 +158,13 @@ public class RecipeViewGui extends AbstractInventoryGui {
         
         String initialTitle;
         if (fromCookingPot) {
-            initialTitle = resolveMenuTitle(
+            initialTitle = titles.menuTitle(
                     "recipe-list",
-                    "level_1",
                     config.getRecipeList().getTitle(),
                     Map.of("page", "1", "total", "1")
             );
         } else {
-            initialTitle = resolveMenuTitle("main-menu", null, config.getMainMenu().getTitle(), Map.of());
+            initialTitle = titles.menuTitle("main-menu", config.getMainMenu().getTitle(), Map.of());
         }
         this.inventory = Bukkit.createInventory(this, 54, coloredComponent(initialTitle));
     }
@@ -424,7 +423,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private void drawMainMenu(Player player) {
         RecipeViewGuiConfig.MainMenuConfig menuConfig = config.getMainMenu();
         inventory = Bukkit.createInventory(this, menuConfig.getSize(),
-                coloredComponent(resolveMenuTitle("main-menu", null, menuConfig.getTitle(), Map.of())));
+                coloredComponent(titles.menuTitle("main-menu", menuConfig.getTitle(), Map.of())));
 
         fillBackground(menuConfig);
 
@@ -482,7 +481,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private <T> void drawRecipeList(Player player, RecipeViewGuiConfig.RecipeListConfig listConfig, 
                                     List<T> recipes, boolean isCookingPot) {
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
-        int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "recipe-list", "level_1");
+        int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "recipe-list");
         int startIndex = currentPage * recipeSlots.size();
 
         // Locale + (for cooking pots) the per-instance preview-count and active group fully determine
@@ -550,7 +549,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // creates the titled inventory (with {page}/{total} resolved) and fills the background. Returns
     // the total page count; the caller derives the start index from the current page.
     private int beginListPage(RecipeViewGuiConfig.BaseConfig listConfig, List<Integer> recipeSlots,
-                              int totalItems, String guiPath, String legacyPath) {
+                              int totalItems, String guiPath) {
         int itemsPerPage = recipeSlots.size();
         int totalPages = Math.max(1, (int) Math.ceil(totalItems / (double) itemsPerPage));
         if (currentPage < 0) {
@@ -562,7 +561,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         Map<String, String> titlePlaceholders = new HashMap<>();
         titlePlaceholders.put("page", String.valueOf(currentPage + 1));
         titlePlaceholders.put("total", String.valueOf(totalPages));
-        String title = resolveMenuTitle(guiPath, legacyPath, listConfig.getTitle(), titlePlaceholders);
+        String title = titles.menuTitle(guiPath, listConfig.getTitle(), titlePlaceholders);
         inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
 
         fillBackground(listConfig);
@@ -626,12 +625,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
             titlePlaceholders.put("recipe_id", "");
         }
         String menuKey = "recipe-detail-cutting-board";
-        String levelKey = "level_2_board";
         if (cookingPotMode) {
             menuKey = "recipe-detail-cooking-pot";
-            levelKey = "level_2_pot";
         }
-        String title = resolveMenuTitle(menuKey, levelKey, detailConfig.getTitle(), titlePlaceholders);
+        String title = titles.menuTitle(menuKey, detailConfig.getTitle(), titlePlaceholders);
         inventory = Bukkit.createInventory(this, detailConfig.getSize(), coloredComponent(title));
         if (resetAnimations) {
             resetDetailAnimations();
@@ -726,7 +723,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         Map<String, String> placeholders = Map.of(
                 "page", String.valueOf(expandedIngredientPage + 1),
                 "total", String.valueOf(totalPages));
-        String title = resolveMenuTitle("recipe-list", "level_1", listConfig.getTitle(), placeholders);
+        String title = titles.menuTitle("recipe-list", listConfig.getTitle(), placeholders);
         inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
         fillBackground(listConfig);
         if (listConfig.getFilterSlot() >= 0) {
@@ -806,7 +803,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<SpecialRecipeInfo> recipes = plugin.getSpecialRecipeRegistry() != null
                 ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
-        int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "special-recipe-list", null);
+        int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "special-recipe-list");
         int startIndex = currentPage * recipeSlots.size();
 
         for (int i = 0; i < recipeSlots.size(); i++) {
@@ -832,7 +829,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         catalystCycle.reset();
 
         RecipeViewGuiConfig.SpecialRecipeDetailConfig detailConfig = specialRecipeRenderer.specialDetailFor(info);
-        String title = resolveSpecialDetailTitle(detailConfig.guiKey(), detailConfig.getTitle(),
+        String title = titles.specialDetailTitle(detailConfig.guiKey(), detailConfig.getTitle(),
                 Map.of("recipe_id", info.id()), info);
         inventory = Bukkit.createInventory(this, detailConfig.getSize(), coloredComponent(title));
 
@@ -1088,75 +1085,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (item != null) {
             inventory.setItem(slot, item.createItem());
         }
-    }
-
-    private String applyTitlePlaceholders(String title, Map<String, String> placeholders) {
-        String result = "GUI";
-        if (title != null) {
-            result = title;
-        }
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            result = result.replace("{" + entry.getKey() + "}", entry.getValue());
-        }
-        return result;
-    }
-
-    private String resolveMenuTitle(String guiPath, String legacyPath, String fallbackTitle, Map<String, String> placeholders) {
-        String title = applyTitlePlaceholders(fallbackTitle, placeholders);
-        String offset = "";
-        String icon = "";
-
-        var guiSection = plugin.getRecipeViewGuiSection();
-        var currentLayout = guiSection != null
-                ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
-                : null;
-        if (currentLayout != null) {
-            offset = currentLayout.getString("offset", "");
-            icon = currentLayout.getString("icon", "");
-        }
-
-        return title.replace("<offset>", offset).replace("<icon>", icon);
-    }
-
-    // Special-recipe detail title with the per-condition images composed in. The title-layout
-    // craftengine section may define sunlight / water / catalyst_info image strings (each its own
-    // shift + image); the matching placeholder in the title resolves to that string when the recipe
-    // has the condition, or to the "<key>-off" string (e.g. a cover image) when it does not. One
-    // detail layout then shows exactly the conditions each recipe declares.
-    private String resolveSpecialDetailTitle(String guiPath, String fallbackTitle,
-                                             Map<String, String> placeholders, SpecialRecipeInfo info) {
-        String title = applyTitlePlaceholders(fallbackTitle, placeholders);
-        String offset = "";
-        String icon = "";
-        String sunlight = "";
-        String water = "";
-        String catalystInfo = "";
-
-        var guiSection = plugin.getRecipeViewGuiSection();
-        var layout = guiSection != null
-                ? guiSection.getConfigurationSection(guiPath + ".title-layout.craftengine")
-                : null;
-        if (layout != null) {
-            offset = layout.getString("offset", "");
-            icon = layout.getString("icon", "");
-            sunlight = conditionImage(layout, "sunlight", info != null && info.hasSunlight());
-            water = conditionImage(layout, "water", info != null && info.hasWater());
-            catalystInfo = conditionImage(layout, "catalyst_info", info != null && info.hasCatalystInfo());
-        }
-
-        String composed = title
-                .replace("<offset>", offset)
-                .replace("<icon>", icon)
-                .replace("<sunlight>", sunlight)
-                .replace("<water>", water)
-                .replace("<catalyst_info>", catalystInfo);
-        return composed;
-    }
-
-    // The "on" image string for an active condition, or the "<key>-off" cover string for an inactive
-    // one (e.g. catalyst_info-off draws the none image over the mushroom slot); both default to empty.
-    private String conditionImage(ConfigurationSection layout, String key, boolean active) {
-        return active ? layout.getString(key, "") : layout.getString(key + "-off", "");
     }
 
     private void fillBackground(RecipeViewGuiConfig.BaseConfig guiConfig) {
