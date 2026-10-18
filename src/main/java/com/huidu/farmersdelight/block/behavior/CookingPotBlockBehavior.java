@@ -804,6 +804,16 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         ));
     };
 
+    /**
+     * CraftEngine skips {@code useOnBlock} for a sneaking player who holds an item unless the behavior opts
+     * in here, which would make the open-while-sneaking gesture (and the sneaking pass-through that lets a
+     * held pot be placed) unreachable.
+     */
+    @Override
+    public boolean canUseOnBlockIfSecondaryUseActive(UseOnContext context, ImmutableBlockState state) {
+        return true;
+    }
+
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) return InteractionResult.PASS;

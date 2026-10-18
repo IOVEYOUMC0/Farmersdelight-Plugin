@@ -264,6 +264,16 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         return CustomBlockUtils.getBehavior(state, StoveCookingBlockBehavior.class);
     }
 
+    /**
+     * CraftEngine skips {@code useOnBlock} for a sneaking player who holds an item unless the behavior opts
+     * in here. The stove has no sneak gate of its own (matching the upstream block), so a sneaking player
+     * must still reach the place-food interaction instead of falling through to vanilla's eat-the-item.
+     */
+    @Override
+    public boolean canUseOnBlockIfSecondaryUseActive(UseOnContext context, ImmutableBlockState state) {
+        return true;
+    }
+
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) {
@@ -301,15 +311,13 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
 
         if (isEquippable(heldItem)) {
             // Passing through lets vanilla equip the held armor after CraftEngine has processed the stove
-            // interaction. Cancel this before the sneak bypass too, and for either hand, so a second
-            // right-click cannot consume the replaced piece.
+            // interaction. Cancel it for either hand, so a second right-click cannot consume the replaced
+            // piece.
             return InteractionResult.SUCCESS_AND_CANCEL;
         }
 
-        if (player.isSneaking()) {
-            return InteractionResult.PASS;
-        }
-
+        // No sneak gate: the upstream block has none either, so a sneaking player still places food here
+        // instead of having the held item eaten by vanilla.
         if (heldItem == null || heldItem.getType().isAir()) {
             return InteractionResult.PASS;
         }

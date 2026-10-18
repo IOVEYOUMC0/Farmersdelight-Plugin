@@ -548,6 +548,15 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         return Key.of(text);
     }
 
+    /**
+     * CraftEngine skips {@code useOnBlock} for a sneaking player who holds an item unless the behavior opts
+     * in here, which would make the carve gesture (sneak + knife on an empty board) unreachable.
+     */
+    @Override
+    public boolean canUseOnBlockIfSecondaryUseActive(UseOnContext context, ImmutableBlockState state) {
+        return true;
+    }
+
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) return InteractionResult.PASS;
