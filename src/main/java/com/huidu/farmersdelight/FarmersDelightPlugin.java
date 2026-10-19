@@ -390,8 +390,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logDetail("startup", "plugin.folia_scheduler");
         }
 
-        // Build the protection facade over all installed land plugins (softdepends are enabled by now);
-        // WorldGuard flags were already registered in onLoad. Non-WG land plugins gate via AntiGriefLib.
+        // Build the protection facade over all installed land plugins; WorldGuard flags were already
+        // registered in onLoad. Non-WG land plugins gate through CraftEngine's AntiGriefLib provider.
         ProtectionCompat.init(this);
 
         loadConfigs();
