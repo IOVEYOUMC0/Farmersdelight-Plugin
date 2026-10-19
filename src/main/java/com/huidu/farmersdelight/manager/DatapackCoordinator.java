@@ -44,7 +44,7 @@ public final class DatapackCoordinator {
         // A refused task never runs, so its own cleanup would never fire either. Release the guard here and
         // leave the removal to the next reason that asks for it, rather than wedging it for the session.
         if (!plugin.scheduler().tryRunAsync(() -> {
-            boolean removed = false;
+            boolean removed;
             try {
                 removed = new AdvancementDatapackInstaller().remove(datapackRoot);
             } finally {

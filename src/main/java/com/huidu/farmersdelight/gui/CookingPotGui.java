@@ -983,7 +983,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         for (Map.Entry<UUID, CookingPotGui> entry : new ArrayList<>(activeGuis.entrySet())) {
             CookingPotGui gui = entry.getValue();
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (gui != null && !gui.closed) {
+            if (!gui.closed) {
                 gui.close();
             }
             activeGuis.remove(entry.getKey());

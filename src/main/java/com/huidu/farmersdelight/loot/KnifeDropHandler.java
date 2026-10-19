@@ -59,7 +59,7 @@ public class KnifeDropHandler implements Listener {
         var entity = event.getEntity();
         Player killer = entity.getKiller();
 
-        if (!(killer instanceof Player)) return;
+        if (killer == null) return;
 
         if (entity instanceof Ageable ageable && !ageable.isAdult()) {
             return;

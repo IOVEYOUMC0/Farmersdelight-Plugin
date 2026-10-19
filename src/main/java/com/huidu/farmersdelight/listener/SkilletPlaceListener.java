@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -86,8 +87,9 @@ public class SkilletPlaceListener implements Listener {
             mainHand.setAmount(mainHand.getAmount() - 1);
         }
 
-        if (plugin.getSkilletManager() != null) {
-            plugin.getSkilletManager().recordPlacedSkillet(targetBlock.getLocation(), placedSnapshot);
+        SkilletManager skilletManager = plugin.getSkilletManager();
+        if (skilletManager != null) {
+            skilletManager.recordPlacedSkillet(targetBlock.getLocation(), placedSnapshot);
         }
         AdvancementManager advancementManager = plugin.getAdvancementManager();
         if (advancementManager != null) {
