@@ -104,10 +104,6 @@ class LootParityFillTest {
         return list(pools(section).get(pool).get("entries")).get(0);
     }
 
-    private static Map<?, ?> firstPoolCondition(ConfigurationSection section, int pool, int index) {
-        return list(pools(section).get(pool).get("conditions")).get(index);
-    }
-
     /**
      * The condition types a loot source carries at the source level. A rule that replaces the vanilla drop
      * has to put its condition here: CraftEngine reads the overwrite flag from a source only after that

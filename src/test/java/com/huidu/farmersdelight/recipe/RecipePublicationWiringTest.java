@@ -22,8 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RecipePublicationWiringTest {
 
     private static final String COORDINATOR = "CraftEngineReadinessCoordinator.java";
-    private static final String POT = "recipe/CookingPotRecipeManager.java";
-    private static final String BOARD = "recipe/CuttingBoardRecipeManager.java";
 
     @Test
     void everyReadinessPassWaitsForItsPublication() throws IOException {
@@ -57,15 +55,6 @@ class RecipePublicationWiringTest {
                 "a pass a newer one overtook reports nothing and rolls back nothing");
         assertTrue(source.contains("plugin.recipe_publication_failed"),
                 "the failure is reported to the operator");
-    }
-
-    private static String between(String source, String start, String end) {
-        int from = source.indexOf(start);
-        int to = from < 0 ? -1 : source.indexOf(end, from);
-        if (from < 0 || to < 0) {
-            throw new AssertionError("source is missing '" + start + "' .. '" + end + "'");
-        }
-        return source.substring(from, to);
     }
 
     private static int count(String source, String needle) {

@@ -20,8 +20,6 @@ class ParityContentFillTest {
 
     private static final Path CFG = Path.of(
             "src/main/resources/craftengine/farmersdelight/configuration");
-    private static final Path LANG = Path.of(
-            "src/main/resources/craftengine/farmersdelight/resourcepack/assets/farmersdelight/lang");
     /** Block ids are defined under any of these sections across the shipped pack files. */
     private static boolean isDefinedAnywhere(String id) throws Exception {
         try (var files = Files.list(CFG)) {

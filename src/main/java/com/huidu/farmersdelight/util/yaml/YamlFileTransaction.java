@@ -264,7 +264,9 @@ public final class YamlFileTransaction {
         if (parent != null) {
             Files.createDirectories(parent);
         }
-        Path temp = Files.createTempFile(parent, target.getFileName().toString(), ".tmp");
+        Path temp = parent != null
+                ? Files.createTempFile(parent, target.getFileName().toString(), ".tmp")
+                : Files.createTempFile(target.getFileName().toString(), ".tmp");
         try {
             Files.writeString(temp, content, StandardCharsets.UTF_8);
             try {

@@ -76,7 +76,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     final RecipeViewGuiConfig config;
     private GuiState state = GuiState.MAIN_MENU;
-    private int currentPage = 0;
+    final RecipePager pager = new RecipePager();
     private volatile String selectedRecipeId = null;
     private volatile String selectedSpecialRecipeId = null;
     private boolean cookingPotMode = true;
@@ -265,7 +265,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             if (gui.specialRecipeRenderer.isListOnlySpecial(info)) {
                 int index = plugin.getSpecialRecipeRegistry().getAll().indexOf(info);
                 int pageSize = Math.max(1, gui.config.getSpecialRecipeList().getRecipeSlots().size());
-                gui.currentPage = Math.max(0, index) / pageSize;
+                gui.pager.set(index / pageSize);
                 gui.state = GuiState.SPECIAL_RECIPE_LIST;
             } else {
                 gui.state = GuiState.SPECIAL_RECIPE_DETAIL;
@@ -282,7 +282,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         state = GuiState.COOKING_POT_LIST;
         cookingPotMode = true;
         recipeBackState = GuiState.COOKING_POT_LIST;
-        currentPage = 0;
+        pager.reset();
         open(player);
     }
 
@@ -291,14 +291,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
         state = GuiState.CUTTING_BOARD_LIST;
         cookingPotMode = false;
         recipeBackState = GuiState.CUTTING_BOARD_LIST;
-        currentPage = 0;
+        pager.reset();
         open(player);
     }
 
     public void openSpecialRecipes(Player player) {
         backButtonCommandsEnabled = true;
         state = GuiState.SPECIAL_RECIPE_LIST;
-        currentPage = 0;
+        pager.reset();
         open(player);
     }
 
@@ -482,7 +482,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                                     List<T> recipes, boolean isCookingPot) {
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "recipe-list");
-        int startIndex = currentPage * recipeSlots.size();
+        int startIndex = pager.start(recipeSlots.size());
 
         // Locale + (for cooking pots) the per-instance preview-count and active group fully determine
         // a non-locked display item's content, so cache the built item across opens/pages/players.
@@ -550,16 +550,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // the total page count; the caller derives the start index from the current page.
     private int beginListPage(RecipeViewGuiConfig.BaseConfig listConfig, List<Integer> recipeSlots,
                               int totalItems, String guiPath) {
-        int itemsPerPage = recipeSlots.size();
-        int totalPages = Math.max(1, (int) Math.ceil(totalItems / (double) itemsPerPage));
-        if (currentPage < 0) {
-            currentPage = 0;
-        } else if (currentPage >= totalPages) {
-            currentPage = totalPages - 1;
-        }
+        int totalPages = pager.totalPages(totalItems, recipeSlots.size());
+        pager.clamp(totalPages);
 
         Map<String, String> titlePlaceholders = new HashMap<>();
-        titlePlaceholders.put("page", String.valueOf(currentPage + 1));
+        titlePlaceholders.put("page", String.valueOf(pager.page() + 1));
         titlePlaceholders.put("total", String.valueOf(totalPages));
         String title = titles.menuTitle(guiPath, listConfig.getTitle(), titlePlaceholders);
         inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
@@ -570,10 +565,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     // Draws the shared prev/next page affordances; only renders a button when its page exists.
     private void drawPageButtons(RecipeViewGuiConfig.BaseConfig listConfig, int prevSlot, int nextSlot, int totalPages) {
-        if (currentPage > 0) {
+        if (pager.page() > 0) {
             setGuiItem(listConfig, "prev_page", prevSlot);
         }
-        if (currentPage < totalPages - 1) {
+        if (pager.page() < totalPages - 1) {
             setGuiItem(listConfig, "next_page", nextSlot);
         }
     }
@@ -588,7 +583,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             GuiConfig.GuiItem infoItem = listConfig.getItem("info");
             if (infoItem != null) {
                 Map<String, String> placeholders = new HashMap<>();
-                placeholders.put("page", String.valueOf(currentPage + 1));
+                placeholders.put("page", String.valueOf(pager.page() + 1));
                 placeholders.put("total", String.valueOf(totalPages));
                 inventory.setItem(listConfig.getInfoSlot(), infoItem.createItem(placeholders));
             }
@@ -718,7 +713,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<Integer> slots = listConfig.getRecipeSlots();
         int pageSize = Math.max(1, slots.size());
-        int totalPages = Math.max(1, (expandedIngredientOptions.size() + pageSize - 1) / pageSize);
+        int totalPages = pager.totalPages(expandedIngredientOptions.size(), pageSize);
         expandedIngredientPage = Math.max(0, Math.min(expandedIngredientPage, totalPages - 1));
         Map<String, String> placeholders = Map.of(
                 "page", String.valueOf(expandedIngredientPage + 1),
@@ -804,7 +799,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "special-recipe-list");
-        int startIndex = currentPage * recipeSlots.size();
+        int startIndex = pager.start(recipeSlots.size());
 
         for (int i = 0; i < recipeSlots.size(); i++) {
             int recipeIndex = startIndex + i;
@@ -905,7 +900,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int itemsPerPage = recipeSlots.size();
-        int totalPages = (int) Math.ceil(recipes.size() / (double) itemsPerPage);
+        int totalPages = pager.totalPages(recipes.size(), itemsPerPage);
 
         if (handlePageClick(player, slot, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages)) {
             return;
@@ -924,7 +919,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             navigateToState(player, GuiState.MAIN_MENU, false);
         } else if (recipeSlots.contains(slot)) {
             int slotIndex = recipeSlots.indexOf(slot);
-            int recipeIndex = currentPage * itemsPerPage + slotIndex;
+            int recipeIndex = pager.start(itemsPerPage) + slotIndex;
             if (recipeIndex < recipes.size()) {
                 SpecialRecipeInfo info = recipes.get(recipeIndex);
                 if (specialRecipeRenderer.isListOnlySpecial(info)) {
@@ -1242,14 +1237,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
                                            List<T> recipes, boolean isCookingPot) {
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int itemsPerPage = recipeSlots.size();
-        int totalPages = (int) Math.ceil(recipes.size() / (double) itemsPerPage);
+        int totalPages = pager.totalPages(recipes.size(), itemsPerPage);
 
         if (handlePageClick(player, slot, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages)) {
             return;
         }
         if (slot == listConfig.getFilterSlot()) {
             craftableOnly = !craftableOnly;
-            currentPage = 0;
+            pager.reset();
             refreshContentsInPlace(player);
         } else if (slot == listConfig.getBackSlot()) {
             if (runBackButtonCommands(player, listConfig.getItem("back"))) {
@@ -1267,7 +1262,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
         } else if (recipeSlots.contains(slot)) {
             int slotIndex = recipeSlots.indexOf(slot);
-            int recipeIndex = currentPage * itemsPerPage + slotIndex;
+            int recipeIndex = pager.start(itemsPerPage) + slotIndex;
             if (recipeIndex < recipes.size()) {
                 Object clickedRecipe = recipes.get(recipeIndex);
                 if (isRecipeLocked(clickedRecipe, isCookingPot, player)) {
@@ -1407,7 +1402,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             detailHistory.push(origin);
         }
         int pageSize = Math.max(1, config.getSpecialRecipeList().getRecipeSlots().size());
-        currentPage = index / pageSize;
+        pager.set(index / pageSize);
         navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
         return true;
     }
@@ -1532,7 +1527,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         // Entering a list from the main menu starts a fresh browse; returning from a detail view keeps the page.
         if (!preservePage
                 && (newState == GuiState.MAIN_MENU || newState == GuiState.COOKING_POT_LIST || newState == GuiState.CUTTING_BOARD_LIST)) {
-            currentPage = 0;
+            pager.reset();
         }
         if (newState == GuiState.RECIPE_DETAIL) {
             currentToolIndex = 0;
@@ -1568,18 +1563,18 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void changePage(Player player, int delta) {
-        currentPage += delta;
+        pager.set(pager.page() + delta);
         refreshAndReopen(player);
     }
 
     // Returns true and flips the page when slot is a usable prev/next button; false otherwise, so callers
     // can fall through to their other slot handlers.
     private boolean handlePageClick(Player player, int slot, int prevSlot, int nextSlot, int totalPages) {
-        if (slot == prevSlot && currentPage > 0) {
+        if (slot == prevSlot && pager.page() > 0) {
             changePage(player, -1);
             return true;
         }
-        if (slot == nextSlot && currentPage < totalPages - 1) {
+        if (slot == nextSlot && pager.page() < totalPages - 1) {
             changePage(player, 1);
             return true;
         }

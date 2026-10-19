@@ -502,7 +502,7 @@ public final class ItemUtils {
             return nameMeta;
         }
 
-        if (vanillaItem) {
+        if (vanillaItem && vanillaKey != null) {
             return Component.translatable(vanillaKey);
         }
 
@@ -525,7 +525,10 @@ public final class ItemUtils {
         }
         if (item.getType().isItem()) {
             // Vanilla translation keys ARE shipped client-side, so no fallback needed.
-            return Component.translatable(item.getType().getItemTranslationKey());
+            String key = item.getType().getItemTranslationKey();
+            if (key != null) {
+                return Component.translatable(key);
+            }
         }
         return Component.text(item.getType().name());
     }
@@ -541,7 +544,10 @@ public final class ItemUtils {
             return Component.translatable(key).fallback(translationFallback(key, customId));
         }
         if (item.getType().isItem()) {
-            return Component.translatable(item.getType().getItemTranslationKey());
+            String key = item.getType().getItemTranslationKey();
+            if (key != null) {
+                return Component.translatable(key);
+            }
         }
         return Component.text(item.getType().name());
     }

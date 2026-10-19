@@ -37,7 +37,6 @@ class BasketDropTest {
 
     private static final String BASKET = "farmersdelight:basket";
     private static final String BAMBOO = "farmersdelight:bamboo_basket";
-    private static final String WOODEN = "farmersdelight:wooden_basket";
 
     @Test
     void theLegacyBasketBlockDropsTheBambooBasket() {

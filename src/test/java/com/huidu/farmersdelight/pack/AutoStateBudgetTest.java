@@ -63,9 +63,6 @@ class AutoStateBudgetTest {
             Map.entry("waterlogged_leaves", 616),
             Map.entry("waterlogged_tintable_leaves", 308));
 
-    /** The mushroom half of solid: staying inside it keeps the blocks off note_block behaviour. */
-    private static final int INERT_SOLID = 189;
-
     /** Campfire-family pool (CE mappings.yml) and what the other packs already pin there. */
     private static final int CAMPFIRE_EFFECTIVE = 16;
     private static final int SOUL_CAMPFIRE_EFFECTIVE = 16;
