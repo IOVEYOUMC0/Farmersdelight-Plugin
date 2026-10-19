@@ -123,17 +123,6 @@ public final class ConfiguredBlockSet {
         return this.tags;
     }
 
-    public Set<Key> vanillaTagKeys() {
-        if (this.vanillaTags.isEmpty()) {
-            return Set.of();
-        }
-        Set<Key> keys = new LinkedHashSet<>();
-        for (Tag<Material> tag : this.vanillaTags) {
-            keys.add(Key.of(tag.getKey().toString()));
-        }
-        return keys;
-    }
-
     public boolean contains(Block block) {
         if (block == null || isEmpty()) {
             return false;

@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.pack;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -73,28 +72,4 @@ public enum PackSection {
         return separateClaim;
     }
 
-    /**
-     * Resolves a CraftEngine section key to its section. A key may carry a #suffix (CraftEngine
-     * accepts several sections of one type per file this way); the suffix selects the advancement namespace
-     * and is not part of the section id.
-     */
-    static PackSection bySectionId(String sectionId) {
-        return BY_SECTION_ID.get(sectionId.toLowerCase(Locale.ROOT));
-    }
-
-    /** Strips a #suffix from a CraftEngine section key. */
-    static String baseSectionId(String sectionKey) {
-        int hash = sectionKey.indexOf('#');
-        return (hash == -1 ? sectionKey : sectionKey.substring(0, hash)).toLowerCase(Locale.ROOT);
-    }
-
-    /** Reads the #suffix of a CraftEngine section key, or null when it has none. */
-    static String namespaceSuffix(String sectionKey) {
-        int hash = sectionKey.indexOf('#');
-        if (hash == -1) {
-            return null;
-        }
-        String suffix = sectionKey.substring(hash + 1).trim();
-        return suffix.isEmpty() ? null : suffix;
-    }
 }

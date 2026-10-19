@@ -68,8 +68,6 @@ public final class Constants {
     public static final String SOUND_CUTTING_BOARD_KNIFE = "farmersdelight:block.cutting_board.knife";
     public static final String SOUND_SKILLET_SIZZLE = "farmersdelight:block.skillet.sizzle";
     public static final String SOUND_SKILLET_ADD_FOOD = "farmersdelight:block.skillet.add_food";
-    public static final String SOUND_SKILLET_ATTACK_STRONG = "farmersdelight:item.skillet.attack.strong";
-    public static final String SOUND_SKILLET_ATTACK_WEAK = "farmersdelight:item.skillet.attack.weak";
     public static final String SOUND_STOVE_CRACKLE = "farmersdelight:block.stove.crackle";
     // Default stove ignition and extinguishing sounds.
     public static final String SOUND_STOVE_IGNITE = "minecraft:item.flintandsteel.use";
@@ -77,7 +75,6 @@ public final class Constants {
     public static final String SOUND_STOVE_EXTINGUISH = "minecraft:block.fire.extinguish";
     public static final String SOUND_STOVE_EXTINGUISH_WATER = "minecraft:entity.generic.extinguish_fire";
     public static final int DEFAULT_COOKING_TIME_SKILLET = 600;
-    public static final int MINIMUM_COOKING_TIME_SKILLET = 60;
     public static final int DEFAULT_COOKING_TIME_COOKING_POT = 200;
     public static final int DEFAULT_COMFORT_DURATION = 300;
     public static final int DEFAULT_NOURISHMENT_DURATION = 300;

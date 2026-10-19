@@ -958,10 +958,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    public void reloadConfigs() {
-        reloadAll();
-    }
-
     private void reloadCommon(boolean reloadLanguages) {
         // Registration is idempotent and skips ids CraftEngine already reports, so re-applying it here keeps
         // another plugin's registrations alive across /fd reload without re-registering the plugin's own content.
@@ -1463,14 +1459,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return stationSettings.progressScale();
     }
 
-    public double getCookingPotProgressDisplayVisibilityDistanceSquared() {
-        return stationSettings.progressVisibilityDistanceSquared();
-    }
-
-    public double getCookingPotProgressDisplayLookDotThreshold() {
-        return stationSettings.progressLookDotThreshold();
-    }
-
     public int getCookingPotProgressDisplayUpdateIntervalTicks() {
         return stationSettings.progressUpdateIntervalTicks();
     }
@@ -1656,14 +1644,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return backstabEnchantmentEnabled;
     }
 
-
     public BukkitCraftEngine getCraftEngine() {
         return BukkitCraftEngine.instance();
-    }
-
-    /** Pack sections CraftEngine collected, or null when the parser could not be registered. */
-    public PackSections getPackSections() {
-        return packSections;
     }
 
     /** Snapshots of one pack section, empty when the parser could not be registered. */
@@ -1702,11 +1684,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             throw new IllegalStateException("Plugin is not enabled");
         }
         return knifeDropHandler;
-    }
-
-    public ConfigurationSection getDropsConfig() {
-        YamlConfiguration current = dropsConfig;
-        return current == null ? null : current;
     }
 
     // Null-tolerant accessors for the startup summary, which reads the managers while enable is still in
@@ -1873,10 +1850,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return handleManager;
     }
 
-    public BuffBossbarManager getBuffBossbarManager() {
-        return buffBossbarManager;
-    }
-
     /** Null-tolerant accessor for reload paths that run before the manager exists (or after it is gone). */
     BuffBossbarManager getBuffBossbarManagerOrNull() {
         return buffBossbarManager;
@@ -1889,7 +1862,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     public SkilletManager getSkilletManager() {
         return skilletManager;
     }
-
 
     public Set<Integer> collectLiveDisplayIds() {
         Set<Integer> liveIds = new HashSet<>();
@@ -1937,14 +1909,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public float getSkilletDisplayScale() {
         return stationSettings.skilletDisplayScale();
-    }
-
-    public double getSkilletDisplayYOffset() {
-        return stationSettings.skilletDisplayYOffset();
-    }
-
-    public double getSkilletDisplaySpread() {
-        return stationSettings.skilletDisplaySpread();
     }
 
     public float getStoveDisplayScale() {

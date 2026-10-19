@@ -318,20 +318,8 @@ public class GuiConfig implements GuiLayout {
         return progressSlot;
     }
 
-    public int getMealSlot() {
-        return bufferSlot;
-    }
-
-    public int getBufferSlot() {
-        return bufferSlot;
-    }
-
     public int[] getBufferSlots() {
         return bufferSlots;
-    }
-
-    public int getOutputSlot() {
-        return outputSlot;
     }
 
     public int[] getOutputSlots() {
@@ -344,10 +332,6 @@ public class GuiConfig implements GuiLayout {
 
     public GuiItem getItem(String key) {
         return items.get(key);
-    }
-
-    public List<GuiItem> getProgressItems() {
-        return progressItems;
     }
 
     public GuiItem getProgressItem(int percent) {
@@ -388,28 +372,12 @@ public class GuiConfig implements GuiLayout {
         return contains(containerSlots, slot);
     }
 
-    public boolean isMealSlot(int slot) {
-        return contains(bufferSlots, slot);
-    }
-
     public boolean isBufferSlot(int slot) {
         return contains(bufferSlots, slot);
     }
 
     public boolean isOutputSlot(int slot) {
         return contains(outputSlots, slot);
-    }
-
-    public boolean isHeatSlot(int slot) {
-        return slot == heatSlot;
-    }
-
-    public boolean isProgressSlot(int slot) {
-        return slot == progressSlot;
-    }
-
-    public boolean isRecipeSlot(int slot) {
-        return slot == recipeSlot;
     }
 
     public boolean isInteractiveSlot(int slot) {
@@ -635,20 +603,12 @@ public class GuiConfig implements GuiLayout {
             return customItemId;
         }
 
-        public Integer getCustomModelData() {
-            return customModelData;
-        }
-
         public boolean isCustomItem() {
             return customItemId != null;
         }
 
         public String getName() {
             return name;
-        }
-
-        public List<String> getLore() {
-            return lore;
         }
 
         public List<String> getCommands() {

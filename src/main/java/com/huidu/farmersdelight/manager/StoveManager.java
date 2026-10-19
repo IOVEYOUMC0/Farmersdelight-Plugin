@@ -318,16 +318,6 @@ public class StoveManager {
         return true;
     }
 
-    public boolean handleRetrieve(Player player, Block block) {
-        if (player == null || block == null) {
-            return false;
-        }
-
-        Location location = ManagerSupport.normalize(block.getLocation());
-        StoveData stove = getOrLoadStove(location);
-        return retrieveItem(player, location, stove);
-    }
-
     public boolean canCook(ItemStack item) {
         return findCampfireRecipe(item) != null;
     }
@@ -954,11 +944,6 @@ public class StoveManager {
         if (stove != null) {
             stove.blockedAboveCheckedTick = Long.MIN_VALUE;
         }
-    }
-
-    public void invalidateBlockedAboveCacheNear(Location location) {
-        invalidateBlockedAboveCache(location);
-        invalidateBlockedAboveCache(location.clone().add(0, -1, 0));
     }
 
     private boolean isStoveBlockedAbove(Location location) {

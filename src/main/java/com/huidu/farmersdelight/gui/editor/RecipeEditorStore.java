@@ -73,10 +73,6 @@ public final class RecipeEditorStore {
         });
     }
 
-    public boolean deleteCookingPotRecipe(String recipeId, String customGroupId) {
-        return applyPlan(planDeleteCookingPotRecipe(recipeId, customGroupId));
-    }
-
     /** Deletes a cooking pot recipe off the owner thread; see saveCookingPotRecipeAsync. */
     public boolean deleteCookingPotRecipeAsync(String recipeId, String customGroupId, Player player,
                                                Consumer<Boolean> completion) {
@@ -94,10 +90,6 @@ public final class RecipeEditorStore {
             CuttingBoardRecipe loaded = plugin.getCuttingBoardRecipes().getRecipe(recipe.getId());
             completion.accept(published && loaded != null && buildCuttingBoardBody(recipe).equals(buildCuttingBoardBody(loaded)));
         });
-    }
-
-    public boolean deleteCuttingBoardRecipe(String recipeId) {
-        return applyPlan(planDeleteCuttingBoardRecipe(recipeId));
     }
 
     /** Deletes a cutting board recipe off the owner thread; see saveCookingPotRecipeAsync. */

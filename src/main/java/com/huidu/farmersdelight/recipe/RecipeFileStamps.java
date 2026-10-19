@@ -62,10 +62,6 @@ public final class RecipeFileStamps {
         PARSES.incrementAndGet();
     }
 
-    public static int parsedCount() {
-        return PARSES.get();
-    }
-
     /** Forgets every stamp and the counter. Used by tests and by a full plugin re-enable. */
     public static void clear() {
         CACHE.clear();

@@ -505,10 +505,6 @@ final class SkilletHandheldCooking {
         return handheldCookingEnabled;
     }
 
-    public boolean isHandheldProgressDisplayEnabled() {
-        return handheldProgressDisplayEnabled;
-    }
-
     private ItemStack getHandheldIngredient(ItemStack skillet) {
         if (skillet == null || !skillet.hasItemMeta()) return null;
         byte[] bytes = skillet.getItemMeta().getPersistentDataContainer().get(HANDHELD_INGREDIENT_KEY, PersistentDataType.BYTE_ARRAY);

@@ -1075,13 +1075,6 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         );
     }
 
-    public void resetDebugStats() {
-        resetCounters(itemSpawnCount, itemUpdateCount, textSpawnCount, textUpdateCount,
-                textUpdateDiffHitCount, destroyCount, viewerSpawnPacketCount, viewerDestroyPacketCount,
-                viewerUpdatePacketCount, syncRunCount);
-        debugStatsResetEpochMs = System.currentTimeMillis();
-    }
-
     private static void resetCounters(AtomicLong... counters) {
         for (AtomicLong counter : counters) {
             counter.set(0);

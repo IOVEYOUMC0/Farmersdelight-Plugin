@@ -64,9 +64,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         return false;
     }
 
-    public static final int SLOT_MEAL_DISPLAY = 6;
-    public static final int SLOT_CONTAINER = 7;
-    public static final int SLOT_OUTPUT = 8;
     public static final int INVENTORY_SIZE = 9;
     public static final String SUPPORT_PROPERTY = "support";
 
@@ -658,10 +655,6 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
         return CustomBlockUtils.hasBehavior(block, CookingPotBlockBehavior.class);
-    }
-
-    public static ItemStack insertIngredientLikeHopper(Location location, ItemStack item) {
-        return insertThroughFace(location, item, Direction.UP, false);
     }
 
     // Recipe filling distributes single-item inserts to the least-filled compatible input slot.
