@@ -67,7 +67,7 @@ public final class BackstabListener implements Listener {
         ItemStack weapon = attacker.getEquipment() == null
                 ? null
                 : attacker.getEquipment().getItemInMainHand();
-        if (weapon == null || weapon.isEmpty() || (combat.requireKnife() && !isKnife(weapon))) {
+        if (weapon == null || weapon.isEmpty()) {
             return;
         }
 
@@ -75,8 +75,13 @@ public final class BackstabListener implements Listener {
         if (enchantment == null) {
             return;
         }
+        // The level is the cheap test: most weapons carry no backstab, and the knife scan below resolves item and
+        // tag identities for every hit that reaches it.
         int level = weapon.getEnchantmentLevel(enchantment);
-        if (level <= 0 || !isBehindTarget(target, attacker)) {
+        if (level <= 0) {
+            return;
+        }
+        if ((combat.requireKnife() && !isKnife(weapon)) || !isBehindTarget(target, attacker)) {
             return;
         }
 
