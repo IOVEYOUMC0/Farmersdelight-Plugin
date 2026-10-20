@@ -330,6 +330,7 @@ blocks:
         - minecraft:bee_growables
         - minecraft:crops
         - minecraft:maintains_farmland
+        - farmersdelight:unaffected_by_knife_harvest
     behaviors:
       - type: liquid_flowable_block
       - type: stem_block
@@ -407,6 +408,7 @@ blocks:
         push-reaction: destroy
       tags:
         - minecraft:maintains_farmland
+        - farmersdelight:unaffected_by_knife_harvest
     behaviors:
       - type: liquid_flowable_block
       - type: attached_stem_block
@@ -459,6 +461,7 @@ blocks:
         - minecraft:bee_growables
         - minecraft:crops
         - minecraft:maintains_farmland
+        - farmersdelight:unaffected_by_knife_harvest
     behaviors:
       - type: liquid_flowable_block
       - type: stem_block
@@ -536,6 +539,7 @@ blocks:
         push-reaction: destroy
       tags:
         - minecraft:maintains_farmland
+        - farmersdelight:unaffected_by_knife_harvest
     behaviors:
       - type: liquid_flowable_block
       - type: attached_stem_block

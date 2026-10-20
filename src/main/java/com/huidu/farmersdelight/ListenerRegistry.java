@@ -20,6 +20,7 @@ import com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
+import com.huidu.farmersdelight.listener.KnifeHarvestListener;
 import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RicePlantListener;
@@ -186,6 +187,7 @@ final class ListenerRegistry {
                 new CropInteractProtectionListener(),
                 new BackstabListener(plugin),
                 new KnifeEnchantFilter(plugin),
+                new KnifeHarvestListener(plugin),
                 new EnchantmentDatapackInstaller(plugin),
                 new TagDatapackInstaller(plugin),
                 // Villager and wandering trader trades use the world-data section. Composting chances and

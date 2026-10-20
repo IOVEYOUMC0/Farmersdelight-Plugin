@@ -13,6 +13,7 @@ import com.huidu.farmersdelight.listener.EnchantmentDatapackInstaller;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
+import com.huidu.farmersdelight.listener.KnifeHarvestListener;
 import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RichSoilHoeListener;
@@ -132,6 +133,7 @@ class ListenerRegistrationOrderTest {
             CropInteractProtectionListener.class,
             BackstabListener.class,
             KnifeEnchantFilter.class,
+            KnifeHarvestListener.class,
             EnchantmentDatapackInstaller.class,
             TagDatapackInstaller.class,
             VillagerTradeListener.class,
