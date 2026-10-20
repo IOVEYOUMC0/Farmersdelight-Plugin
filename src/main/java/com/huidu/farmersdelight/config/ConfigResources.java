@@ -11,16 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Bundled resources parsed once per running server.
- *
- *
- * The bundled copies live inside the plugin jar and cannot change while the process runs, so every reload
- * would otherwise re-read and re-parse the same YAML — and config.yml is parsed on each of the three
- * passes a reload makes (type validation, key merge, GUI merge). The cache is keyed by resource path and
- * filled on first use.
- *
- *
- * Only the framework-owned files go through here. The public ConfigFileUpdater entry points stay
- * uncached: they are api surface and callers may legitimately expect a fresh parse.
  */
 final class ConfigResources {
 

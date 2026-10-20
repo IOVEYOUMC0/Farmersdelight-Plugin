@@ -14,9 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The queue itself: several sources of one reload drain as a single round under one shared budget, each source
  * is registered completely even when a later source follows it, and a replaced round drops whatever it had not
  * reached.
- *
- * These are the shapes the managers rely on, written against the real round: a source that cancels its
- * predecessor, or a budget that is spent per source instead of per round, turns them red.
  */
 class RecipeRegistrationRoundTest {
 

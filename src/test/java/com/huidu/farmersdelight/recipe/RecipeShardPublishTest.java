@@ -14,11 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The wiring a sharded recipe reload has to keep: every source of one reload goes into one queued round, and
  * the derived indexes are published only from that round's tail, as a snapshot.
- *
- * The behaviour of the round and of the driver is covered offline by RecipeRegistrationRoundTest and
- * RecipeRegistrationDriverTest. A recipe manager itself cannot be built in a test — parsing an entry needs a
- * live CraftEngine item registry — so the remaining two facts, that the managers queue all their sources into
- * one round and that they publish from its tail only, are pinned on the source text.
  */
 class RecipeShardPublishTest {
 

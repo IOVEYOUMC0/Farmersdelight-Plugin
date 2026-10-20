@@ -218,10 +218,6 @@ public final class ContainerGuiKernel {
      * Commits every configured cell the guard allows, without repainting anything, and returns the raw slots
      * it refused, in the order the groups declare their slots (the caller repaints them per slot, so the order
      * does not matter to it). Marks the station dirty once, like syncAll(Inventory).
-     *
-     *
-     * The caller must own both the viewer and the store: this method still reads the live inventory.
-     * A store lock provides mutual exclusion, never Folia region ownership.
      */
     public int[] commitOnly(Inventory view) {
         Objects.requireNonNull(view, "view");
@@ -250,9 +246,6 @@ public final class ContainerGuiKernel {
      * Commits one configured cell, without repainting it. True when the station's store was written, false
      * when the guard refused; a slot that is not a configured cell returns true and changes nothing, exactly
      * like syncSlot(Inventory, int).
-     *
-     *
-     * The caller must own the viewer and the store, as for commitOnly(Inventory).
      */
     public boolean commitOnly(Inventory view, int rawSlot) {
         Objects.requireNonNull(view, "view");
@@ -277,12 +270,6 @@ public final class ContainerGuiKernel {
     /**
      * Repaints the given cells from store values the caller read on the region that owns the store, recording
      * each value as that cell's write-back baseline.
-     *
-     *
-     * Region contract: this method writes the viewer's inventory and the paint record only, and never reads or
-     * writes the store, so it must be called on the region that owns the viewer — the half of a cross-region
-     * commit that must not happen on the store's region. storedByIndex answers with the snapshot value
-     * for a store index.
      */
     public void repaintFrom(Inventory view, int[] rawSlots, IntFunction<ItemStack> storedByIndex) {
         Objects.requireNonNull(view, "view");

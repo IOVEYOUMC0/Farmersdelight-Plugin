@@ -467,12 +467,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     /**
      * The list the viewer actually sees, in the order the slots are laid out in.
-     *
-     *
-     * The discovery filter hides recipes the viewer has not unlocked. The recipe editor reuses this list,
-     * and an admin opening /fd recipe edit has no unlock record of their own, so filtering there hid
-     * exactly the recipes they came to edit. Draw and click both go through here, because a slot is resolved
-     * back to a recipe by rebuilding this list.
      */
     private <T> List<T> listVisibleTo(Player player, List<T> recipes, boolean isCookingPot) {
         return editMode ? recipes : applyDiscoveryFilter(recipes, isCookingPot, player);

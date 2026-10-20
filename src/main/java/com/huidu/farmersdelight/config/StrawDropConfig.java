@@ -8,11 +8,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The blocks whose knife break earns the harvest_straw advancement.
- *
- *
- * The straw item itself is produced by the CraftEngine packs (vanilla grass and mature wheat through
- * vanilla_loots.yml, mature rice through the break-loot chain of farmersdelight:rice), so
- * this section is only a whitelist; a drop item is no longer read from it.
  */
 public class StrawDropConfig {
 

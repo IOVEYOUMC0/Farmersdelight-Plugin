@@ -6,12 +6,6 @@ import org.bukkit.entity.Entity;
 /**
  * The Folia-safe dispatch the migration hooks go through, kept behind an interface so an offline test can
  * assert the decision instead of a running region scheduler.
- *
- *
- * Every hook owns a target — a player or item entity, or the block an inventory belongs to. The rule is the
- * same everywhere: work may run inline only when the current thread already owns the target; otherwise it
- * has to be handed to the owning region and never read from here. inlineIfOwned is that rule in one
- * place, so all five hooks make the same decision and a test can count the dispatches.
  */
 public interface MigrationDispatch {
 

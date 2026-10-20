@@ -18,12 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Periodic work that shares one period must not all start on the same tick: the delays are deterministic, spread
  * across the period, and distinct. Arming every task with delay 0 fails here.
- *
- *
- * The staggered sites are Bukkit tasks a unit test cannot instantiate, so the wiring is also read from the sources:
- * each of the sites that may be staggered has to arm its first tick through its own slot, while a site that must
- * start at once, or that drains a queue and cancels itself inside one tick, has to keep its literal delay and no
- * phase at all.
  */
 class PeriodicStaggerTest {
 

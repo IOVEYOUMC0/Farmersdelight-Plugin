@@ -10,12 +10,6 @@ import java.util.function.LongSupplier;
  * Keeps reloads serialised and spaces them out, mirroring how CraftEngine guards its own reload
  * (ResourceOperationCoordinator: one operation at a time, a second request is refused rather than
  * queued).
- *
- *
- * A full reload is not free: FarmersDelight's own pass is roughly 200 ms of server-thread work, its addons
- * rebuild on the following tick for roughly another 140 ms, and both land on the tick thread. Queueing a
- * second request would therefore stack two stalls back to back, so the later one is refused outright. The
- * cooldown covers the addon cascade, which runs after the command has already returned.
  */
 final class ReloadBusyGuard {
 
@@ -44,10 +38,6 @@ final class ReloadBusyGuard {
 
     /**
      * Remaining cooldown in whole seconds, or null when the guard is open.
-     *
-     *
-     * Split out from begin() so the rounding is testable on its own. Returns null while a
-     * reload is still in flight: its cooldown has not started yet.
      */
     static Integer remainingSeconds(long cooldownMillis, long elapsedMillis, boolean running) {
         if (running) {
@@ -63,12 +53,6 @@ final class ReloadBusyGuard {
 
     /**
      * True when the reload may proceed; otherwise the given sink has already been told why not.
-     *
-     *
-     * The sink is a parameter instead of a field, and the state below is guarded by this instance's monitor:
-     * on Folia a command runs on the sender's region thread, so two senders can reach this at the same time.
-     * A per-command field sink would then report through the other sender's message, and an unsynchronised
-     * read-modify-write would let both reloads through.
      */
     synchronized boolean begin(RejectionSink rejection) {
         if (running) {

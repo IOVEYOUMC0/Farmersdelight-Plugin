@@ -3,10 +3,6 @@ package com.huidu.farmersdelight.util;
 /**
  * The cursor arithmetic behind work that is spread over several ticks: how many entries one slice may consume
  * and where the next slice starts.
- *
- * A slice never runs past the end of the work, and a budget below one is raised to one, so a caller that read a
- * limit of zero out of a config still makes progress instead of arming a slice that does nothing. A cursor built
- * from a stale count is clamped rather than rejected, because the count can change between two slices.
  */
 public final class TickBudget {
 

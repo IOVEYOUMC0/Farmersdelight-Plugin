@@ -332,13 +332,9 @@ public final class WorldGuardCompat {
         return method.invoke(null, location);
     }
 
-    // WorldEdit's BukkitAdapter.adapt(Player) returns a WorldEdit BukkitPlayer, which is neither
-    // LocalPlayer nor RegionAssociable, so RegionQuery rejects it during argument validation. The
-    // WorldGuard-side wrapper returns com.sk89q.worldguard.LocalPlayer, which both overloads accept.
-    //
-    // Both the wrapper and the singleton accessor are resolved once like the handles above: this runs on
-    // every protection query, i.e. every right-click and every block break, and looking the class and the
-    // `inst` method up each time meant a class-loader lookup plus a method scan per interaction.
+    // WorldEdit's BukkitAdapter.adapt(Player) returns a WorldEdit BukkitPlayer that neither overload accepts;
+    // the WorldGuard-side wrapper returns com.skq..LocalPlayer, which both do. Both handles resolve once
+    // because this runs on every protection query.
     private static Object wrapPlayer(Player player) throws ReflectiveOperationException {
         if (!wrapHandlesResolved) {
             synchronized (WorldGuardCompat.class) {

@@ -106,12 +106,6 @@ final class HandheldCookingDisplay extends ChannelOutboundHandlerAdapter {
     /**
      * Whether an outgoing item for this slot is the real stack the display was opened for: any count, as long as
      * it is not empty and is still the same item with the same components.
-     *
-     * Requiring exactly one item looked harmless because the handheld skillet is always a single item, but the
-     * skewer cooks one item out of a stack: for two or more the rewrite went inert, the client kept the server's
-     * own inventory sync next to the display copy, and the bar flickered for exactly those stacks while a single
-     * skewer was steady. An empty stack still never matches, so the display copy cannot resurrect a cleared slot,
-     * and a different item still never matches.
      */
     static boolean matchesRealStack(int itemCount, boolean sameItemAndComponents) {
         return itemCount > 0 && sameItemAndComponents;
@@ -123,12 +117,6 @@ final class HandheldCookingDisplay extends ChannelOutboundHandlerAdapter {
 
     /**
      * The slot inside the given container the rewrite may touch, or -1 for "not ours".
-     *
-     * Two ids both mean "the player's own inventory": -2 is the player-inventory packet, and 0
-     * is the player's inventory menu (hotbar 36..44, offhand 45). Both have to be rewritten. An earlier
-     * version only handled -2, on the theory that container 0 was "somebody's GUI", and the client then
-     * received the held skillet from the server's inventory sync alongside the cooking copy — the held model
-     * flipped and the durability bar flickered while cooking. The cursor (-1) is never a hand.
      */
     static int containerSlot(int containerId, int inventorySlot) {
         if (containerId == -2) {

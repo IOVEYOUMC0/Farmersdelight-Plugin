@@ -42,17 +42,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Locks the interaction handler registration order.
- *
- *
- * Bukkit delivers an event to same-priority handlers in registration order, so this sequence decides who
- * sees an event first. It used to live inline in the plugin's enable path, where nothing could assert it;
- * it now lives in ListenerRegistry#buildInteractionHandlers(), which is a pure list. Reordering it
- * silently changes behaviour for every handler pair that shares an event, so the expected list below is
- * spelled out rather than derived.
- *
- *
- * The registry is built with a null plugin: none of these handlers touch the plugin while being
- * constructed, which is what makes the order assertable without a server.
  */
 class ListenerRegistrationOrderTest {
 
@@ -110,14 +99,6 @@ class ListenerRegistrationOrderTest {
     /**
      * The plugin instance must itself be registered, because its onCraftEngineReload,
      * onWorldLoad and onWorldUnload methods are @EventHandlers.
-     *
-     *
-     * Bukkit only dispatches an @EventHandler for an instance that was passed to
-     * registerEvents. Declaring the methods is not enough, and nothing warns when the registration is
-     * missing: the handlers simply never run. That is exactly what happened when this registry was extracted
-     * — the plugin kept its handlers, lost its registration, and startup silently stopped warming CraftEngine
-     * content until an explicit /fd reload. This asserts the registration set, not just the built
-     * handler list, so the omission fails here instead of in production.
      */
     @Test
     void thePluginInstanceItselfIsRegisteredAsAListener() {

@@ -25,12 +25,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Extra knife drops for rules an addon registers at runtime through FarmersDelightKnifeDrops.
- *
- *
- * The rules that ship with FarmersDelight are not here: they live in the bundled CraftEngine pack
- * (vanilla_loots.yml), so an operator can read and tune them next to every other drop of the pack
- * instead of in a plugin config the pack cannot see. Dropping the item there is also what puts it in front
- * of loot and quest plugins that edit the death event, because the pack contributes to event.getDrops().
  */
 public class KnifeDropHandler implements Listener {
 
@@ -47,11 +41,9 @@ public class KnifeDropHandler implements Listener {
         return externalRules.size();
     }
 
-    // NORMAL rather than HIGHEST so loot / quest / economy plugins listening at HIGH and HIGHEST still
-    // get to see the knife drop before it is spawned. The drop is contributed to
-    // event.getDrops() instead of being spawned directly, which is what makes it visible to them at
-    // all: Paper hands the event a live view over the server's pending drop list, and every entry
-    // still in that list once the event returns is what actually spawns.
+    // NORMAL rather than HIGHEST so loot / quest / economy plugins at HIGH and HIGHEST still see the knife drop.
+    // The drop is added to event.getDrops() rather than spawned directly, which is what makes it visible: every
+    // entry still in that list when the event returns is what actually spawns.
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         if (!FarmersDelightPlugin.isEnabled0()) return;

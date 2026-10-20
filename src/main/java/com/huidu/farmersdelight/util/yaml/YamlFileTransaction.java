@@ -14,17 +14,6 @@ import java.util.function.Function;
 
 /**
  * One YAML file's edits, applied to the text itself.
- *
- *
- * The entry an edit names is located by indentation, replaced or removed in place, and the result is written
- * through a temporary file that replaces the target atomically. Because everything outside the edited entry is
- * copied through unchanged, an edit keeps the rest of the file exactly as it was: operator comments, blank
- * lines, key order and indentation all survive, which is what re-serialising the whole parsed document loses.
- *
- *
- * A file whose shape the locator cannot follow is refused instead of guessed at, as is a target that would come
- * out different from what the edit asked for. A refused or failed edit leaves the target byte for byte as it
- * was: the original is only replaced once the new text exists in full.
  */
 public final class YamlFileTransaction {
 

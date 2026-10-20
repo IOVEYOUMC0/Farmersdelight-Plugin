@@ -14,10 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Where the publication contract is wired: every readiness pass opens the window itself and runs its
  * recipe-dependent work only once the publication arrived, and every field a manager's publish writes is part
  * of the state a failed pass puts back.
- *
- *
- * The coordinator and the managers need a running server, so the wiring and the field coverage are pinned on
- * the source text; what the watch and the rollback do is covered by the tests that run them.
  */
 class RecipePublicationWiringTest {
 

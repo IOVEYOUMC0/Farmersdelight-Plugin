@@ -615,10 +615,6 @@ public final class RecipeDiscoveryManager {
     /**
      * Drops a player's cached unlocks, unless the flush that should have persisted them failed.
      *
-     *
-     * When the write failed the entry is the only copy of those unlocks, so it is kept and the eviction is
-     * replayed by the next successful save() instead.
-     *
      * @param version the lifecycle version the caller evicted for, or null to skip that check
      */
     private void retainUntilWritten(UUID playerId, Long version) {

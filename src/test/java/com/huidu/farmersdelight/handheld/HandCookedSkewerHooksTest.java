@@ -31,17 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The wiring layer of handheld skewer cooking, asserted without a server.
- *
- *
- * The lifecycle is what this suite locks down: the tick loop is armed by the session that needs it, cancels
- * itself once the last session ends, and the next session arms a fresh loop. Two of the cases drive the
- * production HandCookedSkewerHooks#tick() through the recorded Runnable and the loop seam, so
- * the self-cancellation itself is covered, not simulated.
- *
- *
- * What a single-threaded test cannot show is a real interleaving of two Folia regions (both arming at the
- * instant the loop cancels); the single lock around the whole lifecycle covers it — the
- * tests below assert the sequential compositions that the lock has to preserve.
  */
 class HandCookedSkewerHooksTest {
 

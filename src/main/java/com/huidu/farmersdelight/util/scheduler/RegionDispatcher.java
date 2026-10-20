@@ -6,12 +6,6 @@ import org.bukkit.entity.Entity;
 /**
  * The region-aware part of the scheduler: the calls that hand work to the thread owning a chunk or an
  * entity.
- *
- *
- * Dispatchers are written against this interface rather than against the concrete adapter, so a test can
- * drive a recording implementation and assert which chunks and entities a maintenance pass hands out.
- * Production resolves to SchedulerAdapter, which keeps the behaviour these methods had before the
- * interface existed.
  */
 public interface RegionDispatcher {
 

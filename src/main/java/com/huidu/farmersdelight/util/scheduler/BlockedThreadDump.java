@@ -14,16 +14,6 @@ import java.util.logging.Logger;
 
 /**
  * A bounded snapshot of the threads that are still running when a shutdown step times out.
- *
- * A shutdown that waits out its deadline leaves the server stopping with work still in flight, and the only
- * useful evidence is which thread is stuck and where. This captures thread names, their state and the top of
- * each stack once, renders them as text, and writes that text to a sink. Nothing runs on a tick: the report
- * is produced from the timeout branch of a shutdown wait.
- *
- * The snapshot is bounded in both directions - at most MAX_THREADS threads and at most MAX_FRAMES frames per
- * thread - so a server with hundreds of threads cannot turn a stuck shutdown into a huge log file. Threads
- * whose stack mentions this plugin come first, then the threads that are blocked or waiting, because those
- * are the ones that hold a shutdown up.
  */
 public final class BlockedThreadDump {
 

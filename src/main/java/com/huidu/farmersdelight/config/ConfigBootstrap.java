@@ -545,15 +545,6 @@ public final class ConfigBootstrap {
 
     /**
      * The user-file reads within one reload, so a file is opened and parsed once instead of once per pass.
-     *
-     *
-     * A reload reads the same four files twice: validateConfigTypes() parses them to compare against
-     * the bundled types, and loadConfigs() parses them again to build runtime settings. The content
-     * cannot change between the two passes of one reload, so both share the parse. Only reads that merely
-     * inspect the values are memoised; a read whose result is about to be mutated and written back stays fresh.
-     *
-     *
-     * Left empty outside a reload, so the enable path keeps its existing behaviour exactly.
      */
     private final Map<Path, YamlConfiguration> reloadReads = new ConcurrentHashMap<>();
     private volatile boolean cachingReloadReads;
@@ -569,9 +560,6 @@ public final class ConfigBootstrap {
 
     /**
      * Closes the read cache after one reload.
-     *
-     * Without this the flag stays true for the rest of the session, and a later read that opens no pass of its
-     * own — /fd reload gui is the one — keeps serving this pass's parsed file instead of the current one.
      */
     public void endReload() {
         cachingReloadReads = false;

@@ -22,16 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * What a broken basket hands over, and how its items reach their blocks.
- *
- *
- * Sharing states changed no id, no drop and no item: the legacy basket block still breaks into the bamboo
- * basket, the bamboo and wooden baskets still drop themselves through the shared loot template, and every item
- * still places the block of its own id. The basket and the bamboo basket reference the same states, so the two
- * blocks a player sees are the same basket under two ids; the wooden basket keeps its own states and looks.
- *
- *
- * Data only: the pack files are read through the classpath, no server is involved. What a real break does with
- * the container's contents is on the real-server checklist, not asserted here.
  */
 class BasketDropTest {
 

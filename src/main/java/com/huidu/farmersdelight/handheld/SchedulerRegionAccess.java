@@ -12,11 +12,6 @@ import java.util.function.Predicate;
  * The production SkewerHeatProbe.RegionAccess: every ownership question and every hand-off goes
  * through the plugin's own SchedulerAdapter, so the skewer follows exactly the same Folia rules as
  * the rest of the plugin. Bukkit.getScheduler is never called here.
- *
- * owns(int, int, int) asks the scheduler whether the calling thread owns the region of that
- * block column, so the probe reads a block inline only when that is safe and dispatches every other one
- * through SchedulerAdapter#runAt(Location, Runnable). The heat-source test itself is injected — the
- * caller owns the tag/definition knowledge, this class only owns the region rules.
  */
 public final class SchedulerRegionAccess implements SkewerHeatProbe.RegionAccess {
 

@@ -4,12 +4,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Reserves one effect's packets against a chunk's per-tick allowance.
- *
- *
- * A get() < limit check followed by an increment cannot do this for an effect that costs more
- * than one packet: with a single packet left, a two-packet effect (smoke + flame) still passed the check and
- * pushed the chunk one packet over its configured limit. The check and the reservation have to happen
- * together, and an effect that does not fit is skipped rather than partially sent.
  */
 final class EffectPacketBudget {
 

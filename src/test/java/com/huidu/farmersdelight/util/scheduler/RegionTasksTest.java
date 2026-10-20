@@ -15,10 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Covers the shared chunk dispatch: one task per chunk, handed to the region that owns it, with the chunk
  * re-checked from inside the task.
- *
- *
- * The world is a dynamic proxy and the dispatcher a recording fake, so both branches of the re-check are
- * asserted without a server.
  */
 class RegionTasksTest {
 

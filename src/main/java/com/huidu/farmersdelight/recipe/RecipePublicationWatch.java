@@ -7,19 +7,6 @@ import java.util.function.Consumer;
 
 /**
  * Watches the registration rounds one readiness pass started and reports once every one of them has published.
- *
- *
- * A round's tail is what publishes an owner's new recipe set, so "the pass is published" is only known after the
- * last tail ran. A pass that wants to read the published set — the warm-up and the content summary do — takes a
- * watch before it starts the load and registers its continuation here: a load whose files fit the budget has
- * already published by then and the continuation runs in the same tick, a sharded load runs it on the tick that
- * finished the last round, and a load that failed or that a newer pass replaced never leaves the continuation
- * hanging.
- *
- *
- * Everything here happens on the recipe-state thread: rounds join and settle on it, and the continuation is
- * registered from it, so no state below needs to be concurrent. The continuation runs on whichever thread
- * settled the watch, which is the thread that ran the last publish.
  */
 public final class RecipePublicationWatch {
 

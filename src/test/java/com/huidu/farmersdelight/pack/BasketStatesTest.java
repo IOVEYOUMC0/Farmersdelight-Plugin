@@ -18,18 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Which vanilla block states the basket family occupies.
- *
- *
- * The basket and the bamboo basket are the same block with two ids, so they reference the same six states: five
- * per-face auto_state allocations that both blocks name by id, plus the historic composter[level=7] pin on the
- * up face that worlds saved before this change still hold their placed baskets in. Naming the same id in both
- * blocks is what makes CraftEngine hand out one allocation instead of one per block and face
- * (AbstractBlockManager:636-651). The wooden basket is not part of the share: it keeps its own per-appearance
- * states.
- *
- *
- * Data only: this reads blocks.yml through the classpath. What the client renders per state is on the
- * real-server checklist.
  */
 class BasketStatesTest {
 

@@ -2,14 +2,6 @@ package com.huidu.farmersdelight.api.gui;
 
 /**
  * How many items a container click takes out of a slot, as plain arithmetic that needs no server.
- *
- * The container GUIs here solved this the same way but each in its own copy, and the copies have drifted: the
- * cooking pot clamps a take to the container's own stack size, the keg answers a drop key with the whole
- * stack, and the crab trap accepts only as much as fits on the cursor and in the container. This class holds
- * the arithmetic they share; the caller passes the click shape and the limit it accepts, so every container
- * keeps its own answer while the branches live in one place.
- *
- * A take of zero means the click must not be applied.
  */
 public final class GuiTakeAmounts {
 

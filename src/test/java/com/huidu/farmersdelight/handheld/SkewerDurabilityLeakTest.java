@@ -43,11 +43,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * slot inside the player's own inventory menu. Opening that menu therefore showed the fake durable skewer, and an
  * inventory interaction carried it back to the server — the owner saw a durable skewer "somehow" appear while
  * cooking with the bag open.
- *
- * These cases pin the two halves of the fix: the display path never writes real item data at all, and every
- * inventory interaction that could capture the fake item closes the display and resends the real slot first,
- * exactly as the handheld skillet already does. The creative set-slot packet is refused outright, because the
- * server stores what the client sends there.
  */
 class SkewerDurabilityLeakTest {
 

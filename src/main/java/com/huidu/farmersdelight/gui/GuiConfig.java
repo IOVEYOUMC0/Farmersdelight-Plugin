@@ -252,10 +252,6 @@ public class GuiConfig implements GuiLayout {
      * GuiLayout#BACKGROUND. This is deliberately wider than
      * isInteractiveSlot(int), which answers whether a click may put contents there; display-only
      * cells (progress, output, meal) are functional here and still must not be written back.
-     *
-     *
-     * A slot outside the inventory is not functional: the per-slot lookup below would read a negative column,
-     * and a click handler asking about a slot it did not own must get false rather than an exception.
      */
     @Override
     public boolean isFunctional(int slot) {

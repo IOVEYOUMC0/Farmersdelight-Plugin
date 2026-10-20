@@ -818,14 +818,11 @@ public class StoveManager {
         // This avoids a world-wide player lookup per stove; cooking progress does not depend on viewers.
         int stoveChunkX = location.getBlockX() >> 4;
         int stoveChunkZ = location.getBlockZ() >> 4;
-        // Per-chunk per-tick effect context: one getPlayersSeeingChunk lookup shared by every stove in
-        // the chunk this tick (the tracked set cannot change mid-region-tick), plus the packet budget
-        // that caps a dense pocket of stoves to chunkEffectBudgetLimit particle/sound packets per Bukkit
-        // tick. The outer map is world-keyed so identical chunk coordinates in different worlds never
-        // share a budget. No chunk stagger is applied: the manager dispatches on a period-4 timer at a
-        // fixed tick residue, so a Bukkit.getCurrentTick()-derived stagger never rotates — it would
-        // permanently silence 3/4 of chunks. The chunk was checked loaded at the top of this method and
-        // cannot unload within the same region tick, so getChunkAt cannot trigger a sync load here.
+        // Per-chunk per-tick effect context: one getPlayersSeeingChunk lookup shared by every stove in the chunk
+        // (the tracked set cannot change mid-region-tick), plus the per-chunk packet budget that caps a dense pocket
+        // of stoves. The outer map is world-keyed so identical coordinates in different worlds never share a budget.
+        // No chunk stagger: the period-4 timer already runs at a fixed tick residue, and a current-tick-derived
+        // stagger would permanently silence 3/4 of chunks.
         long chunkKey = ManagerSupport.chunkKey(stoveChunkX, stoveChunkZ);
         ChunkFxContext fx = chunkFx.computeIfAbsent(world.getUID(), w -> new ConcurrentHashMap<>())
                 .computeIfAbsent(chunkKey, k -> new ChunkFxContext());

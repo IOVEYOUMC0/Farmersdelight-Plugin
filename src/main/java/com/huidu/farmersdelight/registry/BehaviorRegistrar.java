@@ -119,9 +119,6 @@ public final class BehaviorRegistrar {
      * this is safe to call on every reload pass. The targeted CraftEngine versions keep their built-in type
      * registries for the whole class-loader lifetime, so the pass is defence in depth: it covers a
      * CraftEngine that rebuilds them later, and any entry that goes missing for another reason.
-     *
-     * Called by the plugin's reload path; the load phase reaches the same five methods through
-     * LoadPhaseRegistrar.
      */
     public static void replayContentRegistrations() {
         registerBlockBehaviors();

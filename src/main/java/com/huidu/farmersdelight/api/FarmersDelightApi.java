@@ -170,13 +170,6 @@ public final class FarmersDelightApi {
      * Registers (or replaces) an addon's tag→item mapping into the family-wide tag registry. Members
      * are merged across sources, so multiple addons may contribute to the same tag. Call this at addon
      * enable with a mapping read from the addon's own config, and unregister on disable / reload.
-     *
-     *
-     * Members in the minecraft: namespace are also exported as a server-side tag data pack.
-     * That export runs again once the whole server has loaded, so registering during addon enable is in
-     * time; CraftEngine absorbs the written tags on the next server start. Members in other namespaces
-     * take effect immediately through FD's own matching and need no restart.
-     * When content is already loaded, registration also rebuilds tag-dependent recipes and GUI caches.
      */
     public void registerCommonTags(String source, Map<String, List<String>> tagToMemberItems) {
         CommonTagResolver.registerSource(source, tagToMemberItems);
@@ -368,9 +361,9 @@ public final class FarmersDelightApi {
      * Registers a cutting board recipe whose results are all guaranteed.
      *
      * @deprecated every result is registered at chance 1.0. A recipe with any result that is not
-     *     guaranteed must use registerCuttingBoardRecipeWithChances, which is what the
-     *     configuration loader and FarmersDelight's own recipes use. This overload exists so callers
-     *     written against it keep working.
+     * guaranteed must use registerCuttingBoardRecipeWithChances, which is what the
+     * configuration loader and FarmersDelight's own recipes use. This overload exists so callers
+     * written against it keep working.
      */
     @Deprecated
     public void registerCuttingBoardRecipe(String id, String input, String tool,

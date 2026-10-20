@@ -4,14 +4,6 @@ import java.util.List;
 
 /**
  * First-tick delays that spread the periodic work of several features over the tick they share.
- *
- *
- * Everything that arms a repeating task with delay 0 starts on the same tick, so a server running the display
- * the cleanup pass and the display sync on one period pays for all of them in the same tick and nothing in the others. The delay is deterministic and derived from a fixed slot order:
- * initialDelay = index * interval / slotCount, never random, so a test can assert exactly which tick each task
- * first runs on.
- *
- * Only the first delay changes: the period, and everything a task decides, stays exactly as it was.
  */
 public final class PeriodicStagger {
 

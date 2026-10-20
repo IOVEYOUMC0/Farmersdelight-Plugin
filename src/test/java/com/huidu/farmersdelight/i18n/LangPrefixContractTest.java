@@ -20,10 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The brand prefix lives in exactly one place and every message asks for it there.
- *
- * The language files are read as files: the rule is about what the two shipped languages contain, so it can
- * be checked without a server, and a new language file that copies the markup is caught the moment it lands.
- * The injection itself is a rule about the lookup path, so it is pinned on the source text instead.
  */
 class LangPrefixContractTest {
 

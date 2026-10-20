@@ -20,9 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * One event, one visible line. A reload started by the command answers its sender with the styled receipt,
  * so the console line for the same phase has to drop to the detail switch; a reload started anywhere else
  * (the public reload hook, the recipe editor) has no receipt and keeps its console line.
- *
- * Player-visible text has to come from the language files, and the detail switch has to stay invisible by
- * default. All three rules are about the source shape, so they are pinned on the source text.
  */
 class MessageChannelContractTest {
 

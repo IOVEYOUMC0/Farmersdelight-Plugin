@@ -15,11 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The cooking-pot/skillet layout seen through the shared read-only view.
- *
- *
- * The config constructor only walks the grid and the legend, so this runs without a server — no item is built
- * here. It also pins the coexistence the design calls out: the normalising reader calls an undrawn cell
- * background, while this class's own per-slot lookup keeps answering null for it.
  */
 class GuiConfigLayoutTest {
 

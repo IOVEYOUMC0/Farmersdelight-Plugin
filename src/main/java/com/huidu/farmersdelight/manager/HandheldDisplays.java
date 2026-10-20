@@ -18,11 +18,6 @@ import org.jetbrains.annotations.Nullable;
  * Opens the handheld slot display for a feature outside this package, without exposing
  * HandheldCookingDisplay itself: an addon-visible API is not wanted here, only a sibling package
  * needs it, and tools/check_api_boundary.py keeps that boundary honest.
- *
- *
- * The handle rewrites the player's own held slot on the way out (client-side copy only, real durability is
- * never touched): Handle#update(int) shows progress as a client-only damage bar, and
- * Handle#close() drops the handler and resends the real item so the bar disappears with it.
  */
 @ApiStatus.Internal
 public final class HandheldDisplays {
@@ -85,9 +80,8 @@ public final class HandheldDisplays {
         private final HandheldCookingDisplay display;
         private final NamespacedKey model;
         private ItemStack sourceSnapshot;
-        // The display base is the real stack with the display-only max damage applied once; only the damage value
-        // changes per update, so the item the client keeps re-rendering has a stable component set. The base is
-        // rebuilt when the slot no longer holds the same stack.
+        // The display base is the real stack with the display-only max damage applied once; only the damage
+        // value changes per update, so the item the client keeps re-rendering has a stable component set.
         private ItemStack displayBase;
         private int displayedDamage = -1;
         private boolean closed;

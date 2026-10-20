@@ -46,10 +46,6 @@ public class CookingPotOutputTaker {
      * How much this click takes, from the click shape and the amounts alone, so the answer can be asserted
      * without a server. The limit is the smaller of the item's own stack size and the container's, which is
      * what this pot has always clamped a take to.
-     *
-     * Similar stacks share one maximum stack size, so the caller passes the stored item's and the cursor's own
-     * is never read: the branches below used to read the cursor's, and for items that are similar by definition
-     * the two numbers are the same.
      */
     static int resolveTake(boolean shiftClick, boolean rightClick, int stored, int cursorAmount,
                            boolean cursorEmpty, boolean cursorSimilar, int itemMaxStack, int containerMaxStack) {

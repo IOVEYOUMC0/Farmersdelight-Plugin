@@ -301,13 +301,10 @@ public class BlockBreakListener implements Listener {
             return;
         }
 
-        // Display the stored meal's name + serving count as tooltip, and a fill bar scaled to the count.
-        // Server-side can only drive vanilla's green->red durability bar, so the level matches but the
-        // colour is the vanilla gradient (a true blue bar would require a client mod).
-        // The line has to describe what the item actually carries: the full pack holds every slot, so it can
-        // fall back to the output slot when no meal is waiting, while the partial pack holds the pending meal
-        // only. The tooltip reads the pending meal slot (index 6) and never
-        // the output slot.
+        // Display the stored meal's name, serving count and a fill bar scaled to the count. Server-side can only
+        // drive vanilla's green->red durability bar, so the colour is the vanilla gradient.
+        // The line describes what the item carries: the full pack falls back to the output slot when no meal is
+        // waiting, while the partial pack reads the pending meal slot (index 6) only.
         ItemStack meal = packAll ? entity.getPackedMealDisplayItem() : entity.getPendingOutputItem();
 
         Item wrapped = packMealInto(potItem, behavior, packAll

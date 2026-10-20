@@ -12,18 +12,6 @@ import org.bukkit.entity.Player;
 /**
  * Loot function that awards one of this plugin's advancements to the killer and passes the item through
  * unchanged.
- *
- *
- * Exists because a drop rule that lives in a CraftEngine pack has no other way to reach the
- * advancement system: the pack can grant the item, only the plugin can grant the advancement.
- *
- * functions:
- *   - type: farmersdelight:award_advancement
- *     advancement: get_ham
- *
- *
- * Awarding is skipped when the loot context carries no player, which is the case for every non-player
- * death (an unattended mob farm, another mob's kill, an explosion).
  */
 public final class AwardAdvancementFunction implements LootFunction {
 

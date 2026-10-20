@@ -2,11 +2,6 @@ package com.huidu.farmersdelight.gui;
 
 /**
  * The page index shared by the recipe lists and the expanded ingredient list.
- *
- * The lists used to compute the page count with four slightly different formulas, some with a one-page
- * minimum and some without, so an empty list could collapse to page zero and the title showed "page 1/0".
- * Every list now goes through these methods, so an empty list always has one page and the index is
- * clamped after the list shrinks.
  */
 final class RecipePager {
 

@@ -751,11 +751,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             return;
         }
 
-        // Cheap squared-distance pre-filter (syncPlayer iterates every display on join/teleport/respawn):
-        // a same-world display beyond view distance that the player is not currently viewing needs no work,
-        // so skip the isPlayerTrackingDisplayChunk chunk lookup (getChunkAt / getPlayersSeeingChunk) for it.
-        // dx/dy/dz are only valid same-world; a current viewer or a cross-world display falls through so a
-        // now-far or now-cross-world stale viewer is still cleaned up below.
+        // Cheap squared-distance pre-filter: a same-world display beyond view distance that the player is not
+        // viewing needs no work, so skip its chunk lookup. dx/dy/dz are only valid same-world, so a current viewer
+        // or a cross-world display falls through and a stale viewer is still cleaned up below.
         Location displayLocation = display.location();
         World displayWorld = displayLocation.getWorld();
         if (displayWorld != null && Objects.equals(player.getWorld(), displayWorld)
@@ -768,12 +766,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             }
         }
 
-        // This is the per-player path (join/teleport/respawn/world-change on Paper, and every Folia
-        // sync). Unlike the periodic syncAll path — whose candidate set already comes from
-        // getPlayersSeeingChunk — this path would otherwise show a display to anyone within the flat 64
-        // blocks even if the display's chunk was never sent to them (a floating item in a
-        // small-render-distance player's fog). Gate on chunk tracking so, like CE's furniture
-        // meta-entity, a display only reaches a player who is actually tracking its chunk.
+        // This is the per-player path (join/teleport/respawn/world-change, and every Folia sync). Unlike syncAll it
+        // has no chunk-filtered candidate set, so gate on chunk tracking; otherwise a display in a chunk the player
+        // never received would show as a floating item.
         if (isPlayerTrackingDisplayChunk(player, display) && shouldViewerSeeDisplay(player, display)) {
             spawnForViewer(player, display);
         } else if (display.viewers.contains(playerId)) {

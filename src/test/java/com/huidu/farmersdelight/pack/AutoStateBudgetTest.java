@@ -22,14 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The auto-state budget: how many allocations CraftEngine is asked for versus how many each group can hand
  * out.
- *
- *
- * CraftEngine allocates one state per APPEARANCE, not per block: a plain auto_state: x is keyed
- * "<block>[appearance=<name>]" (AbstractBlockManager:642/646/650), and only the advanced form
- * auto_state: {type: x, id: y} reuses one allocation for every appearance that names the same id
- * (:640, VisualBlockStateAllocator.requestAutoState). The food family used to ask the tripwire group for
- * ~196 allocations while that group only owns 63, which the occupancy guard cannot see because auto_state is
- * not a pin. This test makes that arithmetic fail the build instead.
  */
 class AutoStateBudgetTest {
 

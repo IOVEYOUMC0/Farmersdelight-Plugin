@@ -17,11 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The reported reload line has to keep its placeholders and lose the dangling separator.
- *
- *
- * The live defect: a targeted reload showed "(0ms: )" because the literal colon lived in the language string
- * while the phase list it belonged to was empty. The colon now travels with the phases, so both halves are
- * pinned here: no literal separator in the string, and exactly the placeholders the command supplies.
  */
 class ReloadReportMessageTest {
 

@@ -504,27 +504,19 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         enabled = false;
         boolean folia = scheduler != null && scheduler.isFolia();
 
-        // Runtime disable warning: CraftEngine + per-chunk block-entity state still hold references
-        // to FD listeners, scheduler tasks, and block behaviors. Once this classloader closes, any
-        // late-bound lambda / event delivery into FD throws NoClassDefFoundError. The plugin cannot unwind
-        // CE's registrations, so do the best-effort cleanup below and tell the admin to restart.
-        // Re-enabling FD in the same JVM is refused by onEnable's reload-guard system property, so
-        // the worst case is "FD blocks misbehave until /stop", not double-registration chaos.
+        // Runtime disable warning: CraftEngine and per-chunk block-entity state keep references to FD listeners,
+        // scheduler tasks and block behaviors, so a closed classloader throws NoClassDefFoundError on late calls.
+        // The plugin cannot unwind CE's registrations; clean up best-effort below and tell the admin to restart.
         if (enabledSuccessfully && !getServer().isStopping()) {
             I18n.logSevere("plugin.stale_classloader", "name", "FarmersDelight");
         }
 
-        // MUST be first: stop event delivery before tearing down listeners' state. Vanilla code
-        // (piston ticks, neighbour updates, scheduled chunk tasks) keeps firing during onDisable,
-        // and PaperPluginClassLoader is already draining — late-bound lambda metafactory calls
-        // from listener code will hit NoClassDefFoundError. Pulling listeners off the bus first
-        // makes the rest of the shutdown order independent of vanilla event timing.
-        // One deadline for every best-effort persistence step below. Per-step timeouts would make the
-        // worst case their SUM; here the whole tail shares a budget and a spent budget skips the rest
-        // instead of hanging the server. Structural teardown (listeners, tasks, caches) is NOT budgeted:
-        // it is in-memory, cheap, and skipping it would leave dangling state behind.
-        // The budget reports through the same language keys as runDisableStep, so budgeted and unbudgeted
-        // steps fail with one wording instead of a second hardcoded English sentence.
+        // MUST be first: stop event delivery before tearing down listener state. Vanilla code keeps firing during
+        // onDisable and a draining plugin classloader throws on late-bound lambda calls, so pulling listeners off
+        // first makes the rest of the shutdown order independent of event timing.
+        // One deadline for every best-effort persistence step below: per-step timeouts would add their SUM, so the
+        // tail shares a budget and a spent budget skips the rest. Structural teardown (listeners, tasks, caches) is
+        // in-memory and not budgeted; budgeted steps report through the same language keys as runDisableStep.
         disableBudget = ShutdownBudget.ofMillis(
                         getConfigInt(DEFAULT_SHUTDOWN_WAIT_MILLIS, "performance.shutdown-wait-millis"), getLogger())
                 .withMessages(
@@ -794,12 +786,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     /**
      * Persists the state that needs a live scheduler while the plugin is still enabled.
-     *
-     *
-     * Folia sets isEnabled(false) before onDisable, and its schedulers then refuse every task, so a
-     * buff save from onDisable would silently fail. CraftEngineWatchdogListener calls this before it disables
-     * us; on Paper it is a harmless synchronous save on the main thread. The onDisable steps that repeat this
-     * work skip themselves once the flag is set.
      */
     public void flushBeforeRuntimeDisable() {
         if (runtimeFlushDone) {
@@ -935,10 +921,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             SpecialRecipeLoader.load(this, specialRecipeRegistry);
         }
 
-        // The next three are derived from CraftEngine's registries, not from the plugin's files: the pet-food setting,
-        // the stove and the skillet caches all read what CraftEngine registered or the server's campfire
-        // recipes. They are skipped unless CraftEngine reloaded since the last pass, so /fd reload recipes no
-        // longer pays for two full campfire-recipe scans and an item-setting scan on every run.
+        // The next three are derived from CraftEngine's registries, not from the plugin's files: the pet-food
+        // setting, the stove and the skillet caches all read what CraftEngine registered or the server's
+        // campfire recipes.
         if (ceDerivedReloadGate.needsRefresh()) {
             // Pet food is declared as a CraftEngine item setting, so the scan in loadConfigs() only sees
             // anything once CraftEngine has registered its items; it is repeated on the first pass that can see
@@ -1005,10 +990,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         long cachesNanos = System.nanoTime() - phase;
         phase = System.nanoTime();
 
-        // drops.yml carries only the straw registry now. The retired mob-extra sections were dropped from the
-        // bundled file and are no longer read, so a leftover copy on disk is ignored silently. This phase is
-        // the one that reruns every CraftEngine-backed cache (campfire recipe scans, display entities), so it
-        // is timed separately: it is the part that scales with how much CE content the server has.
+        // drops.yml carries only the straw registry now. This phase is the one that reruns every
+        // CraftEngine-backed cache (campfire recipe scans, display entities), so it is timed separately: it is
+        // the part that scales with how much CE content the server has.
         if (stoveManager != null) {
             stoveManager.reloadConfig();
             stoveManager.reloadRecipeCache();
@@ -1107,17 +1091,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     /**
      * Notifies addons that content changed, on the next tick rather than inside the command tick.
-     *
-     *
-     * Four addons listen to this and rebuild their own content synchronously, so calling it inline made
-     * /fd reload all block the server for FarmersDelight's own work plus every addon's. The
-     * event is a notification hook — nothing in FarmersDelight reads a result back from it — so moving it one
-     * tick later keeps the observable behaviour ("the reload happened") while halving the worst-case stall of
-     * a single tick. This is the same treatment reloadRecipeFiles already gave it.
-     *
-     *
-     * Uses runLater(..., 1) and not run(...): run executes immediately when it is
-     * already called from the primary thread, which is exactly the case here, so it would not defer at all.
      */
     public void notifyAddonsOfReload(String reason) {
         if (scheduler == null) {
@@ -1143,10 +1116,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     /**
      * Minimum spacing between two accepted /fd reload runs, in milliseconds; 0 disables the spacing but
      * still refuses a reload while one is running.
-     *
-     *
-     * Read per call rather than cached so an edited config.yml takes effect without a reload of its own. The
-     * default covers a full pass plus the addon cascade that follows it on the next tick.
      */
     public long reloadCooldownMillis() {
         return Math.max(0, getConfigInt(2, "reload.cooldown-seconds")) * 1000L;
@@ -1235,9 +1204,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     /**
      * Total milliseconds the last reload's own pass occupied; the addon pass is reported separately.
-     *
-     * A full reload fills the per-phase figures. A targeted one (recipes, tags, ...) does not, so falling
-     * back to its measured wall time is what stops the report from claiming a hard 0ms.
      */
     public long reloadTotalMillis() {
         return ReloadTiming.totalMillis(reloadConfigNanos.get() + reloadToolsNanos.get()
@@ -1340,10 +1306,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 getConfig().getConfigurationSection("enchantments"));
         enchantmentSettings = loadedEnchantments;
         // Keep the knife/skillet enchant filter running whatever else is installed: its CraftEngine knives are
-        // nether_brick underneath and can be enchanted only through this filter, so disabling it would make them
-        // un-enchantable rather than hand them off. Only the plugin's custom backstab enchant stands down when a dedicated
-        // enchantment plugin is present, so a second special enchant is not stacked onto its system. Admin can
-        // force backstab on regardless with enchantments.compatibility.auto-disable-on-conflict: false.
+        // nether_brick underneath and only this filter can enchant them. Only the custom backstab enchant stands
+        // down when a dedicated enchantment plugin is present;
+        // enchantments.compatibility.auto-disable-on-conflict: false forces it back on.
         boolean backstab = resolveBackstabbingCompatibility(loadedEnchantments);
         if (backstab && loadedEnchantments.autoDisableOnConflict()) {
             String conflict = detectEnchantmentConflict();
@@ -1998,13 +1963,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return settings.isBackstabbingConfigured();
     }
 
-    /** A short description of a conflicting enchantment system present on the server, or null when none is.
-     *  No hard-coded or configured plugin list — it detects the conflict itself, two ways: first any enabled
-     *  plugin other than this one that hooks the enchanting-table offer event (catches lore/handler-based
-     *  systems that register no real enchantments), then any enchantment registered outside the minecraft:
-     *  and farmersdelight: namespaces (catches registry-based enchant plugins and custom-enchant datapacks).
-     *  Startup plugin-enable order is not guaranteed, so the handler-list side is only reliable once every
-     *  plugin is up: recheckEnchantmentConflict() re-runs this on ServerLoadEvent, and /fd reload too. */
+    /**
+     * No hard-coded or configured plugin list — it detects the conflict itself, two ways: first any enabled
+     * plugin other than this one that hooks the enchanting-table offer event (catches lore/handler-based
+     * systems that register no real enchantments), then any enchantment registered outside the minecraft:
+     * and farmersdelight: namespaces (catches registry-based enchant plugins and custom-enchant datapacks).
+     * Startup plugin-enable order is not guaranteed, so the handler-list side is only reliable once every
+     */
     private String detectEnchantmentConflict() {
         for (RegisteredListener listener : PrepareItemEnchantEvent.getHandlerList().getRegisteredListeners()) {
             Plugin other = listener.getPlugin();
@@ -2029,11 +1994,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return null;
     }
 
-    /** Re-evaluate the enchantment-plugin conflict after every plugin is enabled (ServerLoadEvent), catching a
-     *  conflicting plugin that enabled after this one during boot. Stands down only the custom backstab enchant
-     *  (the knife/skillet enchant filter stays active so the CraftEngine knives remain enchantable) and reloads
-     *  its listeners if a conflict is now present and the admin has not opted out. No-op once backstab is already
-     *  off, when auto-disable is off, or when no conflict is found. */
+    /**
+     * conflicting plugin that enabled after this one during boot. Stands down only the custom backstab enchant
+     * (the knife/skillet enchant filter stays active so the CraftEngine knives remain enchantable) and reloads
+     * its listeners if a conflict is now present and the admin has not opted out. No-op once backstab is already
+     */
     public void recheckEnchantmentConflict() {
         EnchantmentSettings current = enchantmentSettings;
         if (current == null || !current.autoDisableOnConflict() || !backstabEnchantmentEnabled) {
