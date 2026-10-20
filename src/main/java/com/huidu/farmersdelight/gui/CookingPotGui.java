@@ -573,8 +573,6 @@ public class CookingPotGui extends AbstractInventoryGui {
             Player player = (Player) event.getWhoClicked();
             player.getScheduler().run(plugin, task -> {
                 if (closed || player.getOpenInventory().getTopInventory() != inventory || !ensureOwner()) return;
-                close();
-                player.closeInventory();
                 new RecipeViewGui(plugin, player, true, cookingPotLocation).open(player);
             }, null);
             return;

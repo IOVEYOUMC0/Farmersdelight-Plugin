@@ -1245,7 +1245,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 return;
             }
             if (fromCookingPot && isCookingPot) {
-                closeGui(player);
                 returnToCookingPot(player);
             } else if (backButtonCommandsEnabled && !fromCookingPot) {
                 // A command-opened top-level list has no menu above it, so back closes instead of dropping the
@@ -1270,7 +1269,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
                     recipeId = ((CuttingBoardRecipe) clickedRecipe).getId();
                 }
                 if (editMode) {
-                    closeGui(player);
                     openEditorForRecipe(player, recipeId, isCookingPot);
                     return;
                 }
@@ -1321,7 +1319,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (fromCookingPot && cookingPotMode && slot == detailConfig.getFillSlot()) {
             CookingPotFiller.FillResult result = cookingPotFiller().fillFromInventory(player, shiftClick, selectedRecipeId);
             if (result.returnToPot()) {
-                closeGui(player);
                 returnToCookingPot(player);
             } else {
                 fillButtonState = result.buttonState();
@@ -1629,28 +1626,31 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     private void returnToCookingPot(Player player) {
         if (cookingPotLocation == null) {
+            closeGuiOnPlayerThread(player);
             return;
         }
-        
+
         plugin.scheduler().runLaterAt(cookingPotLocation, () -> {
             World world = cookingPotLocation.getWorld();
-            if (world == null) return;
-            
-            var blockEntity = CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
-            if (blockEntity == null) return;
-            
-            var blockBehavior = CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
-            if (blockBehavior == null) return;
+            var blockEntity = world == null ? null : CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
+            var blockBehavior = blockEntity == null
+                    ? null : CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
 
             // Re-check permission + land protection before re-opening: this is a fresh GUI open just like a
             // direct interaction, and access may have changed since the pot was first opened.
-            if (!blockBehavior.canPlayerOpen(player, cookingPotLocation.getBlock())) {
+            if (blockBehavior == null || !blockBehavior.canPlayerOpen(player, cookingPotLocation.getBlock())) {
+                closeGuiOnPlayerThread(player);
                 return;
             }
 
-            CookingPotGui gui = new CookingPotGui(plugin, blockEntity, blockBehavior, world, cookingPotLocation);
-            gui.open(player);
+            new CookingPotGui(plugin, blockEntity, blockBehavior, world, cookingPotLocation).open(player);
         }, 1L);
+    }
+
+    // This view stays open until the next screen replaces it, so a failed handoff closes it here; closing
+    // another player's inventory is an entity write on Folia, so it runs on that player's own scheduler.
+    private void closeGuiOnPlayerThread(Player player) {
+        plugin.scheduler().runForEntity(player, () -> closeGui(player));
     }
 
     public static void cleanupAll() {
