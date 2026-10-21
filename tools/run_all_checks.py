@@ -63,7 +63,7 @@ def main() -> int:
     if MATRIX.is_file():
         steps.append((f"matrix {MATRIX.name}", [str(MATRIX)], MODULE))
     else:
-        print(f"[SKIP] verification matrix check not found at {MATRIX}")
+        print(f"[SKIP] verification matrix: none in this repository (records live outside; pass --dir)")
 
     failures = [label for label, command, cwd in steps if not run(label, command, cwd, args.quiet)]
 

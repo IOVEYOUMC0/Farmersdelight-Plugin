@@ -7,8 +7,8 @@ FAIL) and what the round does not cover (`scope` + `limitations`). This check en
 comparable, but it adds no facts of its own: a round without a manifest is simply not checked.
 
 The records are operational, not source: they stay in the workspace's verification-records/ directory and the
-repository only tracks this format and the check. A record inside docs/verification/ is looked at while the
-repository is checked; records elsewhere are opted into with --dir.
+repository only tracks this format and the check. A repository-side copy under docs/verification/ is looked at
+while the repository is checked; records elsewhere are opted into with --dir.
 
 Usage: python tools/check_verification_evidence.py [--quiet] [--dir DIR ...]
 """

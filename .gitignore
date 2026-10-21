@@ -21,10 +21,8 @@ local.properties
 __pycache__/
 *.pyc
 
-# Verification round manifests are operational records (binaries tested, server environments), not source. The
-# format, its checker and the prose notes stay tracked; the per-round data lives in the workspace's
-# verification-records/ directory, so this repository does not accumulate environment snapshots in its history.
-# A record pushed here on purpose still wins: the pattern only ignores whole round directories.
+# Verification records (round manifests, prose notes, the matrix) live outside this repository in the
+# workspace's verification-records/ directory. Ignore them if one lands here by accident; git add -f still wins.
 /docs/verification/*/
 
 # CraftEngine is resolved from Maven for every build. The paid distribution jars are only ever used locally by
