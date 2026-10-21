@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.editor.RecipeEditorListener;
 import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
@@ -21,6 +22,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -110,6 +112,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private boolean backButtonCommandsEnabled = false;
     private Runnable onExit;
     private boolean editMode = false;
+    // Edit-mode list search: a lower-case substring matched against the recipe id and the result name the list
+    // shows. Empty means the whole list. It survives the editor round-trip because this GUI object stays alive.
+    private String editorSearch = "";
     // Resolve only once (lazily, during the first open, when the viewer is at the pot = same Folia region) and memoize the result,
     // so the per-tick / redraw flow never repeats a cross-region block read.
     private boolean recipeGroupResolved;
@@ -469,7 +474,90 @@ public class RecipeViewGui extends AbstractInventoryGui {
      * The list the viewer actually sees, in the order the slots are laid out in.
      */
     private <T> List<T> listVisibleTo(Player player, List<T> recipes, boolean isCookingPot) {
-        return editMode ? recipes : applyDiscoveryFilter(recipes, isCookingPot, player);
+        if (!editMode) {
+            return applyDiscoveryFilter(recipes, isCookingPot, player);
+        }
+        if (editorSearch.isEmpty()) {
+            return recipes;
+        }
+        List<T> matched = new ArrayList<>(recipes.size());
+        for (T recipe : recipes) {
+            if (matchesEditorSearch(recipe, isCookingPot, player)) {
+                matched.add(recipe);
+            }
+        }
+        return matched;
+    }
+
+    // Edit-mode search matches the recipe id and the name the list entry shows: the pot's result or the board's
+    // input. Case-insensitive substring, so a partial id or a translated item name both find the recipe.
+    private boolean matchesEditorSearch(Object recipe, boolean isCookingPot, Player player) {
+        String id;
+        ItemStack display;
+        if (isCookingPot) {
+            CookingPotRecipe potRecipe = (CookingPotRecipe) recipe;
+            id = potRecipe.getId();
+            display = potRecipe.getResult();
+        } else {
+            CuttingBoardRecipe boardRecipe = (CuttingBoardRecipe) recipe;
+            id = boardRecipe.getId();
+            display = boardRecipe.getInputDisplay();
+        }
+        if (id != null && id.toLowerCase(Locale.ROOT).contains(editorSearch)) {
+            return true;
+        }
+        if (display == null) {
+            return false;
+        }
+        String name = PlainTextComponentSerializer.plainText()
+                .serialize(itemNameComponent(display, player)).toLowerCase(Locale.ROOT);
+        return name.contains(editorSearch);
+    }
+
+    // Edit mode gives the filter slot to the recipe search: the craftable filter means nothing while picking a
+    // recipe to edit, and reusing the slot keeps older gui.yml layouts working. The name/lore are server-side
+    // text, so no pack locale has to carry edit-mode-only keys.
+    private void drawEditorSearchButton(Player player, RecipeViewGuiConfig.RecipeListConfig listConfig) {
+        int slot = listConfig.getFilterSlot();
+        if (slot < 0) {
+            return;
+        }
+        boolean active = !editorSearch.isEmpty();
+        ItemStack item = new ItemStack(active ? Material.ENDER_EYE : Material.SPYGLASS);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(I18n.getComponent(active ? "gui.recipe.search_active" : "gui.recipe.search", player));
+            List<Component> lore = new ArrayList<>();
+            if (active) {
+                lore.add(Component.text(I18n.get("gui.recipe.search_query", player) + ": " + editorSearch));
+                lore.add(I18n.getComponent("gui.recipe.search_clear_hint", player));
+            } else {
+                lore.add(I18n.getComponent("gui.recipe.search_hint", player));
+            }
+            meta.lore(lore);
+            item.setItemMeta(meta);
+        }
+        inventory.setItem(slot, item);
+    }
+
+    private void promptEditorSearch(Player player) {
+        RecipeEditorListener.promptChat(player, "gui.recipe.search_prompt", value -> {
+            String query = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+            if (query.equals("cancel")) {
+                // The chat line closed the list; reopen it unchanged so the player is not stranded.
+                open(player);
+                return;
+            }
+            editorSearch = query.length() > 64 ? query.substring(0, 64) : query;
+            pager.reset();
+            open(player);
+        });
+    }
+
+    private void clearEditorSearch(Player player) {
+        editorSearch = "";
+        pager.reset();
+        refreshContentsInPlace(player);
     }
 
     private <T> void drawRecipeList(Player player, RecipeViewGuiConfig.RecipeListConfig listConfig, 
@@ -571,7 +659,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
         drawPageButtons(listConfig, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages);
 
         drawListBackOrCloseButton(listConfig);
-        setFilterToggleItem(listConfig, player);
+        if (editMode) {
+            drawEditorSearchButton(player, listConfig);
+        } else {
+            setFilterToggleItem(listConfig, player);
+        }
 
         if (listConfig.getInfoSlot() >= 0) {
             GuiConfig.GuiItem infoItem = listConfig.getItem("info");
@@ -1236,7 +1328,16 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (handlePageClick(player, slot, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages)) {
             return;
         }
-        if (slot == listConfig.getFilterSlot()) {
+        if (editMode && slot == listConfig.getFilterSlot()) {
+            // The filter slot is the recipe search while editing: left click types a query, sneak-click clears it.
+            if (player.isSneaking()) {
+                clearEditorSearch(player);
+            } else {
+                promptEditorSearch(player);
+            }
+            return;
+        }
+        if (!editMode && slot == listConfig.getFilterSlot()) {
             craftableOnly = !craftableOnly;
             pager.reset();
             refreshContentsInPlace(player);

@@ -35,6 +35,12 @@ gui:
     tag: "Tag"
     matches: "Matching Items"
     unknown: "Unknown"
+    search: "Search recipes"
+    search_active: "Searching recipes"
+    search_hint: "<gray>Left click: search by recipe id or result name."
+    search_query: "<gray>Query"
+    search_clear_hint: "<gray>Sneak-click to clear."
+    search_prompt: "<gray>Type a search in chat (<red>cancel</red> keeps the current list)"
   cooking_pot:
     # %s rather than a {name} placeholder: the server-side fallback is built with String.format
     # (I18n.translatableWithFallback), while the client-side value in the resource pack uses %s too.

@@ -35,6 +35,12 @@ gui:
     tag: "标签"
     matches: "可用材料"
     unknown: "未知"
+    search: "搜索配方"
+    search_active: "正在搜索配方"
+    search_hint: "<gray>左键：按配方 id 或成品名搜索。"
+    search_query: "<gray>关键词"
+    search_clear_hint: "<gray>潜行点击清除。"
+    search_prompt: "<gray>在聊天框输入搜索词（<red>cancel</red> 保持当前列表）"
   cooking_pot:
     # 用 %s 而不是 {name} 占位符: 服务端回退文案由 String.format 生成(I18n.translatableWithFallback),
     # 资源包里的客户端文案同样用 %s。
