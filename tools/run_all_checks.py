@@ -27,6 +27,7 @@ CHECKS = (
     ("check_duplicate_yaml_keys.py", ["--quiet"]),
     ("check_block_state_occupancy.py", ["--quiet"]),
     ("check_pack_client_keys.py", ["--quiet"]),
+    ("check_verification_evidence.py", ["--quiet"]),
 )
 
 
