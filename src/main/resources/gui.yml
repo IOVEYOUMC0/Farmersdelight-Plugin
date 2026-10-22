@@ -170,7 +170,7 @@ recipe-view-gui:
         lore:
           - "<gray><lang:gui.recipe.special_recipes_lore>"
       back:
-        material: BARRIER
+        item: "farmersdelight:close"
         name: "<red><lang:gui.recipe.close>"
 
   recipe-list:
@@ -209,7 +209,7 @@ recipe-view-gui:
         item_model: "air"
         name: "<green><lang:gui.recipe.next_page>"
       back:
-        material: BARRIER
+        item: "farmersdelight:close"
         name: "<gray><lang:gui.recipe.back>"
         # The back/close button also accepts an optional command list, run one tick after the
         # menu closes. Fields command, commands, and cmd are all read and merged. Prefix an
@@ -222,7 +222,7 @@ recipe-view-gui:
         #   - "[player] menu open hub"
         #   - "[console] tellraw {player} {\"text\":\"Returning to the hub\"}"
       close:
-        material: BARRIER
+        item: "farmersdelight:close"
         name: "<red><lang:gui.recipe.close>"
       info:
         material: BOOK
@@ -280,24 +280,24 @@ recipe-view-gui:
         item_model: "air"
         name: "<gray><lang:gui.recipe.back>"
       fill:
-        material: HOPPER
+        item: "farmersdelight:input"
         name: "<green><lang:gui.recipe.fill>"
         lore:
           - "<yellow><lang:gui.recipe.fill_hint>"
           - "<gray><lang:gui.recipe.fill_hint_shift>"
       fill-success:
-        material: HOPPER
+        item: "farmersdelight:input"
         name: "<green><lang:gui.recipe.fill>"
         lore:
           - "<green><lang:gui.recipe.fill_success>"
       fill-missing:
-        material: HOPPER
+        item: "farmersdelight:cannot_input"
         name: "<green><lang:gui.recipe.fill>"
         lore:
           - "<red><lang:gui.recipe.fill_missing>"
           - "<gray><lang:gui.recipe.fill_hint_shift>"
       fill-inventory-full:
-        material: BARRIER
+        item: "farmersdelight:cannot_input"
         name: "<green><lang:gui.recipe.fill>"
         lore:
           - "<red><lang:gui.recipe.fill_inventory_full>"
@@ -420,7 +420,7 @@ recipe-view-gui:
         item_model: "air"
         name: "<green><lang:gui.recipe.next_page>"
       back:
-        material: BARRIER
+        item: "farmersdelight:close"
         name: "<gray><lang:gui.recipe.back>"
 
   # Special recipe details use a four-row (72 px) background: description above,
@@ -527,7 +527,7 @@ recipe-book-gui:
         hide-tooltip: true
         name: " "
       back:
-        material: BARRIER
+        item: "farmersdelight:close"
         name: "<red><lang:gui.recipe.close>"
   list:
     rows: 6
@@ -557,7 +557,7 @@ recipe-book-gui:
         material: ARROW
         name: "<green><lang:gui.recipe.next_page>"
       back:
-        material: BARRIER
+        item: "farmersdelight:close"
         name: "<gray><lang:gui.recipe.back>"
   detail:
     rows: 6
@@ -598,7 +598,7 @@ recipe-book-gui:
           - "<red><lang:gui.recipe.fill_missing>"
           - "<gray><lang:gui.recipe.fill_hint_shift>"
       fill-inventory-full:
-        material: BARRIER
+        item: "farmersdelight:close"
         name: "<green><lang:gui.recipe.fill>"
         lore:
           - "<red><lang:gui.recipe.fill_inventory_full>"
@@ -700,7 +700,7 @@ recipe-editor-gui:
       lore:
         - "<gray><lang:gui.editor.button.save_hint>"
     cancel:
-      material: BARRIER
+      item: "farmersdelight:close"
       name: "<red><lang:gui.editor.button.cancel>"
       lore:
         - "<gray><lang:gui.editor.button.cancel_hint>"
@@ -801,7 +801,7 @@ recipe-tag-picker-gui:
       item_model: "air"
       name: "<green><lang:gui.recipe.next_page>"
     cancel:
-      material: BARRIER
+      item: "farmersdelight:close"
       name: "<red><lang:gui.editor.button.cancel>"
     back:
       material: ARROW
@@ -855,7 +855,7 @@ recipe-choice-builder-gui:
       material: LIME_DYE
       name: "<green><lang:gui.editor.button.save>"
     cancel:
-      material: BARRIER
+      item: "farmersdelight:close"
       name: "<red><lang:gui.editor.button.cancel>"
     clear-all:
       material: RED_DYE
@@ -939,7 +939,7 @@ recipe-cutting-board-editor-gui:
       lore:
         - "<gray><lang:gui.editor.button.save_hint>"
     cancel:
-      material: BARRIER
+      item: "farmersdelight:close"
       name: "<red><lang:gui.editor.button.cancel>"
       lore:
         - "<gray><lang:gui.editor.button.cancel_hint>"
