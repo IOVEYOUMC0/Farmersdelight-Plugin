@@ -247,6 +247,47 @@ class VerificationEvidenceSelfTest(CheckSelfTest):
             shutil.rmtree(tree, ignore_errors=True)
 
 
+class ApiSignaturesSelfTest(unittest.TestCase):
+    """The binary surface check: a removed member fails, an added member does not, the restore passes."""
+
+    script = "check_api_signatures.py"
+    api_file = "src/main/java/com/huidu/farmersdelight/api/Example.java"
+
+    def test_a_removed_member_fails_and_a_restored_one_passes(self):
+        original = ("package com.huidu.farmersdelight.api;\n\n"
+                    "public final class Example {\n"
+                    "    public int value() {\n"
+                    "        return 1;\n"
+                    "    }\n"
+                    "}\n")
+        tree = build_tree({self.api_file: original})
+        try:
+            seeded = run_check(tree, self.script, "--update")
+            self.assertEqual(0, seeded.returncode, seeded.stdout + seeded.stderr)
+
+            write(tree, self.api_file,
+                  "package com.huidu.farmersdelight.api;\n\npublic final class Example {\n}\n")
+            failed = run_check(tree, self.script, "--quiet")
+            self.assertNotEqual(0, failed.returncode,
+                                f"{self.script} accepted a removed api member:\n{failed.stdout}{failed.stderr}")
+            self.assertIn("public int value()", failed.stdout + failed.stderr)
+
+            write(tree, self.api_file, original)
+            passed = run_check(tree, self.script, "--quiet")
+            self.assertEqual(0, passed.returncode,
+                             f"{self.script} rejected the restored api:\n{passed.stdout}{passed.stderr}")
+
+            write(tree, self.api_file,
+                  "package com.huidu.farmersdelight.api;\n\npublic final class Example {\n"
+                  "    public int value() {\n        return 1;\n    }\n\n"
+                  "    public String added() {\n        return \"x\";\n    }\n}\n")
+            extended = run_check(tree, self.script, "--quiet")
+            self.assertEqual(0, extended.returncode,
+                             f"{self.script} rejected an additive api change:\n{extended.stdout}{extended.stderr}")
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+
 class MealIconsSelfTest(unittest.TestCase):
     """The one check whose rule is a pure function, so its self-test drives the function directly."""
 

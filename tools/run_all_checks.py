@@ -23,6 +23,7 @@ CHECKS = (
     ("meal_icons.py", ["--check"]),
     ("check_lang_keys.py", ["--quiet"]),
     ("check_api_boundary.py", ["--quiet"]),
+    ("check_api_signatures.py", ["--quiet"]),
     ("check_config_paths.py", ["--quiet"]),
     ("check_duplicate_yaml_keys.py", ["--quiet"]),
     ("check_block_state_occupancy.py", ["--quiet"]),
