@@ -105,7 +105,9 @@ public final class FarmersDelightApi {
             // api.text message and duration formatting helpers.
             "text",
             // api.advancement advancement tree and availability registration.
-            "advancements"
+            "advancements",
+            // FarmersDelightMealConsumedEvent for the meals, snacks, drinks and sweets a player finishes.
+            "meal-consumed-event"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();

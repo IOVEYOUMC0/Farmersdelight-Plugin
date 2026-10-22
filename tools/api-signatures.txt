@@ -340,6 +340,14 @@ member|com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent|public Stri
 member|com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent|public String getPlayerName()
 member|com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent|public UUID getPlayerId()
 member|com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent|public static HandlerList getHandlerList()
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public FarmersDelightMealConsumedEvent(Player player, String itemId, ItemStack item)
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public HandlerList getHandlers()
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public ItemStack getItem()
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public Location getLocation()
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public String getItemId()
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public String getPlayerName()
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public UUID getPlayerId()
+member|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public static HandlerList getHandlerList()
 member|com.huidu.farmersdelight.api.event.FarmersDelightMigrateEvent|public FarmersDelightMigrateEvent(String migrationKey)
 member|com.huidu.farmersdelight.api.event.FarmersDelightMigrateEvent|public HandlerList getHandlers()
 member|com.huidu.farmersdelight.api.event.FarmersDelightMigrateEvent|public String migrationKey()
@@ -849,6 +857,7 @@ type|com.huidu.farmersdelight.api.event.FarmersDelightCleanupEvent|public class 
 type|com.huidu.farmersdelight.api.event.FarmersDelightCollectLiveDisplaysEvent|public class FarmersDelightCollectLiveDisplaysEvent extends Event
 type|com.huidu.farmersdelight.api.event.FarmersDelightCookStartEvent|public class FarmersDelightCookStartEvent extends Event
 type|com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent|public class FarmersDelightHarvestEvent extends Event
+type|com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent|public class FarmersDelightMealConsumedEvent extends Event
 type|com.huidu.farmersdelight.api.event.FarmersDelightMigrateEvent|public class FarmersDelightMigrateEvent extends Event
 type|com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent|public class FarmersDelightProduceEvent extends Event
 type|com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Action|public enum Action
