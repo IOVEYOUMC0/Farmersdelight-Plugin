@@ -68,6 +68,7 @@ import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.startup.StartupVersionBanner;
 import com.huidu.farmersdelight.util.CommonTagResolver;
+import com.huidu.farmersdelight.util.CraftEngineTagBridge;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CustomItemPresence;
@@ -1207,6 +1208,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     public void reloadTags() {
         CommonTagResolver.reload(this);
+        // Re-read the c: members declared by CraftEngine item settings; they are not part of common-tags.yml.
+        CraftEngineTagBridge.refresh(this);
         refreshTagDependentRecipes();
         // Refresh the exported vanilla-member tag data pack; Bukkit/Paper reloads it automatically.
         listeners.refreshTagDatapack();
