@@ -107,7 +107,9 @@ public final class FarmersDelightApi {
             // api.advancement advancement tree and availability registration.
             "advancements",
             // FarmersDelightMealConsumedEvent for the meals, snacks, drinks and sweets a player finishes.
-            "meal-consumed-event"
+            "meal-consumed-event",
+            // FarmersDelightStationPlacedEvent / FarmersDelightStationBrokenEvent for the four built-in stations.
+            "station-events"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();

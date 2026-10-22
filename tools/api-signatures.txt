@@ -373,6 +373,22 @@ member|com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent|public Farme
 member|com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent|public HandlerList getHandlers()
 member|com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent|public String getReason()
 member|com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent|public static HandlerList getHandlerList()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public FarmersDelightStation getStation()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public FarmersDelightStationBrokenEvent(Player player, FarmersDelightStation station, Location location, ItemStack tool)
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public HandlerList getHandlers()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public ItemStack getTool()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public Location getLocation()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public String getPlayerName()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public UUID getPlayerId()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public static HandlerList getHandlerList()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public FarmersDelightStation getStation()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public FarmersDelightStationPlacedEvent(Player player, FarmersDelightStation station, Location location, ItemStack item)
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public HandlerList getHandlers()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public ItemStack getItem()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public Location getLocation()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public String getPlayerName()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public UUID getPlayerId()
+member|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public static HandlerList getHandlerList()
 member|com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent|public FarmersDelightWarmupEvent(String reason)
 member|com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent|public HandlerList getHandlers()
 member|com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent|public String getReason()
@@ -864,6 +880,8 @@ type|com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Actio
 type|com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent.Source|public enum Source
 type|com.huidu.farmersdelight.api.event.FarmersDelightRecipeDiscoveryEvent|public class FarmersDelightRecipeDiscoveryEvent extends Event
 type|com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent|public class FarmersDelightReloadEvent extends Event
+type|com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent|public class FarmersDelightStationBrokenEvent extends Event
+type|com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent|public class FarmersDelightStationPlacedEvent extends Event
 type|com.huidu.farmersdelight.api.event.FarmersDelightWarmupEvent|public class FarmersDelightWarmupEvent extends Event
 type|com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent|public class ProfessionCookingExperienceEvent extends Event
 type|com.huidu.farmersdelight.api.event.ReloadTarget|public enum ReloadTarget
