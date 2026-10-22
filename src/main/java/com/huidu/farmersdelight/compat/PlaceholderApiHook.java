@@ -1,8 +1,10 @@
 package com.huidu.farmersdelight.compat;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.buff.CustomBuff;
 import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
+import com.huidu.farmersdelight.api.recipe.FarmersDelightRecipeDiscovery;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.Bukkit;
@@ -53,10 +55,32 @@ public final class PlaceholderApiHook extends PlaceholderExpansion {
         if ("buff_count".equals(key)) {
             return Integer.toString(activeBuffCount(offline));
         }
+        if ("api_version".equals(key)) {
+            return Integer.toString(FarmersDelightApi.get().apiVersion());
+        }
+        if ("discovery_enabled".equals(key)) {
+            return FarmersDelightRecipeDiscovery.isEnabled() ? "1" : "0";
+        }
+        if ("discovered_cooking_pot".equals(key)) {
+            return Integer.toString(discovered(offline, FarmersDelightRecipeDiscovery.TYPE_COOKING_POT));
+        }
+        if ("discovered_cutting_board".equals(key)) {
+            return Integer.toString(discovered(offline, FarmersDelightRecipeDiscovery.TYPE_CUTTING_BOARD));
+        }
+        if ("discovered_total".equals(key)) {
+            return Integer.toString(discovered(offline, FarmersDelightRecipeDiscovery.TYPE_COOKING_POT)
+                    + discovered(offline, FarmersDelightRecipeDiscovery.TYPE_CUTTING_BOARD));
+        }
         if (key.startsWith("buff_")) {
             return resolveBuff(offline, key.substring("buff_".length()));
         }
         return null;
+    }
+
+    private static int discovered(@Nullable OfflinePlayer offline, String typeId) {
+        return onlinePlayer(offline)
+                .map(player -> FarmersDelightRecipeDiscovery.unlockedOf(player, typeId).size())
+                .orElse(0);
     }
 
     private int activeBuffCount(@Nullable OfflinePlayer offline) {
