@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.api.recipe.IngredientMatching;
 import com.huidu.farmersdelight.pack.PackSection;
@@ -616,6 +617,13 @@ public class CookingPotRecipeManager {
     }
 
     public CookingPotRecipe matchRecipe(List<ItemStack> inputItems, ItemStack container, String customRecipeGroupId) {
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.RECIPE_MATCH)) {
+            return matchRecipeUnprobed(inputItems, container, customRecipeGroupId);
+        }
+    }
+
+    private CookingPotRecipe matchRecipeUnprobed(List<ItemStack> inputItems, ItemStack container,
+                                                 String customRecipeGroupId) {
         if (inputItems == null || inputItems.isEmpty()) {
             return null;
         }

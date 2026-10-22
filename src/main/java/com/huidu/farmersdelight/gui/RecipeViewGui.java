@@ -414,14 +414,16 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void refresh(Player player, boolean resetDetailAnimations) {
-        switch (state) {
-            case MAIN_MENU -> drawMainMenu(player);
-            case COOKING_POT_LIST -> drawCookingPotList(player);
-            case CUTTING_BOARD_LIST -> drawCuttingBoardList(player);
-            case RECIPE_DETAIL -> drawRecipeDetail(player, resetDetailAnimations);
-            case INGREDIENT_OPTIONS -> drawIngredientOptions(player);
-            case SPECIAL_RECIPE_LIST -> drawSpecialRecipeList(player);
-            case SPECIAL_RECIPE_DETAIL -> drawSpecialRecipeDetail(player);
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.GUI_REFRESH)) {
+            switch (state) {
+                case MAIN_MENU -> drawMainMenu(player);
+                case COOKING_POT_LIST -> drawCookingPotList(player);
+                case CUTTING_BOARD_LIST -> drawCuttingBoardList(player);
+                case RECIPE_DETAIL -> drawRecipeDetail(player, resetDetailAnimations);
+                case INGREDIENT_OPTIONS -> drawIngredientOptions(player);
+                case SPECIAL_RECIPE_LIST -> drawSpecialRecipeList(player);
+                case SPECIAL_RECIPE_DETAIL -> drawSpecialRecipeDetail(player);
+            }
         }
     }
 

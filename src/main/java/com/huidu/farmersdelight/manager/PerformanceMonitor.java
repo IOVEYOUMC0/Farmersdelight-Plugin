@@ -26,7 +26,8 @@ public final class PerformanceMonitor {
         COOKING_POT("cooking_pot"), HANDHELD("handheld"),
         HANDHELD_DISPLAY("handheld_display"), SKILLET("skillet"), STOVE("stove"),
         SERIALIZATION("serialization"), ITEM_SERIALIZATION("item_serialization"),
-        SERIALIZATION_LOCK("serialization_lock"), INVENTORY_HOLDER("inventory_holder");
+        SERIALIZATION_LOCK("serialization_lock"), INVENTORY_HOLDER("inventory_holder"),
+        RECIPE_MATCH("recipe_match"), STATION_TICK("station_tick"), GUI_REFRESH("gui_refresh");
 
         private final String id;
 
