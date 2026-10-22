@@ -53,12 +53,6 @@ public interface RecipeBookLayout extends GuiLayout {
      * The normalised legend type of one cell, the primitive the shared GuiLayout view is derived
      * from: a cell outside the drawn grid, and a legend entry that is null or blank, both read as
      * GuiLayout#BACKGROUND.
-     *
-     *
-     * The blank normalisation is what keeps this view and GuiLayouts.cellTypes agreeing. The config
-     * reader copies a legend value straight out of gui.yml, so a key written without a value arrives as null;
-     * treating that as a type of its own would make the cell functional here while the normalising reader
-     * calls the same cell background.
      */
     default String slotType(int slot) {
         int row = slot / 9;

@@ -95,12 +95,9 @@ public class RecipeDiscoveryListener implements Listener {
         if (result == null) {
             return;
         }
-        // A station may fire this event while holding its own per-block lock (BrewinAndChewin's keg pours
-        // inside its per-keg monitor). Doing the unlock inline would run this handler, the discovery event it
-        // fires and every third-party listener of that event under a foreign plugin's lock. Only the cheap
-        // gates above run on the firing thread; the rest is handed to the player's own scheduler, which lands
-        // on the player's region thread with no foreign lock held and is Folia-safe. The result stack is
-        // already a private clone handed out by the event, so it is safe to read later.
+        // A station may fire this event while holding its own per-block lock (BrewinAndChewin's keg pours inside
+        // its per-keg monitor). Only the cheap gates above run on the firing thread; the rest is handed to the
+        // player's own scheduler so no foreign lock is held and third-party listeners stay off it.
         player.getScheduler().run(plugin, task -> {
             String itemId = ItemUtils.resolveItemId(result);
             if (itemId != null) {

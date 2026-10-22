@@ -13,9 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Where the id rules have to be wired: the discovery command resolves what an operator typed before it
  * checks or stores it and shows namespaced ids, and the editor resolves before it looks an existing recipe
  * up, or a namespaced spelling would open a second recipe and save a duplicate.
- *
- * The rules themselves are covered in RecipeIdsTest; the command and the editor cannot run offline, so the
- * wiring is pinned on the source text.
  */
 class RecipeIdWiringTest {
 

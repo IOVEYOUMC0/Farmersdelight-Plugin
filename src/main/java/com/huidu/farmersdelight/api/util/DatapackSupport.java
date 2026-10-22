@@ -127,7 +127,9 @@ public final class DatapackSupport {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            Path temporary = Files.createTempFile(parent, dest.getFileName().toString(), ".tmp");
+            Path temporary = parent != null
+                    ? Files.createTempFile(parent, dest.getFileName().toString(), ".tmp")
+                    : Files.createTempFile(dest.getFileName().toString(), ".tmp");
             try {
                 Files.writeString(temporary, content, StandardCharsets.UTF_8);
                 try {

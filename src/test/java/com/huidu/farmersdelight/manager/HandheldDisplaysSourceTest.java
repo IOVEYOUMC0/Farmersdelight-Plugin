@@ -14,9 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Closing a handheld bar has to resend the slot as it is now: the stack can have been dropped, eaten or moved
  * while the bar was up, and resending the copy captured when it opened would tell the client a stack the server
  * no longer has — the shape of an inventory desync that lets a stale item be moved around.
- *
- * The netty channel the bar needs cannot be built without a running server, so this is asserted on the source,
- * together with the region rule the read itself has to obey.
  */
 class HandheldDisplaysSourceTest {
 

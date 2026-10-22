@@ -13,9 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Where the parse store is wired: every recipe entry of both managers is parsed through the cache, and the
  * readiness passes advance the content generation so a pass that first sees new CraftEngine content never
  * reuses what was parsed against the old one.
- *
- * The managers and the coordinator need a running server, so the wiring is pinned on the source text; what the
- * cache does is covered by the tests that run it.
  */
 class RecipeParseCacheWiringTest {
 

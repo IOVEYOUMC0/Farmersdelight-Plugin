@@ -22,10 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Keeps the knife drops the bundled CraftEngine pack declares and the CraftEngine types the plugin registers in
  * step: the pack references them by id, so a renamed or deleted constant would otherwise only show up as an
  * "unknown condition type" warning on a live server.
- *
- *
- * List contents are reached through the deserialized maps rather than a dotted path, because the Bukkit
- * configuration path syntax used by these tests has no list index segment.
  */
 class KnifeDropLootPackTest {
 

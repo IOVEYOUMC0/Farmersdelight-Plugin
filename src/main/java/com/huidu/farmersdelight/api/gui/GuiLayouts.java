@@ -12,16 +12,6 @@ import java.util.logging.Logger;
 /**
  * The generic half of a gui.yml layout reader: the character grid to a normalised cell-type grid, plus the
  * grid diagnostics every reader repeats.
- *
- *
- * The rich station readers stay where they are — the cooking-pot reader also resolves titles, progress items
- * and per-station slot roles, and the addon readers add their own decorations — but they no longer each need
- * their own copy of the "character at (row, column) maps to which type" rule or of the three warnings it can
- * produce.
- *
- *
- * Nothing here touches CraftEngine or the server: cellTypes and warnUnknownCharacters are
- * plain data transforms, and parse reads only rows/layout/legend.
  */
 public final class GuiLayouts {
 
@@ -30,10 +20,6 @@ public final class GuiLayouts {
 
     /**
      * Reads the generic layout of one gui.yml section: rows (default 3, at least 1), layout and legend.
-     *
-     *
-     * The returned view answers GuiLayout only; titles, items and station roles stay with the caller's
-     * own config class. Returns null when the section is null.
      */
     @Nullable
     public static GuiLayout parse(@Nullable ConfigurationSection section) {
@@ -55,19 +41,6 @@ public final class GuiLayouts {
 
     /**
      * The normalised cell-type grid: rows * 9 entries in slot order, never null.
-     *
-     *
-     * Every cell that is not inside a drawn row or column is GuiLayout#BACKGROUND: a missing row, a
-     * row shorter than nine cells, a whitespace character, a character the legend does not define and a null
-     * legend type all become the background. Rows beyond rows and characters beyond column nine are
-     * ignored. A row count below 1 yields an empty array.
-     *
-     *
-     * Note for callers that also read the same grid through a station config: this is the normalising reader,
-     * where an undrawn cell is background. The cooking-pot reader's own per-slot lookup answers null for those
-     * cells instead, and keeps doing so. The two agree on every drawn cell whose legend entry is a non-blank
-     * type; they differ where the legend maps a drawn character to null or to a blank string, because this
-     * reader normalises those to background while a literal lookup returns what the legend holds.
      */
     public static String[] cellTypes(int rows, @Nullable List<String> layout, @Nullable Map<Character, String> legend) {
         int columns = 9;
@@ -99,11 +72,6 @@ public final class GuiLayouts {
     /**
      * Logs the three grid problems — a row count that disagrees with rows, a row that is not nine
      * cells wide, and a drawn character the legend does not define — and returns how many were logged.
-     *
-     *
-     * Self-contained by design: it takes the logger instead of reaching for the plugin, so an addon can report
-     * through its own logger and no static lookup or language key is involved. A null logger or layout logs
-     * nothing; a whitespace character is not a problem.
      */
     public static int warnUnknownCharacters(@Nullable Logger logger, @Nullable String configPath, int rows,
                                             @Nullable List<String> layout,

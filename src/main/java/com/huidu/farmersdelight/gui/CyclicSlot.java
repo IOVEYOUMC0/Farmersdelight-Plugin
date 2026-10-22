@@ -5,10 +5,6 @@ package com.huidu.farmersdelight.gui;
  * frame; rendering stays in the page that owns the slot). Drives "switch to the next display item every N
  * ticks" for any detail-page slot that needs to cycle through candidates — the cutting-board tool preview,
  * the special-recipe catalyst items, and so on. The index is taken modulo the current option count.
- *
- *
- * The interval counts the tick() calls the owner makes, which is once per GuiTickManager callback
- * (GuiTickManager.TICK_INTERVAL game ticks), not game ticks.
  */
 final class CyclicSlot {
 

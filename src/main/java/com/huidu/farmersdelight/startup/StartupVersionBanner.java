@@ -7,17 +7,6 @@ import java.util.function.Consumer;
 /**
  * Builds the version fields of the enable-time summary line and decides whether the running CraftEngine version is
  * supported.
- *
- * The version check exists because a server has been found with more than one CraftEngine jar in the plugins
- * folder at the same time: a replaced jar that never took effect makes "it suddenly works" and "it broke for no
- * reason" indistinguishable. The one summary line a startup prints therefore begins with the four versions, and
- * everything else about startup stays under the startup debug category:
- *
- * FarmersDelight 1.0.3 | CraftEngine 26.9.2 | server Paper 1.21.8 | api 1.21.5
- *
- * The plugin is verified against CraftEngine 26.8.2 and newer. A version below that, or one that cannot be parsed
- * at all, warns exactly once and never again; a newer version is not a warning. Nothing here reads files or the
- * network, and it only runs while the plugin enables.
  */
 public final class StartupVersionBanner {
 

@@ -21,6 +21,10 @@ local.properties
 __pycache__/
 *.pyc
 
+# Verification records (round manifests, prose notes, the matrix) live outside this repository in the
+# workspace's verification-records/ directory. Ignore them if one lands here by accident; git add -f still wins.
+/docs/verification/*/
+
 # CraftEngine is resolved from Maven for every build. The paid distribution jars are only ever used locally by
 # the workspace-level tools/check_ce_symbols.py (monorepo parent directory), which takes explicit paths:
 #   python tools/check_ce_symbols.py <jar> --ce 26.9.1=path/core.jar;path/bukkit.jar;path/proxy.jar

@@ -89,7 +89,7 @@ public final class CraftEngineStateUsageMonitor {
         int addonStates = 0;
         for (int i = 0; i < total; i++) {
             ImmutableBlockState state = blockManager.getImmutableBlockStateUnsafe(i + vanillaOffset);
-            String owner = null;
+            String owner;
             if (state != null && !state.isEmpty()) {
                 owner = state.toString();
             } else {

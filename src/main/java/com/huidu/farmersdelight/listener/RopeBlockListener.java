@@ -49,25 +49,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RopeBlockListener implements Listener {
 
     private final FarmersDelightPlugin plugin;
-    // Positions already queued for a rope refresh next tick. Used to coalesce bursts of neighbour updates
-    // (flowing water / redstone / pistons near ropes), so each position is scanned and refreshed at most
-    // once per tick rather than once per update.
+    // Positions already queued for a rope refresh next tick.
     private final Set<Cell> pendingRopeRefreshes = ConcurrentHashMap.newKeySet();
     private record WallEdge(Cell cell, BlockFace side) {}
     private final Map<WallEdge, Boolean> pendingWallConnections = new ConcurrentHashMap<>();
     private volatile boolean stopped;
-    // Tracked rope positions. Maintained by CustomBlockPlace/Break, rebuilt per chunk on ChunkLoad, and
-    // drained on chunk/world unload. Gives scheduleRopeRefreshIfNearby a Set.isEmpty() / Set.contains()
-    // short-circuit so a place or break with no rope nearby skips 5 CE hasBehavior queries.
-    // Coverage is "ropes placed through CustomBlockPlace, ropes this plugin writes itself and reports
-    // through syncRopeIndex, plus every rope in a chunk that has loaded since this listener registered" —
-    // not "every rope that exists". A rope written straight into an already-loaded chunk by an external
-    // writer (WorldEdit, /ce setblock, another plugin calling CraftEngineBlocks.place) fires no
-    // CustomBlockPlaceEvent and gets no ChunkLoad rebuild, so it stays outside the index and its connected
-    // texture is not refreshed until its chunk next cycles. The global isEmpty() gate does not save that
-    // case: any other rope on the server keeps the set non-empty, so the miss lands on contains() instead.
-    // Tracked rope positions, bucketed by chunk. A flat set meant every chunk unload had to scan every
-    // rope on the server to find the handful in that chunk; the bucket is dropped whole instead.
+    // Tracked rope positions, bucketed by chunk. Maintained by CustomBlockPlace/Break, rebuilt per chunk on
+    // ChunkLoad and drained on chunk/world unload. The set short-circuits scheduleRopeRefreshIfNearby so a place
+    // or break with no rope nearby skips the CE hasBehavior queries. Coverage is not authoritative: a rope
+    // written into a loaded chunk by an external writer fires no place event and stays missing until the chunk
+    // cycles.
     private final Map<ChunkCell, Set<Cell>> placedRopes = new ConcurrentHashMap<>();
 
     private record ChunkCell(UUID worldId, int chunkX, int chunkZ) {
@@ -402,16 +393,10 @@ public class RopeBlockListener implements Listener {
     // One-shot latch so a persistently broken world logs once instead of once per section per chunk load.
     private static final AtomicBoolean PALETTE_FAILURE_LOGGED = new AtomicBoolean();
 
-    // Palette probe: a CraftEngine section stores its states in a paletted container, so the distinct
-    // states of all 4096 positions are a handful of palette entries. Testing those decides whether the
-    // section can hold a rope at all, and only a section that proves it does gets its positions walked.
-    //
-    // The two probe calls are caught separately on purpose, because both failure modes are
-    // IllegalStateException and their messages do not separate them: PalettedContainer.isEmpty reads
-    // palette entry 0 directly, so a single-entry palette that has never been written reports the same
-    // "Missing Palette entry" text that a genuinely damaged palette would. Which call threw is the
-    // reliable discriminator — isEmpty throwing is the ordinary empty-section case, while hasAny
-    // throwing means the container changed shape after isEmpty had just proved it readable.
+    // Palette probe: a section stores its states in a paletted container, so the distinct states of all 4096
+    // positions are a few entries. Only a section whose palette can hold a rope gets its positions walked. The
+    // two probe calls are caught separately because both throw IllegalStateException with the same message;
+    // which call threw tells an ordinary empty section from a container that changed shape.
     private boolean sectionMayContainRope(CESection section, World world, int chunkX, int chunkZ) {
         PalettedContainer<ImmutableBlockState> states = section.statesContainer;
         if (states == null) {

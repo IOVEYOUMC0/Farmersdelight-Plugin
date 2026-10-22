@@ -147,35 +147,6 @@ public final class SchedulerAdapter implements RegionDispatcher {
         ));
     }
 
-    public PluginTask runRepeatingAt(Location location, Runnable task, long delayTicks, long periodTicks) {
-        if (location == null || !folia) {
-            return runRepeating(task, delayTicks, periodTicks);
-        }
-        World world = location.getWorld();
-        if (world == null) {
-            return runRepeating(task, delayTicks, periodTicks);
-        }
-        return FoliaTasks.regionRunRepeating(
-                plugin,
-                world,
-                location.getBlockX() >> 4,
-                location.getBlockZ() >> 4,
-                task,
-                delayTicks,
-                periodTicks
-        );
-    }
-
-    /**
-     * Runs the task on the async pool.
-     *
-     * @throws java.util.concurrent.RejectedExecutionException when the queue is full or the pool is shut
-     *         down; the task did not run, so the caller still owns whatever it was going to flush
-     */
-    public void runAsync(Runnable task) {
-        asyncMetrics.submit(asyncExecutor, task);
-    }
-
     /**
      * Runs the task on the async pool, tolerating a full queue.
      *

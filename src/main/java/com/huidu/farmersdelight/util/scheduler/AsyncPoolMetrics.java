@@ -8,15 +8,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The counters behind the async pool's diagnostics, and the one place a task is handed to that pool.
- *
- * The pool itself is untouched: same size, same bounded queue, same abort policy, and a refusal still reaches
- * the caller as the exception the executor threw. What is added is one increment on the way in, one on the way
- * out inside the task's own finally, and one when the pool refuses the task, so the numbers describe the pool
- * without changing what it does.
- *
- * A task the pool never ran because it was force-stopped is counted as refused: it was handed over and did not
- * run, and counting it keeps in flight at zero once the pool is gone instead of leaving a number that never
- * falls.
  */
 final class AsyncPoolMetrics {
 

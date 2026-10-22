@@ -10,12 +10,6 @@ import java.util.Map;
 
 /**
  * Renders one entry of a recipe file, and checks the text an edit produced before it is written.
- *
- *
- * The value is serialised as a single entry of a scratch document by the same parser the loader reads recipe
- * files with, so a written recipe has exactly the shape a hand-written one has and no second YAML writer has to
- * be kept in step with it. The entry is reached through raw map keys rather than dotted paths, so a recipe id
- * containing a dot stays one key instead of becoming a nested section.
  */
 public final class BukkitYamlValueWriter implements YamlFileTransaction.ValueWriter {
 

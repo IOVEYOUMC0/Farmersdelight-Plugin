@@ -4,13 +4,6 @@ import java.util.Set;
 
 /**
  * The one place that decides what a recipe id typed into a command means and how one is shown back.
- *
- *
- * Recipe ids are stored exactly as their source spells them: the plugin's own files and every pack section
- * contribute the YAML key the file carries, for example beef_stew, while a station type that derives its ids
- * from item ids stores a namespaced one, for example barbequesdelight:raw_beef_skewer. A command therefore
- * accepts either spelling and resolves it to the stored form, which is what persisted state and the api keep
- * using, and displays the namespaced form so both sides of the same list read alike.
  */
 public final class RecipeIds {
 
@@ -21,10 +14,6 @@ public final class RecipeIds {
 
     /**
      * The stored id a typed token refers to, or null when that type has no such recipe.
-     *
-     * The stored spelling is tried first, so state written by an earlier build and every script that used the
-     * bare key keeps resolving. The token is then tried with the type's own namespace, and finally a
-     * namespaced token is stripped back to its bare key, which is how the plugin's own recipes are stored.
      */
     public static String canonical(String typeId, String token, Set<String> knownIds) {
         if (token == null || token.isBlank() || knownIds == null || knownIds.isEmpty()) {

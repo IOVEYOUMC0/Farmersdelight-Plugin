@@ -127,10 +127,6 @@ public class HeatSourceConfig {
 
     /**
      * A list read that reports a wrong value type once and keeps the rest of the section loading.
-     *
-     *
-     * A scalar where a list belongs is reported and treated as an empty list, so one hand-edit typo cannot
-     * abort the whole reload or keep the plugin from enabling.
      */
     private static List<String> readList(ConfigurationSection section, String key) {
         try {
@@ -196,11 +192,6 @@ public class HeatSourceConfig {
     /**
      * Registers a CraftEngine block as a heat source, optionally only in certain states
      * ("namespace:block" or "namespace:block[fire:true]").
-     *
-     *
-     * Blocks that can be switched off MUST be registered this way rather than by tag: CraftEngine
-     * copies the block-level settings (and therefore the tag list) onto every state, so a tag matches
-     * the unlit state just as well as the lit one.
      *
      * @return false when the id could not be parsed
      */

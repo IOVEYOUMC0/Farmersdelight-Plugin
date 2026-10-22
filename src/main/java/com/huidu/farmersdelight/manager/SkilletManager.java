@@ -54,12 +54,8 @@ public class SkilletManager {
 
     // ---- hand-held cooking, delegated to SkilletHandheldCooking -------------------------------
     // Only these six members are read from outside (SkilletItemBehavior, SkilletLifecycleListener, and the
-    // listener registry wiring the skewer exclusion); everything else about hand-held sessions lives in the
-    // extracted class.
-    //
-    // Every one of them guards for null even though the constructor always assigns the field: listeners are
-    // registered after it, but a partially-built manager (a throw part-way through the constructor) would
-    // otherwise turn every later skillet interaction into an NPE instead of a no-op.
+    // listener registry wiring the skewer exclusion); every one guards for null so a partially-built manager
+    // turns a later interaction into a no-op instead of an NPE.
 
     /** Hand-held cooking; assigned in the constructor after the display models it depends on exist. */
     private SkilletHandheldCooking handheldCooking;

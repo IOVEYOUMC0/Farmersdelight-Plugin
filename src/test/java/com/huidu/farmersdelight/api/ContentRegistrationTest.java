@@ -4,8 +4,6 @@ import com.huidu.farmersdelight.api.registry.ContentRegistration;
 import com.huidu.farmersdelight.api.registry.ContentRegistration.Kind;
 import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
-import net.momirealms.craftengine.core.item.behavior.ItemBehavior;
-import net.momirealms.craftengine.core.item.behavior.ItemBehaviorFactory;
 import net.momirealms.craftengine.core.loot.function.LootFunction;
 import net.momirealms.craftengine.core.loot.function.LootFunctionFactory;
 import net.momirealms.craftengine.core.plugin.context.Condition;
@@ -35,7 +33,6 @@ class ContentRegistrationTest {
     private static final Key VALID = Key.of("testplugin:my_type");
 
     private static final BlockBehaviorFactory<BlockBehavior> BLOCK = (definition, section) -> null;
-    private static final ItemBehaviorFactory<ItemBehavior> ITEM = (pack, path, id, section) -> null;
     private static final FunctionFactory<Context, Function<Context>> FUNCTION = section -> null;
     private static final ConditionFactory<Context, Condition<Context>> CONDITION = section -> null;
     private static final LootFunctionFactory<LootFunction> LOOT = section -> null;

@@ -241,13 +241,6 @@ public class CookingPotBlockEntity {
         syncWorldlyContainer();
     }
 
-    public double getSlotExperience(int slot) {
-        return 0.0D;
-    }
-
-    public void setSlotExperience(int slot, double experience) {
-    }
-
     public List<ItemStack> getIngredientSlots() {
         synchronized (inventoryLock) {
             return getIngredientSlotsInternal();
@@ -374,13 +367,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    public void setMealDisplayItem(ItemStack item) {
-        synchronized (inventoryLock) {
-            addItemToSlots(layout.outputSlots(), item);
-        }
-        syncWorldlyContainer();
-    }
-
     public ItemStack getPendingOutputItem() {
         synchronized (inventoryLock) {
             return getFirstItem(layout.pendingOutputSlots());
@@ -405,19 +391,6 @@ public class CookingPotBlockEntity {
         return false;
     }
 
-    public int countFilledInputSlots() {
-        int count = 0;
-        synchronized (inventoryLock) {
-            for (int i : layout.inputSlots()) {
-                ItemStack item = inventory[i];
-                if (item != null && !item.getType().isAir()) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
     public boolean hasStoredContents() {
         synchronized (inventoryLock) {
             for (ItemStack item : inventory) {
@@ -427,16 +400,6 @@ public class CookingPotBlockEntity {
             }
         }
         return doesMealHaveContainer();
-    }
-
-    public boolean consumeContainer() {
-        synchronized (inventoryLock) {
-            if (!consumeOneFromSlots(layout.containerSlots())) {
-                return false;
-            }
-        }
-        syncWorldlyContainer();
-        return true;
     }
 
     public void consumeIngredients(CookingPotRecipe recipe, World world, Location blockLoc) {
@@ -700,9 +663,6 @@ public class CookingPotBlockEntity {
         return isSameContainer(mealContainerStack.get(), containerItem);
     }
     
-    public ItemStack useContainerToTakeMeal() {
-        return takeMealPortion(1);
-    }
 
     public ItemStack useHeldContainerOnPendingMeal(Player player, ItemStack container) {
         // Hand serving bypasses the result slot and leaves recipe XP unclaimed.
@@ -798,23 +758,6 @@ public class CookingPotBlockEntity {
         }
     }
 
-    public ItemStack takeMeal() {
-        synchronized (inventoryLock) {
-            int outputSlot = firstNonEmptySlot(layout.outputSlots());
-            if (outputSlot < 0) {
-                return null;
-            }
-            ItemStack meal = inventory[outputSlot];
-            if (meal != null && !meal.getType().isAir()) {
-                setSlot(outputSlot, null);
-                tryMovePendingToOutput();
-                syncWorldlyContainer();
-                return meal;
-            }
-        }
-        return null;
-    }
-
     public ItemStack takeMealWithExperience(Player player) {
         ItemStack meal;
         synchronized (inventoryLock) {
@@ -891,25 +834,6 @@ public class CookingPotBlockEntity {
                 if (count > 0) usedRecipeTracker.put(id, count);
             }
         }
-    }
-
-    public List<ItemStack> returnContainerItems() {
-        List<ItemStack> returnedItems = new ArrayList<>();
-
-        synchronized (inventoryLock) {
-            for (int i : layout.inputSlots()) {
-                ItemStack item = inventory[i];
-                if (item != null && !item.getType().isAir()) {
-                    returnedItems.add(item.clone());
-                    setSlot(i, null);
-                }
-            }
-        }
-
-        if (!returnedItems.isEmpty()) {
-            syncWorldlyContainer();
-        }
-        return returnedItems;
     }
 
     public void tryMovePendingToOutput() {

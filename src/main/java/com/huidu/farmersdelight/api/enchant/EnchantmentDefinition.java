@@ -8,10 +8,6 @@ import java.util.Set;
  * An immutable description of a custom enchantment an addon wants FarmersDelight to manage. It maps 1:1 onto the
  * datapack enchantment JSON FarmersDelight writes (description/translate, weight, cost curve, anvil cost, slots,
  * distribution tags) plus which EnchantGroups may receive it in the enchanting table and anvil.
- *
- * The runtime effect is NOT part of this descriptor: an addon owns its own Bukkit listener and reads the enchant
- * level off the held item. All fields have sensible defaults matching FarmersDelight's built-in enchant; use
- * the builder.
  */
 public final class EnchantmentDefinition {
 

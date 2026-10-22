@@ -18,13 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * FarmersDelight owns the two mechanical layers — the datapack registry entry and the enchanting-table/anvil
  * candidate pool — while the addon owns the runtime effect through its own Bukkit listener (read the enchant
  * level off the held item.
- *
- * Call in the addon's onEnable (it hard-depends on FarmersDelight, so FarmersDelight is already up). Because an
- * enchantment is a datapack registry object, a register() enchant only becomes usable after a server restart —
- * FarmersDelight prints a restart banner when it writes the datapack.
- *
- * Register ids under the farmersdelight: namespace to stay clear of the conflict detector; other namespaces are
- * still fine because API-registered ids are whitelisted there.
  */
 public final class FarmersDelightEnchantments {
 

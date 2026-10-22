@@ -11,16 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Neighbour writes only run on a region the current thread owns.
- *
- *
- * Residency is not ownership: on a regionised server a neighbour whose chunk is loaded can still belong to
- * another region, and both the CraftEngine state lookup and the programmatic place that follows it would then
- * touch that block from the wrong thread. Every pass that rewrites a neighbour across a chunk border has to
- * check region ownership first and skip an unowned neighbour, never hand the write to the owning region.
- *
- * These passes read blocks and call Bukkit statics, so the check is read from the source: the region gate has
- * to come before the neighbour state lookup, which has to come before the place. Dropping the gate turns this
- * red.
  */
 class FoliaNeighborWriteTest {
 

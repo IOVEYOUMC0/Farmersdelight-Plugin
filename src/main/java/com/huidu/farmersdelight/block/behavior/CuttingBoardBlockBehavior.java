@@ -521,10 +521,6 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         return new CuttingBoardBlockBehavior(plugin, block, facingProperty, toolTags, toolItems, knifeSound, maxStackAmount, customDataKey);
     };
 
-    public String getKnifeSound() {
-        return knifeSound;
-    }
-
     public int getMaxStackAmount() {
         return maxStackAmount;
     }

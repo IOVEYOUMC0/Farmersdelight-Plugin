@@ -14,10 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The handheld skillet refuses a click while a skewer session owns the player, the mirror of the skewer path's
  * own check against this skillet. Without it both paths could eat the same right-click with the skillet's
  * ingredient being the very stack the skewer session is cooking.
- *
- * The gate itself runs without a server: the mayStartHandheld decision is the whole decision.
- * The wiring is asserted on the source, because the registry owns both handlers and neither class can be built
- * in a unit test.
  */
 class SkilletHandheldExclusionTest {
 

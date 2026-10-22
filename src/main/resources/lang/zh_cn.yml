@@ -35,6 +35,12 @@ gui:
     tag: "标签"
     matches: "可用材料"
     unknown: "未知"
+    search: "搜索配方"
+    search_active: "正在搜索配方"
+    search_hint: "<gray>左键：按配方 id 或成品名搜索。"
+    search_query: "<gray>关键词"
+    search_clear_hint: "<gray>潜行点击清除。"
+    search_prompt: "<gray>在聊天框输入搜索词（<red>cancel</red> 保持当前列表）"
   cooking_pot:
     # 用 %s 而不是 {name} 占位符: 服务端回退文案由 String.format 生成(I18n.translatableWithFallback),
     # 资源包里的客户端文案同样用 %s。
@@ -62,6 +68,15 @@ gui:
         compost: "有机堆肥"
       output:
         rich_soil: "沃土"
+compat:
+  kaleidoscope:
+    auto_fill:
+      filled: "<green>已把菜谱记录的食材放入厨锅。"
+      already_filled: "<yellow>锅内已经是这份菜谱记录的全部食材。"
+      missing_items: "<red>背包缺少菜谱记录的食材。"
+      no_space: "<red>厨锅没有足够的输入空位。"
+      other_ingredients: "<red>锅里有这份菜谱未记录的其它食材。"
+      invalid_recipe: "<red>这个菜谱物品没有可用的食材记录。"
 console:
   recipe-discovery:
     save_failed: "保存配方解锁数据失败：{error}"

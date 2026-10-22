@@ -15,10 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Covers the queued chunk scan dispatch decision: which queued chunks one maintenance pass hands out, in which
  * order, and that a chunk which is no longer loaded is not scanned.
- *
- *
- * The dispatcher is a recording fake and the worlds are null, so the decision is asserted without a server;
- * the scan body records whether it ran.
  */
 class ScanDispatchTest {
 

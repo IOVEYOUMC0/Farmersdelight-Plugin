@@ -88,6 +88,8 @@ blocks:
         item: farmersdelight:rice
         push-reaction: destroy
         is-randomly-ticking: true
+        hardness: 0.2
+        resistance: 0.2
       tags:
         - minecraft:bee_growables
         - minecraft:crops
@@ -173,12 +175,20 @@ blocks:
             fluid_state: water
         age=0,half=upper:
           appearance: age=0,half=upper
+          settings:
+            hardness: 0
         age=1,half=upper:
           appearance: age=1,half=upper
+          settings:
+            hardness: 0
         age=2,half=upper:
           appearance: age=2,half=upper
+          settings:
+            hardness: 0
         age=3,half=upper:
           appearance: age=3,half=upper
+          settings:
+            hardness: 0
     events:
       - on: break
         functions:

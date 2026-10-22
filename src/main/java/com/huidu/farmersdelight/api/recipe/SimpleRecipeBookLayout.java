@@ -17,12 +17,6 @@ import java.util.Map;
 /**
  * A plain-data RecipeBookLayout: title, row count, the character grid, the legend mapping each
  * character to an ingredient/recipe key, and any decoration items.
- *
- *
- * Build one with fromConfig; do not re-implement the parse. Sharing only the record was not
- * enough — every addon then wrote the same grid/legend/decoration reader, and the copies each lost
- * something FarmersDelight's own reader has (translation keys on decorations, the
- * title-layout.craftengine tokens, glyph resolution in the title).
  */
 public record SimpleRecipeBookLayout(Component title, int rows, List<String> layout,
                                      Map<Character, String> legend, Map<String, ItemStack> decorations)
@@ -31,11 +25,6 @@ public record SimpleRecipeBookLayout(Component title, int rows, List<String> lay
     /**
      * Reads a layout from one gui.yml section, falling back per field to fallback so a
      * config that only overrides the title keeps the built-in grid.
-     *
-     *
-     * Reads title (MiniMessage; title-layout.craftengine.offset / .icon are
-     * substituted into the <offset> / <icon> tokens first), rows (clamped to
-     * 1-6), layout, legend and items.
      *
      * @param section  the section, or null to return fallback unchanged
      * @param fallback the built-in layout; must not be null

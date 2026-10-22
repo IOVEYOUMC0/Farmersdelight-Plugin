@@ -26,8 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The editor's disk half: a full queue is a failure the caller shows and never a silent drop, the file work
  * happens away from the owner thread and reports back on it, and writes still in flight at shutdown are either
  * finished within the budget or counted so the shutdown can report them.
- *
- * The file work is the real transaction against a real file; only the pool and the owner hop are stand-ins.
  */
 class EditorWriteQueueTest {
 

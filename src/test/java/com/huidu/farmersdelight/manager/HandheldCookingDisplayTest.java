@@ -8,11 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The handheld rewrite must never reach beyond the player's own inventory slot.
- *
- *
- * The live regression this pins: an earlier version also mapped open-container id 0 onto the hotbar
- * (slot + 36), so a handler that outlived its session could rewrite the held item inside a GUI — the
- * enchanting table's option clicks were the visible casualty.
  */
 class HandheldCookingDisplayTest {
 

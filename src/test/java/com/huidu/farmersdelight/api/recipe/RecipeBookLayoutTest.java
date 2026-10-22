@@ -16,11 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The recipe-book layout seen through the shared read-only view, which it now extends.
- *
- *
- * The point of interest is a legend key written without a value: the config reader copies it as null, and a
- * reader that treated null as a type of its own would call that cell functional while the normalising grid
- * reader calls it background. These tests pin both answers to the same cell.
  */
 class RecipeBookLayoutTest {
 

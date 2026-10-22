@@ -222,7 +222,7 @@ public final class SpecialRecipeLoader {
         boolean hasSunlight = false;
         boolean hasWater = false;
         boolean hasCatalystInfo = false;
-        List<SpecialRecipeInfo.SlotEntry> catalystSlots = List.of();
+        List<SpecialRecipeInfo.SlotEntry> catalystSlots;
 
         if (conditions != null) {
             hasSunlight = ConfigSectionReader.optionalBoolean(conditions, "sunlight", false);

@@ -9,12 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Locks the shift-tag handling of the pot GUI title against a value that cannot be laid out.
- *
- *
- * The tag pattern accepts any number of digits and the title is laid out from the GUI constructor, so a value
- * that does not fit an int must leave its tag verbatim in the title instead of aborting it; every
- * representable value keeps its sign and magnitude. The offset renderer is stubbed, so the real replacement
- * loop runs without a server and without CraftEngine.
  */
 class CookingPotGuiShiftTagTest {
 

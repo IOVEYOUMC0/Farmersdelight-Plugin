@@ -10,13 +10,6 @@ import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 
 /**
  * Everything the plugin registers during the load phase, before CraftEngine starts parsing its packs.
- *
- *
- * These calls have to happen in onLoad and in this order: CraftEngine dispatches the FarmersDelight
- * pack sections to the parsers registered here while it loads packs in its own onEnable, and WorldGuard
- * locks its flag registry once it enables, so both must be claimed before the enable phase of any other plugin.
- * Keeping them in one place makes that constraint visible instead of leaving it implicit among the plugin's
- * lifecycle code.
  */
 final class LoadPhaseRegistrar {
 
@@ -30,7 +23,7 @@ final class LoadPhaseRegistrar {
      * Runs the whole load phase after the plugin has claimed its data folder and config files.
      *
      * @return the pack sections this plugin owns, to be published on the plugin (null when another plugin
-     *         already took the section ids)
+     * already took the section ids)
      */
     PackSections register() {
         // Load before CraftEngine's dependent plugins begin their enable phase, so recipes and advancements

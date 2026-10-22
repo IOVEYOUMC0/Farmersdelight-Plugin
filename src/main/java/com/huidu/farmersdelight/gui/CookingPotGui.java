@@ -467,12 +467,9 @@ public class CookingPotGui extends AbstractInventoryGui {
         // is what prevents the GUI's pre-modification snapshot from clobbering cook-tick mutations
         // (e.g. ingredients consumed / result deposited) that happened during the click handler.
         if (!dirtyWritableSlots.isEmpty()) {
-            // Mutual exclusion boundary between the GUI mirror and the cook tick. The mirror belongs to the
-            // viewer's region while the tick runs on the pot's region, so the read of the mirror and the write
-            // to the entity are taken under the entity's inventory lock, and the mirror is re-read inside it:
-            // a slot the tick consumes before the lock is granted can then no longer be handed back through a
-            // value read before it. setInventorySlot acquires the same reentrant monitor, so nesting is safe.
-            // tryMovePendingToOutput and the tick-manager bookkeeping below stay outside the lock.
+            // Mutual exclusion boundary between the GUI mirror and the cook tick. setInventorySlot acquires the
+            // same reentrant monitor, so nesting is safe. tryMovePendingToOutput and the tick-manager bookkeeping
+            // below stay outside the lock.
             blockEntity.withInventoryLock(() -> {
                 for (int guiSlot : dirtyWritableSlots) {
                     Integer entitySlot = writableSlotMapping.get(guiSlot);
@@ -576,8 +573,6 @@ public class CookingPotGui extends AbstractInventoryGui {
             Player player = (Player) event.getWhoClicked();
             player.getScheduler().run(plugin, task -> {
                 if (closed || player.getOpenInventory().getTopInventory() != inventory || !ensureOwner()) return;
-                close();
-                player.closeInventory();
                 new RecipeViewGui(plugin, player, true, cookingPotLocation).open(player);
             }, null);
             return;
@@ -983,7 +978,7 @@ public class CookingPotGui extends AbstractInventoryGui {
         for (Map.Entry<UUID, CookingPotGui> entry : new ArrayList<>(activeGuis.entrySet())) {
             CookingPotGui gui = entry.getValue();
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (gui != null && !gui.closed) {
+            if (!gui.closed) {
                 gui.close();
             }
             activeGuis.remove(entry.getKey());

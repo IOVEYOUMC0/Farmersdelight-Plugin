@@ -8,17 +8,8 @@ import org.bukkit.entity.Player;
  * The api facade over the internal region-protection checks. Addons compile against this class (the
  * api-only jar ships it); the implementation lives inside the real plugin, which is why the addon never
  * touches FarmersDelight internals. Behind the scenes the checks cover WorldGuard's master flag plus an
- * addon's own registered flag (or the FD built-in feature flags), and every AntiGriefLib-backed land
- * plugin.
- *
- *
- * An addon that owns custom blocks should:
- * - call registerCustomFlag(String) from its onLoad with its own flag name (e.g.
- *       "myaddon-station");
- * - pass that same name to canBuild/canUse when placing / breaking / interacting
- *       with its blocks (CraftEngine fake blocks bypass the vanilla events land plugins listen to, so the
- *       addon must gate them itself, exactly like FarmersDelight does for its own blocks).
- * A null flagName queries only the master flag.
+ * addon's own registered flag (or the FD built-in feature flags), and the non-WorldGuard land plugins
+ * through CraftEngine's AntiGriefLib provider.
  */
 public final class ProtectionCompat {
 

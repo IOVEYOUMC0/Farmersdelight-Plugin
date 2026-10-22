@@ -7,12 +7,6 @@ import java.util.Objects;
 /**
  * One recipe reload round: every source a single loadRecipes() call has to register, in the order the reload
  * resolved them, drained across ticks under one shared per-tick budget.
- *
- *
- * Holding the sources in one round is what makes a reload one queue instead of one batch per source: when a
- * source is exhausted the remaining budget goes to the next one, and a source that follows another never
- * cancels what the first has not reached. Each source's own tail runs the moment that source is exhausted; the
- * round's tail belongs to the whole reload and is run by the driver after the last entry.
  */
 public final class RecipeRegistrationRound {
 

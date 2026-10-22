@@ -16,13 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Locks the legacy-id mapping rules and the replacement contract of LegacyIdMigration.
- *
- *
- * A test cannot build an ItemStack — Material's static initialiser needs a running server — so the
- * mapping half is asserted through ids (LegacyIdMigration#resolveId) and the replacement half
- * through the Bridge seam: the stub records which CraftEngine/Bukkit calls the migration makes. The
- * two production lines the seam hides are the amount write and the persistent-data merge, both quoted in the
- * facility notes.
  */
 class LegacyIdMigrationTest {
 
@@ -154,10 +147,6 @@ class LegacyIdMigrationTest {
 
     /**
      * Records the seam calls; the id table itself is what the other tests assert.
-     *
-     * create hands out a bare StubStack, which is constructible without a server. Its
-     * Craft-backed accessors are not usable offline (see the amount test), so it serves only as the object
-     * the amount and the data merge are applied to.
      */
     private static final class StubBridge implements LegacyIdMigration.Bridge {
 

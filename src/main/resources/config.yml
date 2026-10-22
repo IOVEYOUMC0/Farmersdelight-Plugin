@@ -460,6 +460,19 @@ experience-reward:
 # Example: [itemsadder, nexo, oraxen]
 external-item-sources: []
 
+# Kaleidoscope Cookery integration. Only active when that plugin is installed: its recipe item is a CraftEngine
+# item, and the recording (which ingredients that particular item holds) lives on the stack itself. Both
+# switches default to on; turn either off to keep the plugin installed but stop this plugin from using it.
+compatibility:
+  kaleidoscope:
+    # Master switch for every Kaleidoscope integration.
+    enabled: true
+    # Right-clicking the cooking pot with a Kaleidoscope recipe item moves the ingredients recorded on that item
+    # from the player's inventory into the pot. Nothing moves unless every recorded ingredient is present and the
+    # pot holds no other ingredients; the recipe item itself is never consumed, and the creative-mode check
+    # still requires the items to be carried.
+    recipe-auto-fill: true
+
 # Return table after a station consumes container-type items.
 # Key is the container item ID consumed (a CraftEngine custom id or a vanilla id), value is the item ID returned
 # after use. This table is an override, not the only source: when an item is missing here the plugin resolves its

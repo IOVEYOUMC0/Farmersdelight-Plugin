@@ -59,11 +59,6 @@ public final class RecipeEditorStore {
 
     /**
      * Saves a cooking pot recipe off the owner thread.
-     *
-     *
-     * The plan is built here, on the thread that owns the player and CraftEngine's items; only the file write
-     * runs elsewhere, and the completion runs back on the player's own thread before any menu changes. False
-     * means the write was refused outright, so nothing ran and no completion will follow.
      */
     public boolean saveCookingPotRecipeAsync(CookingPotRecipe recipe, String customGroupId, Player player,
                                              Consumer<Boolean> completion) {
@@ -71,10 +66,6 @@ public final class RecipeEditorStore {
             CookingPotRecipe loaded = plugin.getCookingPotRecipes().getRecipe(customGroupId, recipe.getId());
             completion.accept(published && loaded != null && buildCookingPotBody(recipe).equals(buildCookingPotBody(loaded)));
         });
-    }
-
-    public boolean deleteCookingPotRecipe(String recipeId, String customGroupId) {
-        return applyPlan(planDeleteCookingPotRecipe(recipeId, customGroupId));
     }
 
     /** Deletes a cooking pot recipe off the owner thread; see saveCookingPotRecipeAsync. */
@@ -94,10 +85,6 @@ public final class RecipeEditorStore {
             CuttingBoardRecipe loaded = plugin.getCuttingBoardRecipes().getRecipe(recipe.getId());
             completion.accept(published && loaded != null && buildCuttingBoardBody(recipe).equals(buildCuttingBoardBody(loaded)));
         });
-    }
-
-    public boolean deleteCuttingBoardRecipe(String recipeId) {
-        return applyPlan(planDeleteCuttingBoardRecipe(recipeId));
     }
 
     /** Deletes a cutting board recipe off the owner thread; see saveCookingPotRecipeAsync. */

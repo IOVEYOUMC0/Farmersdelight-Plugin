@@ -4,11 +4,6 @@ import org.bukkit.World;
 
 /**
  * The scheduling shapes more than one subsystem needs.
- *
- *
- * A task that reads a chunk has to run on the region that owns it and has to re-check the chunk from inside
- * the task: the dispatch is queued, so the chunk can unload before the task runs. Both halves are identical
- * at every call site, so they live here rather than being repeated wherever a chunk is dispatched.
  */
 public final class RegionTasks {
 

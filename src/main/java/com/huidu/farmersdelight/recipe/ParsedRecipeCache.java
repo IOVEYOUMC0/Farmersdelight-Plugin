@@ -6,18 +6,6 @@ import java.util.function.Supplier;
 
 /**
  * Reuses parsed recipe entries within one content generation.
- *
- *
- * Parsing a recipe reads the file's values and asks CraftEngine about the items they name, so a cached result
- * may only be handed out while both are unchanged. The key therefore carries the content generation, the source
- * the entry came from, the entry's own path and a fingerprint of the entry's values: a reload of CraftEngine's
- * content starts a new generation and a changed entry gets a new fingerprint, and either one means the entry is
- * parsed again rather than reused.
- *
- *
- * The store is bounded: entries are held in insertion order and the oldest is dropped once the limit is
- * reached, so a server that keeps editing recipes cannot grow it without end. Counters report what the store
- * reused, parsed and evicted, which is what a reload report or a debug command needs to explain its cost.
  */
 public final class ParsedRecipeCache<R> {
 

@@ -19,15 +19,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Runs the legacy-id rewrites: the config gates, the counters, and the startup sweep over already loaded
  * block inventories.
- *
- *
- * Everything here is either called on a thread that owns the object it touches (the hooks hand work over
- * through a MigrationDispatch) or is a pure stack/inventory rewrite. The startup sweep is the one
- * place that walks loaded chunks: it reuses RegionTasks#runAtLoadedChunk so each chunk is read from
- * inside the region that owns it.
- *
- * While the migration table is empty — which is the case until an addon registers something — the hooks
- * and the sweep do nothing at all.
  */
 public final class LegacyIdMigrationService {
 

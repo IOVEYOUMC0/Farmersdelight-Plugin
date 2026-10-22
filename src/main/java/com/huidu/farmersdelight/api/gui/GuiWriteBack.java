@@ -5,18 +5,6 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The guard that decides whether a viewer's edit may be committed back into the store.
- *
- *
- * Every container GUI here hands each viewer its own snapshot inventory, and vanilla applies a click a tick
- * later, so a write-back carries a value that may have been painted before the ticker ran. The crab trap's
- * ticker eats the bait cell and drops catches into the output cells while a GUI is open; committing that
- * snapshot then hands back bait the trap already spent, or erases a catch that arrived meanwhile. Either way
- * the item exists twice or vanishes, so the rule is: commit only while the store still holds exactly what
- * the cell was painted from.
- *
- *
- * Null and air are the same thing here (an empty cell). The comparison is plain data: it reads no world,
- * clones nothing and runs on any thread.
  */
 public final class GuiWriteBack {
 

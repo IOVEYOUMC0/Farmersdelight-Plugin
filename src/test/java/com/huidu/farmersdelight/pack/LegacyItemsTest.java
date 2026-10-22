@@ -24,17 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The items the 1.4 update renamed, kept for migration only.
- *
- *
- * The source side of FarmersDelightLegacyIds is the list: farmersdelight:barbecue_stick became
- * farmersdelight:cooked_meat_skewer and farmersdelight:basket became farmersdelight:bamboo_basket. Both stay
- * defined in the file they always lived in, carry a lore line that resolves a language key in every shipped
- * locale, declare their own category (declared in categories.yml and not listed in the normal tabs), and sit in
- * no tag and no recipe. The shared basket block still drops the new bamboo basket, and the ids still resolve
- * through the migration facility.
- *
- *
- * Data only: the pack files are read from disk, no server is involved.
  */
 class LegacyItemsTest {
 

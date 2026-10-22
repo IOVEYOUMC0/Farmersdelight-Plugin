@@ -8,16 +8,6 @@ import java.util.Map;
 
 /**
  * Builds a GUI decoration item from the items: section shape FarmersDelight's own GUIs use.
- *
- *
- * Recognised keys: item (a CraftEngine item id), material, custom-model-data,
- * item-model, hide-tooltip, name / lore (MiniMessage, glyph tags
- * resolved), and name-key / lore-keys (server-side translation keys).
- *
- *
- * The last pair is the reason to use this rather than a private copy: every addon that hand-rolled
- * this builder supported only literal name/lore, so their GUI decorations could not be
- * translated while the rest of the family could.
  */
 public final class GuiItems {
 

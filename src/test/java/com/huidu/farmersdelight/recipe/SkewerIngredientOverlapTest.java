@@ -26,10 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Delight skewers could craft one of ours because those skewers declared c:foods/raw_meat and
  * c:foods/cooked_meat; the fix removed the ingredient-class declarations from the finished items
  * instead of narrowing the recipes. These tests pin both halves down offline.
- *
- * Red if: (1) a finished item declares an ingredient-class c:foods/... tag again, or (2) the skewer
- * recipes stop being tag driven (explicit id lists, or a dropped tag), which would also cut the addon and
- * vanilla ingredients the tags exist for.
  */
 class SkewerIngredientOverlapTest {
 
@@ -41,12 +37,6 @@ class SkewerIngredientOverlapTest {
 
     /**
      * The finished dishes the addons ship that must never satisfy a skewer ingredient slot.
-     *
-     * Explicit test data on purpose: this used to be read out of the sibling repositories, which CI does not
-     * check out, so the suite only passed on a machine that happened to have them next to this one. Keep the ids
-     * in sync with each addon's own item list (Barbeque's Delight, Brewin' And Chewin, Crabber's Delight,
-     * End's Delight); the "no addon item may declare an ingredient-class tag" half belongs in those repositories'
-     * own tests, where their files are present.
      */
     private static final List<String> ADDON_FINISHED_ITEMS = List.of(
             "barbequesdelight:raw_cod_skewer", "barbequesdelight:raw_salmon_skewer",

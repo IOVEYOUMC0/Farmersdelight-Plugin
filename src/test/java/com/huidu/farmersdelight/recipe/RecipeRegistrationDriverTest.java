@@ -15,11 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The sharded reload path itself: the first slice runs inline, the rest is budgeted per tick on the calling
  * thread, a replaced round is cancelled, and a failure drops the rounds.
- *
- * Written against the real driver (not a stand-in), so removing the sharding — registering everything in one
- * go — turns these red. One reload rebuilds several owners back to back (the cooking pot and the cutting
- * board, each with its own file and pack sections), so the tests also pin that those rounds stay separate and
- * that a tail runs only after the last entry of its own round.
  */
 class RecipeRegistrationDriverTest {
 

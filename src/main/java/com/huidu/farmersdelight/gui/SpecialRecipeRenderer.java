@@ -2,7 +2,6 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.recipe.SpecialRecipeInfo;
-import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -69,23 +68,6 @@ final class SpecialRecipeRenderer {
         List<Component> lore = new ArrayList<>(keys.size());
         for (String key : keys) {
             lore.add(translatable(key, color));
-        }
-        return lore;
-    }
-
-    // Split embedded newlines into separate server-side lore components because the client renders a
-    // translated component as one line.
-    private static List<Component> translatedLines(List<String> keys, NamedTextColor color, Player player) {
-        List<Component> lore = new ArrayList<>();
-        for (String key : keys) {
-            if (key == null) {
-                continue;
-            }
-            String resolved = I18n.get(key, player);
-            String[] lines = resolved.split("\n", -1);
-            for (String line : lines) {
-                lore.add(Component.text(line).color(color).decoration(TextDecoration.ITALIC, false));
-            }
         }
         return lore;
     }

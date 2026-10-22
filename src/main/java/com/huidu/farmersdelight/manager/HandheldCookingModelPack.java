@@ -114,13 +114,6 @@ final class HandheldCookingModelPack {
 
     /**
      * Candidate texture sources for an ingredient, most specific first.
-     *
-     *
-     * A custom item is a vanilla material carrying a model component, so its vanillaId is
-     * only the material it was built on: a CraftEngine bacon is literally minecraft:dried_kelp.
-     * The item model is the item's own identity and must therefore be tried before that material,
-     * otherwise every custom food cooks with the texture of whatever base material it was built on.
-     * The material stays last as the fallback for items that carry no model of their own.
      */
     static Set<String> sourceCandidates(String vanillaId, String itemModel,
                                         Map<Key, Key> obfuscationMappings) {
@@ -130,14 +123,6 @@ final class HandheldCookingModelPack {
     /**
      * Candidate texture sources for an ingredient, most specific first, including the CraftEngine
      * item id the stack carries on the server side.
-     *
-     *
-     * With item.client-bound-model: true CraftEngine keeps the item-model component off the
-     * server-side stack, so itemModel is empty there even though the client is told to render
-     * the CE model. The CE item id survives in the stack's persistent data and identifies the item's
-     * generated definition, which is what the item/model lookup is keyed by. Without it the only
-     * candidate left is the base material, and every custom food would cook with the vanilla texture
-     * of whatever material it was built on.
      */
     static Set<String> sourceCandidates(String vanillaId, String itemModel, String customItemId,
                                         Map<Key, Key> obfuscationMappings) {

@@ -54,9 +54,7 @@ public final class RecipeFileLoader {
         return loadRecipeFile(plugin, relativePath, true);
     }
 
-    // Returns null when the file could not be obtained or parsed. Callers must then keep the set they
-    // published last: an unreadable file parsed as an empty configuration would drop every bundled recipe
-    // on the next reload, which is exactly what a single indentation mistake used to do.
+    // Returns null when the file could not be obtained or parsed.
     public static YamlConfiguration loadRecipeFile(FarmersDelightPlugin plugin, String relativePath, boolean reconcileWithBundled) {
         File recipesFile = new File(plugin.getDataFolder(), relativePath);
         if (!recipesFile.exists()) {
@@ -77,11 +75,9 @@ public final class RecipeFileLoader {
             return unchanged;
         }
 
-        // Read explicitly as UTF-8 (consistent with config.yml / language files), rather than the deprecated
-        // loadConfiguration(File) that uses the platform default charset, so non-ASCII recipe content is not
-        // corrupted on servers whose default charset is not UTF-8 (common on Windows).
-        // Buffer the stream: yaml.load() issues many small read() calls; without buffering each call
-        // crosses into the OS/file-system layer (and on reload paths this runs on the main thread).
+        // Read explicitly as UTF-8 (like config.yml and the language files) instead of loadConfiguration(File),
+        // which uses the platform charset and would corrupt non-ASCII recipes on non-UTF-8 servers. Buffer the
+        // stream because yaml.load() issues many small reads, and reload paths run on the main thread.
         try (Reader reader = new BufferedReader(
                 new InputStreamReader(Files.newInputStream(recipesFile.toPath()), StandardCharsets.UTF_8), 8192)) {
             RecipeFileStamps.noteParse();

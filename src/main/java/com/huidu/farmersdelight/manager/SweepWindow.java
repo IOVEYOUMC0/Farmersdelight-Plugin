@@ -3,16 +3,6 @@ package com.huidu.farmersdelight.manager;
 /**
  * The cursor policy for a bounded rotating sweep.
  *
- *
- * A sweep over a tracked set can be larger than one pass is allowed to cost, so each run covers a window
- * of at most budget entries and the next run continues where this one stopped. This is the arithmetic
- * only — no world access — so the wrap-around and the "everything fits" case can be checked without a server.
- *
- *
- * Extracted from TickManager's cooking-pot cleanup, which is where the policy is used: the Paper
- * path used to sweep the whole tracked set in one pass while only the Folia path was bounded, and the two now
- * share this policy.
- *
  * @param total      entries tracked when the window was planned
  * @param start      first index the window visits
  * @param count      how many entries the window visits (never more than total)

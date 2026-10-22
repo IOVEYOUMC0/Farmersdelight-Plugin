@@ -5,9 +5,6 @@ import java.util.List;
 /**
  * Bounds the length of a report whose line count follows the loaded content, so one command cannot fill the
  * chat or spend a whole tick sending it.
- *
- * A limit of zero or less means no bound at all: the report is handed back untouched and nothing counts as
- * hidden. The methods are pure, keep no state and never copy the list they are given.
  */
 public final class OutputCap {
 

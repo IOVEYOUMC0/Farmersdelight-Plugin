@@ -13,12 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * What a manager has published by the time its load returns, for the two budgets it chooses between.
- *
- * The CraftEngine readiness pass runs the recipe-backed warmup and prints the content summary immediately
- * after the managers are rebuilt, so a load with nothing published yet has to be complete when it returns.
- * A load that already has a published set keeps the configured budget and finishes over the next ticks.
- * Reverting the first-load budget to the configured one is what leaves the startup summary and the warmup
- * reading an empty recipe set.
  */
 class ColdRecipeLoadTest {
 

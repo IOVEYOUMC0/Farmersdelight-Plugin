@@ -14,9 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * immutable snapshot rebuilt from defaults + config.yml on every reload, so pouring addon trades into it would
  * wipe them on the next /fd reload. This registry is a plain static store that survives reloads; VillagerTradeListener
  * unions its offers with the config candidates before its weighted substitution roll.
- *
- * A profession() of null marks a wandering-trader offer; a non-null profession marks a villager offer gated on
- * profession + level.
  */
 public final class ExternalVillagerTrades {
 

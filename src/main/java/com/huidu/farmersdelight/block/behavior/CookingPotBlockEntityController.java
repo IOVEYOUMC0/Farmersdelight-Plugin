@@ -51,10 +51,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     private final CookingPotLayout layout;
     private final Item[] items;
     private final boolean[] dirtySlots;
-    // The entity value each slot's shadow was last read from (refreshFromEntity). Lets writeToEntity tell a
-    // local hopper in-place grow (shadow changed, entity still equals this baseline) apart from a concurrent
-    // entity write by another region's GUI viewer (entity no longer equals this baseline) — so it persists
-    // the grow but never clobbers the concurrent write with a stale shadow.
+    // The entity value each slot's shadow was last read from (refreshFromEntity).
     private final ItemStack[] entityBaseline;
     // Original Bukkit ItemStacks for non-CE items (e.g. MMOItems), preserved through CE wrap/unwrap.
     private final ItemStack[] nonCeOriginal;
@@ -372,12 +369,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                 if (!slotDirty && itemStacksEqual(toBukkitPreserving(i), entityNow)) {
                     continue;
                 }
-                // A local change is pending: a hopper setItem/removeItem (dirty slot) or a hopper in-place
-                // grow (non-dirty, grows getItem without marking dirty). Commit it, but never clobber a
-                // concurrent entity write. The shadow was read from the entity at refreshFromEntity (recorded
-                // in entityBaseline); if the live entity no longer equals that baseline, another region's GUI
-                // viewer wrote this slot under the entity lock — adopt the entity's current value instead of
-                // overwriting it with a stale shadow, which would duplicate extracts or lose inserts.
+                // A local change is pending: a hopper setItem/removeItem (dirty slot) or a hopper in-place grow
+                // (non-dirty, grows getItem without marking dirty). Commit it, but never clobber a concurrent entity
+                // write.
                 if (!itemStacksEqual(this.entityBaseline[i], entityNow)) {
                     if (isEmptyBukkitSlot(entityNow)) {
                         this.items[i] = Item.empty();

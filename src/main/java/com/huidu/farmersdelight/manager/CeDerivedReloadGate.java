@@ -2,14 +2,6 @@ package com.huidu.farmersdelight.manager;
 
 /**
  * Decides whether the CraftEngine-derived reload work has to run again.
- *
- *
- * Three steps of a reload are derived from CraftEngine's registries, not from the plugin's own files: the pet-food scan
- * (a CE item setting), the stove recipe cache and the skillet recipe cache (both walk the server's campfire
- * recipes). They are needed after CraftEngine reloads its pack, but /fd reload recipes — the command the
- * operator runs most — does not touch CraftEngine at all, yet paid for all three every time. A revision counter,
- * bumped by the CraftEngineReloadEvent handler, lets that work be skipped when nothing CraftEngine-side
- * changed.
  */
 public final class CeDerivedReloadGate {
 

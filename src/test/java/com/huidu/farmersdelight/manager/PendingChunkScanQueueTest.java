@@ -11,11 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Covers the chunk scan queue: insertion order, one entry per chunk, keyed removal and a bounded drain.
- *
- *
- * Those four properties are what keep the carrier scan from re-walking a chunk that is already waiting
- * and from walking every waiting chunk on each unload. The payload is a plain string, which is the whole
- * reason the queue does not name Chunk and can be exercised without a server.
  */
 class PendingChunkScanQueueTest {
 

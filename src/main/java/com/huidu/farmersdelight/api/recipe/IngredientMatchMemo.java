@@ -10,15 +10,6 @@ import java.util.function.Function;
  * Memoizes ingredient matching for one draw. A page tests the same handful of ingredient expressions
  * against the same inventory slot list for every recipe it draws, and each test resolves CraftEngine item
  * ids and tags, so the answer is cached per (expression key, slot) for the lifetime of the memo.
- *
- *
- * The caller owns the lifetime and supplies the key: it must be equal for any two ingredients that match
- * exactly the same stacks, and different for any two that do not. Slots are compared by identity, so a
- * caller must keep the same slot instances for the whole memo (one inventory snapshot per draw) — two equal
- * but distinct stacks must never share a cached answer.
- *
- *
- * An ingredient whose key function returns null is matched directly instead of being cached.
  */
 public final class IngredientMatchMemo<Slot, Ingredient> implements BiPredicate<Slot, Ingredient> {
 

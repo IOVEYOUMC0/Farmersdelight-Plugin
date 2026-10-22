@@ -21,7 +21,6 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -64,22 +63,23 @@ public class StrawDropListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         if (!FarmersDelightPlugin.isEnabled0()) return;
 
-        Player player = event.getPlayer();
+        // The block test runs before the item is resolved to a knife identity: nearly every break is not a
+        // straw source, and resolving the item identity is the expensive half of the check.
         Block block = event.getBlock();
-        ItemStack tool = player.getInventory().getItemInMainHand();
+        if (!isStrawBlock(block)) return;
 
-        if (!isKnife(tool)) return;
+        Player player = event.getPlayer();
 
         // Same drop gate as BlockBreakListener.onCustomBlockBreak: isDropItems() stays true in creative
         // (vanilla suppresses drops inside the server, not on the event), so the game mode has to be
         // checked separately or a creative break mints straw.
         if (!event.isDropItems() || player.getGameMode() == GameMode.CREATIVE) return;
 
-        if (isStrawBlock(block)) {
-            AdvancementManager advancementManager = plugin.getAdvancementManager();
-            if (advancementManager != null) {
-                advancementManager.award(player, "harvest_straw");
-            }
+        if (!isKnife(player.getInventory().getItemInMainHand())) return;
+
+        AdvancementManager advancementManager = plugin.getAdvancementManager();
+        if (advancementManager != null) {
+            advancementManager.award(player, "harvest_straw");
         }
     }
 
@@ -126,18 +126,21 @@ public class StrawDropListener implements Listener {
         }
 
         if (type == Material.WHEAT) {
-            if (block.getBlockData() instanceof Ageable ageable) {
-                if (ageable.getAge() >= ageable.getMaximumAge()) {
-                    return config.hasRule("mature_wheat");
-                }
+            if (block.getBlockData() instanceof Ageable ageable
+                    && ageable.getAge() >= ageable.getMaximumAge()
+                    && config.hasRule("mature_wheat")) {
+                return true;
             }
+            return config.hasRule(type);
         }
 
-        if (isMatureRicePanicles(block)) {
-            return config.hasRule("mature_rice");
+        if (config.hasRule(type)) {
+            return true;
         }
 
-        return config.hasRule(type.name().toLowerCase(Locale.ROOT));
+        // Rice panicles are a custom block, so only their CraftEngine state identifies them; the rule check
+        // skips that state read when the rule is off.
+        return config.hasRule("mature_rice") && isMatureRicePanicles(block);
     }
 
     private boolean isMatureRicePanicles(Block block) {

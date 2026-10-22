@@ -75,9 +75,6 @@ public final class EffectManager {
 
     // Public key aliases (for external compatibility)
 
-    public static final NamespacedKey KEY_NOURISHMENT = BuffKind.NOURISHMENT.bossbarKey;
-    public static final NamespacedKey KEY_COMFORT = BuffKind.COMFORT.bossbarKey;
-
     // Unified state storage
 
     private static final Map<UUID, EnumMap<BuffKind, BuffState>> playerBuffs = new ConcurrentHashMap<>();

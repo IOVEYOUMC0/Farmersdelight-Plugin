@@ -639,10 +639,6 @@ public class CookingPotRecipeManager {
 
     /**
      * Matches one input combination around the two caches.
-     *
-     * A null key means the combination must not be cached (see buildCacheKey): the answer still comes from a
-     * live match, but neither cache is read or written for it, because the key could not tell it apart from a
-     * different combination.
      */
     CookingPotRecipe matchWithCaches(String cacheKey, List<ItemStack> nonEmptyInputs, ItemStack container,
                                      String normalizedGroupId) {
@@ -765,10 +761,6 @@ public class CookingPotRecipeManager {
 
     /**
      * The key for one input combination, or null when it must not be cached.
-     *
-     * Null is returned when a loaded recipe constrains item data but an input's data cannot be projected: the
-     * remaining id-only part could not separate that stack from a different stack of the same id, so caching the
-     * answer would answer one of them with the other's recipe.
      */
     private String buildCacheKey(List<ItemStack> inputs, ItemStack container, String customRecipeGroupId) {
         return buildCacheKey(inputs, container, customRecipeGroupId, published.state());
@@ -779,11 +771,10 @@ public class CookingPotRecipeManager {
         // Read once: one key must not mix the formats of two published recipe sets.
         boolean withComponentFingerprint = state.anyIngredientConstrainsNbt();
         List<String> keys = new ArrayList<>();
-        // Clamp the per-slot amount that goes into the key. IngredientMatching caps each slot at
-        // min(amount, ingredientCount) interchangeable units, and only recipes with
-        // ingredientCount <= inputs.size() can pass its slot-count gate, so any amount above
-        // inputs.size() is indistinguishable to the matcher. Collapsing it keeps a hopper-fed pot
-        // whose stacks keep growing on one cache entry instead of evicting the whole LRU each tick.
+        // Clamp the per-slot amount that goes into the key: the matcher caps each slot at min(amount,
+        // ingredientCount) and only recipes with ingredientCount <= inputs.size() pass its gate, so a larger
+        // amount is indistinguishable. A hopper-fed pot then stays on one cache entry instead of evicting the LRU
+        // each tick.
         int amountCap = inputs.size();
         for (ItemStack item : inputs) {
             String fingerprint = null;
@@ -830,7 +821,7 @@ public class CookingPotRecipeManager {
      * clamped amount, which is the amount policy the matcher is documented to see.
      *
      * @return null when a non-air item's data cannot be projected, which the caller turns into "not cacheable";
-     *         air is equivalent in every slot and is projected as a constant
+     * air is equivalent in every slot and is projected as a constant
      */
     private static String componentFingerprint(ItemStack item) {
         if (item == null || item.getType().isAir()) {

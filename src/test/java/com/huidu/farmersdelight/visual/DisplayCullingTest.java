@@ -10,10 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The culling policy both display paths share: an invisible viewer gets range 0 (the entity stays), a visible
  * one gets the base range, and a pass only sends when the answer changed.
- *
- *
- * The glue that turns this into packets needs a server, but every decision it makes goes through here, so the
- * interesting failures (no culling at all, no restore, a packet per pass) are covered offline.
  */
 class DisplayCullingTest {
 

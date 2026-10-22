@@ -9,16 +9,6 @@ import java.util.logging.Logger;
 
 /**
  * The console lines a config update reports, in one place.
- *
- * Every plugin in the family ends an update the same way: the backup that failed, one line per migrated key, one
- * line for the keys retired from the file and one line for the keys added to it, each only when there is
- * something to say. That sequence had been written out once per repository, so the keys, their argument names
- * and their order could drift apart although the text itself was shared. It lives here now: a caller either asks
- * for the notices one report is worth or builds the single notice for a step of its own.
- *
- * A notice is a value, so a list of them can be compared, counted and asserted on without a server. The line is
- * logged through the family's one console channel, FarmersDelightApi.consoleMessage, which formats the same key
- * the caller would have formatted by hand.
  */
 public final class ConfigUpdateNotices {
 

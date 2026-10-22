@@ -16,9 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The shared language holder: the API answers are asserted directly, and the shape that keeps several addons
  * apart is pinned on the source text. The addons load one copy of the api class, so the prefix, not a single
  * static field, is what separates their language files.
- *
- * The installed paths cannot be exercised here: an AddonLanguage needs a plugin, and a paper plugin cannot be
- * constructed without a running server, so the wrapper contracts are pinned on the source of each addon.
  */
 class AddonLanguageInstalledTest {
 

@@ -22,12 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The engine against a fake controller and a fake inventory: which cell maps to which store slot, what is
  * painted where, that a refused write-back repaints the cell instead of keeping the GUI value, and that every
  * store access happens under the controller's lock.
- *
- *
- * Item stacks cannot be built without a running server, so the fake store holds empty cells: what is asserted
- * is the decision and the call sequence, which is where the duplication and loss bugs live. The value
- * comparison itself is covered by GuiWriteBackTest, and so is the item-level half of the engine
- * (cloning a stored value, painting a placeholder icon) — that needs a server.
  */
 class ContainerGuiKernelTest {
 

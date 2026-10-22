@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks docs/verification.md, read only.
+"""Checks a verification matrix, read only.
 
 The matrix is only worth having if its claims can be followed: every row has to carry the seven columns, a
 conclusion from a fixed set, and — for a row that claims a pass — a reference to something that exists. Test
@@ -8,11 +8,11 @@ name a path inside this repository, so the evidence is versioned with the code i
 not verified yet are printed as the list of what is still open, which is the same list a release note would
 have to mention.
 
-This script lives in the plugin repository's own tools/ directory and finds that repository from its own path,
-so it needs no argument and no particular working directory. Exit status is non-zero when a row is malformed
-or a reference cannot be resolved, so it can be a build gate.
+The matrix itself is a verification record, and records live outside this repository. The check therefore reads
+docs/verification.md when it exists and reports nothing to check otherwise; a matrix kept elsewhere is named
+with --dir, whose `test:` and `doc:` references still resolve against this repository.
 
-Usage: python tools/check_verification_matrix.py [--quiet]
+Usage: python tools/check_verification_matrix.py [--quiet] [--dir DIR]
 """
 
 import os
@@ -41,10 +41,7 @@ def doc_path(root, relative):
     return candidate if os.path.isfile(candidate) else None
 
 
-def read_rows(root):
-    path = os.path.join(root, MATRIX)
-    if not os.path.isfile(path):
-        raise SystemExit("missing matrix: %s" % MATRIX)
+def read_rows(path):
     rows = []
     for number, line in enumerate(open(path, encoding="utf-8"), start=1):
         stripped = line.strip()
@@ -68,12 +65,11 @@ def test_path(root, class_name):
     return None
 
 
-def check(root):
+def check(root, rows):
     problems = []
     unverified = []
-    rows = read_rows(root)
     if not rows:
-        problems.append("%s has no matrix rows" % MATRIX)
+        problems.append("the matrix has no rows")
     for number, cells in enumerate_rows(rows):
         platform, version, ce, item, conclusion, evidence, date = cells
         if not (platform and version and ce and item and date):
@@ -112,12 +108,39 @@ def enumerate_rows(rows):
         yield number, cells
 
 
+def parse_arguments(arguments):
+    """(quiet, directory): --dir DIR and --dir=DIR name a matrix kept outside this repository."""
+    quiet = False
+    directory = None
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--quiet":
+            quiet = True
+        elif argument == "--dir":
+            index += 1
+            if index >= len(arguments):
+                raise SystemExit("--dir needs a directory")
+            directory = arguments[index]
+        elif argument.startswith("--dir="):
+            directory = argument[len("--dir="):]
+        index += 1
+    return quiet, directory
+
+
 def main():
-    quiet = "--quiet" in sys.argv
+    quiet, directory = parse_arguments(sys.argv[1:])
     root = repo_root()
-    problems, unverified = check(root)
+    matrix_path = os.path.join(directory, "verification.md") if directory else os.path.join(root, MATRIX)
+    if not os.path.isfile(matrix_path):
+        if not quiet:
+            print("== verification matrix: none (records live outside this repository; pass --dir)")
+        print("problems: 0")
+        return
+    rows = read_rows(matrix_path)
+    problems, unverified = check(root, rows)
     if not quiet:
-        print("== verification matrix: %d row(s)" % len(read_rows(root)))
+        print("== verification matrix: %d row(s)" % len(rows))
         if unverified:
             print("== unverified (%d):" % len(unverified))
             for platform, version, ce, item in unverified:

@@ -76,11 +76,9 @@ public final class ItemUtils {
     // only changes when CraftEngine reloads, which is exactly when this map is cleared.
     private static final Map<Key, Set<String>> customItemTagIdCache = new ConcurrentHashMap<>();
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
-    // Pre-built reverse index: material → all vanilla item-tag IDs it belongs to.
-    // Replaces the O(n) getAllItemTagIds iteration over every registered tag per call.
-    // Published as a whole once built. "Map is non-empty" cannot serve as the built flag: the first
-    // computeIfAbsent makes it non-empty while most materials are still missing, and a reader would then
-    // see a half-built index and iterate an ArrayList that the builder is still appending to.
+    // Pre-built reverse index: material -> all vanilla item-tag IDs it belongs to, replacing the O(n) tag scan
+    // per call. Published as a whole once built; "map is non-empty" cannot serve as the built flag, because the
+    // first computeIfAbsent makes it non-empty while most materials are still missing.
     private static volatile Map<Material, List<String>> MATERIAL_TAG_INDEX = Map.of();
     private static final Object MATERIAL_TAG_INDEX_LOCK = new Object();
 
@@ -502,7 +500,7 @@ public final class ItemUtils {
             return nameMeta;
         }
 
-        if (vanillaItem) {
+        if (vanillaItem && vanillaKey != null) {
             return Component.translatable(vanillaKey);
         }
 
@@ -525,7 +523,10 @@ public final class ItemUtils {
         }
         if (item.getType().isItem()) {
             // Vanilla translation keys ARE shipped client-side, so no fallback needed.
-            return Component.translatable(item.getType().getItemTranslationKey());
+            String key = item.getType().getItemTranslationKey();
+            if (key != null) {
+                return Component.translatable(key);
+            }
         }
         return Component.text(item.getType().name());
     }
@@ -541,7 +542,10 @@ public final class ItemUtils {
             return Component.translatable(key).fallback(translationFallback(key, customId));
         }
         if (item.getType().isItem()) {
-            return Component.translatable(item.getType().getItemTranslationKey());
+            String key = item.getType().getItemTranslationKey();
+            if (key != null) {
+                return Component.translatable(key);
+            }
         }
         return Component.text(item.getType().name());
     }
@@ -1062,16 +1066,16 @@ public final class ItemUtils {
      * glass bottle. Resolution order, most explicit first:
      * - the container-returns map, by CE custom id and then by vanilla item id (operator override),
      * - the item's own CE craft-remainder (settings.craft-remainder): a fixed remainder always
-     *       answers, a recipe_based one answers through recipeId or through its fallback,
+     * answers, a recipe_based one answers through recipeId or through its fallback,
      * - the item's use-remainder component (what eating/drinking it leaves behind),
      * - the vanilla crafting remainder of the item's material — for a CE item that is its base material's,
-     *       so a CE drink built on minecraft:honey_bottle returns a glass bottle with no configuration,
+     * so a CE drink built on minecraft:honey_bottle returns a glass bottle with no configuration,
      * - the bucket/bottle fallback for containers vanilla declares no remainder for.
      * Returns null when the stack leaves nothing behind.
      *
      * @param recipeId id of the recipe consuming the item, matched by recipe_based CE remainders; null when no
-     *                 recipe is involved (a fixed CE remainder still answers, a recipe_based one uses its
-     *                 fallback).
+     * recipe is involved (a fixed CE remainder still answers, a recipe_based one uses its
+     * fallback).
      */
     public static ItemStack craftingRemainderOf(ItemStack item, String recipeId) {
         if (item == null || item.getType().isAir()) {

@@ -6,20 +6,6 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Decides whether one right-click may start handheld skewer cooking, as pure logic so every branch is
  * testable without a server.
- *
- * An air click is always ours. A block click is ours when the block cannot do anything with the held item
- * (plain terrain, fire, soul fire, lava and magma blocks all fall through to the item's own use) or when the
- * player is sneaking, which is the deliberate way to cook while aiming at a block that would otherwise take
- * the click. A non-sneaking click on a block that does have an interaction of its own stays with that block:
- * a campfire takes the skewer as food and a stove may too.
- *
- * Whether such a block would still accept the item cannot be answered from Java, so it is not part of the
- * rule: neither Bukkit nor CraftEngine offers a cheap, thread-correct way to see a campfire's four slots or a
- * stove's contents from here, and guessing would either steal vanilla's click or drop ours. Those clicks keep
- * belonging to the block unless the player sneaks.
- *
- * The heat condition is not part of this class either: the caller starts cooking only when the player is
- * inside the three by three by three cube or is on fire, and that check is unchanged.
  */
 public final class SkewerBlockClickPolicy {
 

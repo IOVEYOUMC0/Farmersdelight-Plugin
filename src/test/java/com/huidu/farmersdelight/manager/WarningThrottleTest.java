@@ -10,11 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Covers the per-key warning cooldown both callers in PerformanceMonitor rely on.
- *
- *
- * These warnings come from repeating tasks, so the rule that matters is "at most one report per key per
- * cooldown, and never zero reports". The earlier inline copies could only be reasoned about; with an injected
- * clock the boundary can be checked exactly.
  */
 class WarningThrottleTest {
 
