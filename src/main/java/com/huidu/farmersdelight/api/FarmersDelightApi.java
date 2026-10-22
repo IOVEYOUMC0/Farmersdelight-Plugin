@@ -52,7 +52,7 @@ import java.util.function.Function;
 
 public final class FarmersDelightApi {
 
-    private static final int API_VERSION = 4;
+    private static final int API_VERSION = 5;
 
     private static final Set<String> FEATURES = Set.of(
             // Runtime recipe registration + the generic recipe book / editor (registerRecipeType,
@@ -93,7 +93,19 @@ public final class FarmersDelightApi {
             // Central tag registry: addons register their tag→item mappings here from their own config
             // so the whole family resolves the same tags (registerCommonTags / unregisterCommonTags).
             "common-tags",
-            "advancement-triggers"
+            "advancement-triggers",
+            // Tag id constants (FarmersDelightTags) and the read-only knife-mineable block query.
+            "tags",
+            // The api.gui container GUI engine: layout/store mapping and stale write-back rejection.
+            "container-gui",
+            // The editor contract in api.recipe: RecipeEditor, EditableRecipe, AsyncRecipeEditor and file helpers.
+            "recipe-editor",
+            // api.config section reading, file update/rename and update notices.
+            "config-helpers",
+            // api.text message and duration formatting helpers.
+            "text",
+            // api.advancement advancement tree and availability registration.
+            "advancements"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
