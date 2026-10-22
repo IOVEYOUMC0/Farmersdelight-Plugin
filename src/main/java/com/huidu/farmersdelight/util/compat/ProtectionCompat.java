@@ -50,15 +50,9 @@ public final class ProtectionCompat {
     }
 
     public static void init(JavaPlugin plugin) {
-        try {
-            AntiGriefBridge.init(plugin);
-            antiGriefReady = AntiGriefBridge.isActive();
-        } catch (RuntimeException | LinkageError t) {
-            // antigrieflib missing / Flag class absent / build failure: WorldGuard-only, no regression.
-            antiGriefReady = false;
-            plugin.getLogger().warning("AntiGriefLib compatibility disabled: " + t.getClass().getSimpleName()
-                    + (t.getMessage() == null ? "" : " - " + t.getMessage()));
-        }
+        // Non-WorldGuard land plugins are checked through CraftEngine's AntiGriefLib provider; WorldGuard
+        // keeps its own flag layer. The provider resolves on first use, once CraftEngine is enabled.
+        antiGriefReady = AntiGriefBridge.isActive();
     }
 
     // Master-only overloads (no flag): still respect WorldGuard's master flag + all other land plugins.

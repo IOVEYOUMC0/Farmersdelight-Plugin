@@ -9,10 +9,6 @@ import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextPar
 /**
  * Matches when the entity the loot is evaluated for is on fire, which is how the knife-drop rules swap
  * ham for smoked ham.
- *
- *
- * Reads THIS_ENTITY because ENTITY is the killer in CraftEngine's entity-death context,
- * and falls back to the FIRE_TICKS context parameter for contexts that only expose the count.
  */
 public final class IsBurningCondition implements Condition<Context> {
 

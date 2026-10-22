@@ -6,13 +6,6 @@ import org.bukkit.inventory.ItemStack;
 
 /**
  * Conversion between CraftEngine's Item and Bukkit's ItemStack.
- *
- *
- * These are the conversions the plugin's container and recipe code perform on every stored item, so each
- * one lives here instead of being copied per call site. Nothing here resolves CraftEngine on its own: the
- * conversion is a direct pass-through of CraftEngine's own ItemStackUtils.getBukkitStack, so a
- * caller that can run before CraftEngine is ready keeps its own readiness guard, and a caller that needs a
- * substitute for a failed conversion keeps that substitute.
  */
 public final class CeItemInterop {
 
@@ -21,10 +14,6 @@ public final class CeItemInterop {
 
     /**
      * The Bukkit stack behind a CraftEngine item, or null when there is nothing to convert.
-     *
-     *
-     * A null or empty item returns null; the count is not inspected. CraftEngine is not consulted for
-     * readiness, so a failure inside the conversion propagates to the caller.
      */
     public static ItemStack asBukkitStack(Item item) {
         if (item == null || item.isEmpty()) {
@@ -36,9 +25,6 @@ public final class CeItemInterop {
     /**
      * The Bukkit stack behind a CraftEngine item, without the empty-item guard, for a caller that inspects
      * the converted stack itself or substitutes its own fallback.
-     *
-     *
-     * A null item returns null; every other item is handed to CraftEngine's conversion unchanged.
      */
     public static ItemStack toBukkitStack(Item item) {
         if (item == null) {

@@ -20,10 +20,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  * addon author reads before compiling against this plugin. Nothing stops it from drifting away from the code —
  * and it had: the capability table listed 12 of 17 feature ids and the documented apiVersion was a release
  * behind. This test fails the build the moment they disagree again.
- *
- *
- * The pages live in a separate documentation repository, checked out beside this repository (CI does it under wiki/). A copy under api-docs/ is used too, for acheckout that still keeps one. None of them being present is a failure, not a skip: this build treats a
- * skipped test as a broken report, and a drift check that quietly stops checking is worse than a red build.
  */
 class ApiDocsDriftTest {
 

@@ -239,9 +239,8 @@ public final class AddonAdvancementTab {
         showTo(player);
     }
 
-    // Forces a full tree re-send to an online player even if the tab was already shown (UAA's showTab no-ops
-    // once a player is marked shown). Used to re-push the tree after a reload/rebuild, when the first send may
-    // have been dropped while the client re-applied CraftEngine's resource pack.
+    // Forces a full tree re-send to an online player even if the tab was already shown (UAA's showTab
+    // no-ops once a player is marked shown).
     public void forceResend(Player player) {
         if (tab == null || !tab.isInitialised() || player == null) {
             return;

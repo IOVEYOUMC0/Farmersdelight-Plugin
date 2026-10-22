@@ -8,6 +8,7 @@ import java.util.Map;
 import java.io.File;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.recipe.AsyncRecipeEditor;
 import com.huidu.farmersdelight.api.recipe.EditableRecipe;
 import com.huidu.farmersdelight.api.recipe.NumericField;
 import com.huidu.farmersdelight.api.recipe.RecipeEditor;
@@ -35,6 +36,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 
 public final class RecipeEditorView implements InventoryHolder {
 
@@ -409,8 +411,7 @@ public final class RecipeEditorView implements InventoryHolder {
         }, () -> { });
         boolean accepted;
         try {
-            accepted = deleting ? editor.deleteAsync(draft.id(), completion)
-                    : editor.saveAsync(draft.copy(), completion);
+            accepted = submitToEditor(deleting, completion);
         } catch (RuntimeException failure) {
             saving = false;
             plugin.getLogger().log(Level.WARNING, "Recipe editor operation failed", failure);
@@ -421,6 +422,26 @@ public final class RecipeEditorView implements InventoryHolder {
             saving = false;
             player.sendMessage(I18n.getComponent("gui.editor.feedback.save_busy", player));
         }
+    }
+
+    // An editor implementing AsyncRecipeEditor exposes a future; every other editor keeps the callback contract.
+    // Both are folded into the same completion callback, so the rest of this view does not care which one was
+    // registered. A failed future is logged here because the completion callback only sees the boolean.
+    private boolean submitToEditor(boolean deleting, Consumer<Boolean> completion) {
+        if (editor instanceof AsyncRecipeEditor asyncEditor) {
+            CompletableFuture<Boolean> future = deleting
+                    ? asyncEditor.deleteAsync(draft.id())
+                    : asyncEditor.saveAsync(draft.copy());
+            future.whenComplete((ok, failure) -> {
+                if (failure != null) {
+                    plugin.getLogger().log(Level.WARNING, "Recipe editor operation failed", failure);
+                }
+                completion.accept(Boolean.TRUE.equals(ok));
+            });
+            return true;
+        }
+        return deleting ? editor.deleteAsync(draft.id(), completion)
+                : editor.saveAsync(draft.copy(), completion);
     }
 
     private void closeLater(Player player) {

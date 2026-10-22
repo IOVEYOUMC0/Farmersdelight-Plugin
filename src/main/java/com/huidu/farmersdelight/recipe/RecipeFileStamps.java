@@ -10,11 +10,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Remembers which recipe file was parsed at which (exists, modified, size) stamp.
- *
- *
- * Every reload used to read and parse all recipe files again even when not one byte had changed, which is the
- * main-thread cost behind the reported TPS dip. A stamp is cheap (two stat fields, no content hash) and is taken
- * after any bundled-entry reconciliation wrote the file, so the cache never claims a stale parse.
  */
 public final class RecipeFileStamps {
 
@@ -60,10 +55,6 @@ public final class RecipeFileStamps {
     /** Counts files actually parsed; the reload report and its regression test read the delta per pass. */
     public static void noteParse() {
         PARSES.incrementAndGet();
-    }
-
-    public static int parsedCount() {
-        return PARSES.get();
     }
 
     /** Forgets every stamp and the counter. Used by tests and by a full plugin re-enable. */

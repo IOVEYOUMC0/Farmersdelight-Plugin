@@ -68,9 +68,6 @@ public sealed interface RecipeIngredient permits RecipeIngredient.Item, RecipeIn
             this(key, Set.of(), Set.of());
         }
 
-        public boolean hasExclusions() {
-            return !excludedItems.isEmpty() || !excludedTags.isEmpty();
-        }
     }
 
     record Choice(List<RecipeIngredient> options) implements RecipeIngredient {

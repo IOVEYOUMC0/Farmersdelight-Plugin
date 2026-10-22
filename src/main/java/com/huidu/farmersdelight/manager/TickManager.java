@@ -69,12 +69,10 @@ public class TickManager {
     // Bounds how many region tasks one cleanup run submits; see scheduleCookingPotCleanup.
     private static final int CLEANUP_DISPATCH_BUDGET = 128;
     private static final int DEFAULT_COOKING_POT_TICK_BUDGET = 512;
-    // Max catch-up ticks applied in a single processing pass. Large enough that cooking pots starved by the tick budget
-    // (active blocks far exceeding the budget) don't lose real elapsed cooking time. This does not "cook a huge batch on reload":
-    // tickCookingPot uses Math.min(duration, ...) to cap progress at the recipe duration, and finishes cooking at most once per
-    // pass (a single if, not a loop), producing only one batch regardless of catch-up size; previousTick is also reset on
-    // (re)activation and refreshed every time the pot is selected, so catch-up never includes unloaded time.
-    // The cap still keeps a sane bound to avoid int overflow at elapsedTicks*2 in the cooldown branch.
+    // Max catch-up ticks applied in one pass, large enough that tick-budget-starved pots do not lose elapsed
+    // cooking time. A pass still finishes cooking at most once (tickCookingPot caps progress at the recipe
+    // duration and uses a single if, not a loop), and previousTick is reset on (re)activation and refreshed on
+    // selection, so catch-up never includes unloaded time. The cap bounds elapsedTicks*2 in the cooldown branch.
     private static final int MAX_ELAPSED_TICKS = 72_000;
     public TickManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -181,13 +179,6 @@ public class TickManager {
 
     /**
      * Bounded sweep of the tracked cooking pots for the single-threaded (Paper) path.
-     *
-     *
-     * Every entry costs a chunk-residency check plus a CraftEngine block-state read, so sweeping the whole
-     * tracked set in one pass put "worlds x tracked pots" of work on the main thread in a single tick — the
-     * same spike the Folia path already avoids by dispatching a bounded batch. Below the budget the sweep is
-     * the whole set, as before. Above it, a snapshot is rotated through so that every entry is still reached
-     * across successive runs, while any one run costs at most CLEANUP_DISPATCH_BUDGET entries.
      */
     private int sweepInvalidCookingPotBlockEntities() {
         int total = 0;
@@ -282,11 +273,9 @@ public class TickManager {
             return false;
         }
 
-        // hasCookingPotBehavior reads the CraftEngine state through the chunk, and a read of a chunk
-        // that is not resident loads it synchronously: the load fires that chunk's entity-load events,
-        // which is work cleanup has no business starting (a listener that throws there would fail this
-        // task, and the load itself is a stall). Cleanup is a background chore, so a non-resident chunk
-        // is skipped and revisited by a later run.
+        // hasCookingPotBehavior reads the CraftEngine state through the chunk, and a non-resident chunk would load
+        // synchronously, firing that chunk's entity-load events. Cleanup is a background chore, so a non-resident
+        // chunk is skipped and revisited by a later run.
         if (!world.isChunkLoaded(posKey.x() >> 4, posKey.z() >> 4)) {
             return false;
         }
@@ -310,20 +299,6 @@ public class TickManager {
 
     /**
      * Queues removal of every tracked block in one unloading chunk.
-     *
-     *
-     * The chunk-unload cleanup drops the block entities and CraftEngine's per-chunk index, but nothing
-     * told this manager, so the entries stayed in activeBlocks plus its three per-block maps. That is
-     * the same defect cleanupWorld(UUID) documents one level up: the tick loop's chunk guard
-     * (!world.isChunkLoaded) returns early, so nothing ever unregistered them, and the entries
-     * accumulated for every chunk a player visited that held a station. Removing them here is safe because a
-     * chunk reload always re-registers: CookingPotBlockBehavior and the pot controller both call
-     * markActive when the entity is (re)hydrated, and the controller's cached-chunk path
-     * (getChunkAtIfLoaded) marks active without waiting for loadCustomData.
-     *
-     *
-     * Only the tick bookkeeping is dropped; the cooked progress lives in the block entity, which the
-     * chunk-unload save pass has already snapshotted into the controller.
      */
     public void markInactiveInChunk(World world, int chunkX, int chunkZ) {
         if (world == null) {
@@ -566,7 +541,7 @@ public class TickManager {
      * Work pass for one tracked block.
      *
      * @param generation the activation this pass belongs to, or null when the caller already ran on
-     *                   the tick thread with a snapshot taken in the same pass (nothing can have superseded it)
+     * the tick thread with a snapshot taken in the same pass (nothing can have superseded it)
      */
     private void processActiveBlockInRegion(ActiveBlock activeBlock, World world, long currentTick,
                                             Long generation) {

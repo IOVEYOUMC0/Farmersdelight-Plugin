@@ -6,13 +6,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The elapsed time of the last targeted reload, plus the two formatting rules the report needs.
- *
- *
- * The per-phase figures only exist for a full reload; a targeted one (for example /fd reload recipes)
- * never fills them, which is how the report ended up claiming "0ms" with an empty phase list — and the empty
- * list left the literal separator in the language string dangling ("(0ms: )"). This lives outside the plugin so
- * both rules are provable without a server: a non-zero pass is never reported as 0, and the separator is only
- * emitted together with a non-empty phase summary.
  */
 public final class ReloadTiming {
 
@@ -49,11 +42,6 @@ public final class ReloadTiming {
 
     /**
      * Renders the phase list for one pass, or an empty string when there are no trustworthy phases.
-     *
-     * Three rules, all of them learned from the field: a phase that did not run is left out (no empty
-     * segment), the order and names never vary, and segments only appear when they can belong to
-     * totalMillis — the addon figure is filled in on the following tick, so a leftover from the
-     * previous pass used to be reported next to a much smaller total ("6ms: addons 116ms").
      */
     public static String composeSegments(long totalMillis, long[] phaseNanos) {
         if (phaseNanos == null || phaseNanos.length == 0) {

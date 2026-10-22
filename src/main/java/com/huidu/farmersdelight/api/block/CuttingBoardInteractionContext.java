@@ -14,9 +14,6 @@ import java.util.function.Supplier;
  * Read/write handle handed to a cutting-board interaction handler when a player right-clicks a FarmersDelight
  * cutting board. Stored-item writes are applied to the board's live block entity (display and container sync
  * included) via setStoredItem.
- *
- * mainHand and offHand are the player's actual stacks: a handler that damages them (e.g. wearing out a tool)
- * changes the real inventory item, exactly like FarmersDelight's own board usage.
  */
 public final class CuttingBoardInteractionContext {
 

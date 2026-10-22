@@ -26,17 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Serialization support so recipe results and containers keep the full NBT of a real item (custom
  * components, MMOItems data) instead of being flattened to an id + count.
- *
- * A recipe item declared as a map accepts two shapes:
- *   item: "minecraft:diamond"
- *   count: 1
- *   nbt: "<base64 of the whole item, written by the in-game editor>"
- * and the CraftEngine style used by CE's own items.yml:
- *   components:
- *     minecraft:custom_name: "(json) {\"text\":\"Diamond of Power\"}"
- *     minecraft:custom_data: "(snbt) {MMOITEMS_ITEM_ID: 'DIAMOND'}"
- *
- * nbt wins over components when both are present; components is meant for hand-written recipes.
  */
 public final class RecipeItemCodec {
 

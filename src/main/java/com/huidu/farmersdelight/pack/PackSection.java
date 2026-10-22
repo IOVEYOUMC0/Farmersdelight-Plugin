@@ -1,18 +1,10 @@
 package com.huidu.farmersdelight.pack;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
  * A FarmersDelight content section a CraftEngine pack can declare.
- *
- *
- * Each entry pairs the root key a pack file uses (the CraftEngine section id the parser claims) with the
- * root key the same content carries once it reaches this plugin. The two differ only where the plugin already
- * had a root key of its own before packs could declare one, so the existing readers stay untouched: a pack
- * author writes cooking_recipes: and com.huidu.farmersdelight.recipe.CookingPotRecipeManager
- * still looks up cooking_pot_recipes.
  */
 public enum PackSection {
 
@@ -73,28 +65,4 @@ public enum PackSection {
         return separateClaim;
     }
 
-    /**
-     * Resolves a CraftEngine section key to its section. A key may carry a #suffix (CraftEngine
-     * accepts several sections of one type per file this way); the suffix selects the advancement namespace
-     * and is not part of the section id.
-     */
-    static PackSection bySectionId(String sectionId) {
-        return BY_SECTION_ID.get(sectionId.toLowerCase(Locale.ROOT));
-    }
-
-    /** Strips a #suffix from a CraftEngine section key. */
-    static String baseSectionId(String sectionKey) {
-        int hash = sectionKey.indexOf('#');
-        return (hash == -1 ? sectionKey : sectionKey.substring(0, hash)).toLowerCase(Locale.ROOT);
-    }
-
-    /** Reads the #suffix of a CraftEngine section key, or null when it has none. */
-    static String namespaceSuffix(String sectionKey) {
-        int hash = sectionKey.indexOf('#');
-        if (hash == -1) {
-            return null;
-        }
-        String suffix = sectionKey.substring(hash + 1).trim();
-        return suffix.isEmpty() ? null : suffix;
-    }
 }

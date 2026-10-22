@@ -14,13 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The rope path must never cancel an interaction it does not own — the live defect behind "the bell at the top
  * of the rope cannot be rung" was assumed to be exactly such a blanket cancel.
- *
- *
- * Asserted on the source rather than through reflection: what has to hold is that no cancellation exists outside
- * the one snaking-empty-hand retract path, and only the text shows that. Cross-checked here together with the
- * bell scan: a click that lands on a bell, a door or a button never enters the plugin's rope code at all, because the
- * rope code has no PlayerInteractEvent handler and its only CE-scoped cancel requires the clicked block
- * to carry the rope behavior.
  */
 class RopeListenerSourceTest {
 

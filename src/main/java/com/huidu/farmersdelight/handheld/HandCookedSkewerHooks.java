@@ -356,10 +356,6 @@ public final class HandCookedSkewerHooks implements Listener {
 
     /**
      * The arming decision on its own, so the wiring tests can drive it without a plugin or a server.
-     *
-     * Order matters: a disabled path never arms, a raw id this table does not cook never starts, and a
-     * player whose skillet is already cooking never reaches HandCookedSkewerService#tryStart(UUID) —
-     * the skillet owns that right-click.
      */
     @ApiStatus.Internal
     boolean applyConfig(boolean enabled, boolean requireSneak, int cookingTicks,
@@ -693,10 +689,6 @@ public final class HandCookedSkewerHooks implements Listener {
      * again — a loop that was armed only when the config was read would stop after the first skewer and never
      * advance another one. Arming is idempotent: a running loop is left alone, so a player cannot end up with
      * two of them.
-     *
-     * A click on the same hand, slot and stack only refreshes the input clock, which is what keeps the session
-     * alive while the client repeats its use packet. A click that no longer matches ends the running cook and
-     * starts the new one, so the two never share a stack.
      */
     @ApiStatus.Internal
     SessionStart beginSession(UUID player, StartTarget target) {
@@ -852,16 +844,11 @@ public final class HandCookedSkewerHooks implements Listener {
                 }
                 UUID id = entry.getKey();
                 SkewerSession session = entry.getValue();
-                // Dispatched while the lock is held on purpose: on Paper the task runs inline, so this calls
-                // back into convert() on the same thread. Java monitors are reentrant, so the short
-                // hands.remove there is safe, and the alternative — releasing the lock around the dispatch —
-                // would let the loop be cancelled between the check above and the work it decided to do.
-                //
-                // The gate and the bar update belong to the same task: both read that player's hand and use
-                // state, and on Folia this loop runs on the global scheduler while the task runs on the
-                // player's entity scheduler. A session the gate refuses is ended right here, so the bar goes
-                // away in the same tick the click was released. Inside the task the tick is applied first, so
-                // the bar still reports progress that really happened.
+                // Dispatched while the lock is held on purpose: on Paper the task runs inline and Java monitors are
+                // reentrant, so the short hands.remove is safe; releasing the lock here would let the loop be cancelled
+                // between the check above and the work it decided to do. The gate and bar update share one task because
+                // both read that player's hand state, and on Folia this loop runs on the global scheduler while the task
+                // runs on the player's entity scheduler.
                 seam.dispatch(player, () -> {
                     if (!mayAdvance(player, session) || !sessionStillHolds(player, session)) {
                         endSession(id, session);
@@ -925,12 +912,6 @@ public final class HandCookedSkewerHooks implements Listener {
      * skewer in the hand that started the session and hands over the cooked one; a full inventory drops it.
      * No stack is cloned and no durability is written: the held stack is only shrunk by one. The session entry
      * was already removed by the session wrapper in start().
-     *
-     * The conversion re-checks that the session still holds its stack, because a lifecycle event can end the
-     * session between the tick that reached the end and this call; it must not take an item the player no
-     * longer offered. The consumption is atomic: the inventory is snapshotted first and restored when the
-     * commit throws, so a half-finished conversion cannot leave the raw skewer in the hand and the cooked one
-     * in the inventory at the same time.
      */
     private void convert(UUID id, @Nullable SkewerSession session) {
         // The loop's own way of finding the player: the same lookup in production, and the seam the wiring

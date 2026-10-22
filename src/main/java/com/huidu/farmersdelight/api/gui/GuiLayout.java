@@ -6,17 +6,6 @@ import java.util.Arrays;
 
 /**
  * A read-only view of a character-grid GUI layout.
- *
- *
- * The grid decides which cells belong to the GUI and which are decoration: a cell whose legend type is
- * BACKGROUND (or a cell outside the grid) is decoration, every other cell holds contents. Nothing
- * here can change the layout, and no implementation hands out its own arrays, so a caller may keep or sort
- * what it gets back.
- *
- *
- * Implementations are the plugin's own layout readers (the cooking-pot/skillet gui.yml reader, the addon
- * layout readers) and addons that build a layout of their own. This is the view a shared GUI engine reads;
- * it carries no station knowledge, no titles and no items.
  */
 @ApiStatus.OverrideOnly
 public interface GuiLayout {
@@ -39,12 +28,6 @@ public interface GuiLayout {
 
     /**
      * True when the cell is part of the layout's contents rather than decoration.
-     *
-     *
-     * This says the cell is addressable, not that it is writable: a station's display-only cells (progress,
-     * output, meal) are functional here and still must not be written back by a GUI. Kept as the primitive
-     * because implementations hold different structures — one answers from its icon table, another scans its
-     * precomputed cell array.
      */
     boolean isFunctional(int slot);
 

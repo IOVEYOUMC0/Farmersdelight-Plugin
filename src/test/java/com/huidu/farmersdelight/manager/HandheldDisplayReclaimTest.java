@@ -16,8 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * for that slot. That replacement used to require a stack of exactly one item, which was invisible for the
  * handheld skillet (always a single item) and wrong for the skewer, which cooks one item out of a stack: with two
  * or more the rewriter went inert and the bar flickered between the display copy and the real stack.
- *
- * These cases pin the count-agnostic claim and the display construction that keeps the item it paints stable.
  */
 class HandheldDisplayReclaimTest {
 

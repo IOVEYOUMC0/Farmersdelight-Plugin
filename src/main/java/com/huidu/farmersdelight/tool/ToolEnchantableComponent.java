@@ -7,16 +7,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Writes minecraft:enchantable in the shape the running server actually accepts.
- *
- *
- * The component's payload is a single positive integer (Paper's Enchantable.value() is an int and its codec is
- * a plain int range), but the value reaches the item through two layers that disagree on the shape: CraftEngine
- * first converts a Java component value into its own component form, and only then does the server's codec read
- * it. So the map form ({"value": n}, the shape CraftEngine's generic conversion expects) is tried first and the
- * bare integer second, and a shape the running versions reject is skipped instead of being written. Writing
- * exactly one shape silently produced a 0 enchantment value — no clickable table options, no preview, no anvil
- * — which is what took so long to find. If both shapes fail, say so out loud exactly once instead of leaving a
- * silent zero behind.
  */
 public final class ToolEnchantableComponent {
 

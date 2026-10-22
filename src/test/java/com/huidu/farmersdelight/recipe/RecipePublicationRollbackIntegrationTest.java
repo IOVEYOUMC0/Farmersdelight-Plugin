@@ -13,12 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * What a readiness pass leaves behind when one of its components fails instead of publishing.
- *
- *
- * The pass publishes each component from its own round tail, so the interesting case is the second one failing
- * after the first already published: without a common restore point the plugin would keep serving a cooking pot
- * set from the new files next to a cutting board set from the old ones. The driver, the watch and the rollback
- * are the real ones here; the two components are stand-ins, so the case runs offline.
  */
 class RecipePublicationRollbackIntegrationTest {
 

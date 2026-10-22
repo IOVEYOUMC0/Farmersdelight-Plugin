@@ -9,11 +9,6 @@ import net.momirealms.craftengine.core.plugin.context.parameter.DirectContextPar
 
 /**
  * Matches when the item the loot is evaluated with is one of the configured knives.
- *
- *
- * Delegates to FarmersDelightPlugin#isKnife(ItemStack) so a pack rule recognizes exactly the
- * same items as the cutting board, the skillet and the mushroom colony: the configured item list, the
- * configured tag list and any CraftEngine tag an item declares itself.
  */
 public final class IsKnifeCondition implements Condition<Context> {
 

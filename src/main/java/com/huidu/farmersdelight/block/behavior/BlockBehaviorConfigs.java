@@ -2,7 +2,6 @@ package com.huidu.farmersdelight.block.behavior;
 
 import net.momirealms.craftengine.core.util.Key;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,12 +33,6 @@ public final class BlockBehaviorConfigs {
         }
         ConfiguredBlockSetProvider provider = PROVIDERS.get(blockId);
         return provider == null ? null : provider.configuredBlockSet(key);
-    }
-
-    // Convenience: the list's concrete member ids for the given block behavior config key.
-    public static List<String> getMemberIds(Key blockId, String key) {
-        ConfiguredBlockSet set = get(blockId, key);
-        return set == null ? List.of() : set.memberIds();
     }
 
     public static void clear() {

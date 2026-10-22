@@ -115,11 +115,6 @@ class BlockStateOccupancyTest {
     /**
      * The retired self-written block item behavior has to stay gone: no class, no register call, no
      * configuration entry, and every item behavior in the rope pack is CraftEngine's built-in block_item.
-     *
-     *
-     * The two probes are built by concatenation on purpose. The retired name is not supposed to exist in the
-     * repository's history either, and a plain literal here would put it back into `git log -S` the moment this
-     * test is committed. Do not "tidy" these strings into one piece; the split is the point.
      */
     @Test
     void theRetiredBlockItemBehaviorIsStillGone() {

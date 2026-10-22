@@ -11,17 +11,6 @@ import java.util.function.Consumer;
 
 /**
  * The disk half of an editor save.
- *
- *
- * The editor builds what has to be written on the thread that owns the player and the menu — that is where the
- * recipe is serialised against CraftEngine's items — and hands the plan over here. The file work runs on the
- * plugin's bounded async pool, and the outcome is handed back through the caller's owner hop so the menu and
- * the chat feedback are only ever touched on their own thread.
- *
- *
- * A full queue is a failure the caller shows, never a silent drop: nothing is written, and the file is exactly
- * as it was. Writes still in flight when the plugin stops are drained by the scheduler's shutdown budget; what
- * is left after that is reported rather than lost quietly.
  */
 public final class EditorWriteQueue {
 

@@ -22,10 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The generic layout reader: how a drawn character grid becomes a cell-type grid, and what the read-only view
  * answers for the cells the grid does not draw.
- *
- *
- * Everything here is plain config and plain arrays, so it runs without a server: the reader never builds an
- * item and never resolves CraftEngine.
  */
 class GuiLayoutsTest {
 

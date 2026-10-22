@@ -24,6 +24,7 @@ public final class FarmersDelightTags {
     public static final String BLOCK_WILD_CROPS = "farmersdelight:wild_crops";
     public static final String BLOCK_CAMPFIRE_SIGNAL_SMOKE = "farmersdelight:campfire_signal_smoke";
     public static final String BLOCK_COMPOST_ACTIVATORS = "farmersdelight:compost_activators";
+    public static final String BLOCK_UNAFFECTED_BY_KNIFE_HARVEST = "farmersdelight:unaffected_by_knife_harvest";
 
     // ── Item tags ─────────────────────────────────────────────────────────
 

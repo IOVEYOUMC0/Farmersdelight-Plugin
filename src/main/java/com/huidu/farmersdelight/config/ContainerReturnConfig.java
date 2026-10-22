@@ -57,10 +57,6 @@ public class ContainerReturnConfig {
         return result;
     }
 
-    public boolean hasReturnItem(String itemId) {
-        return itemId != null && containerReturnMap.containsKey(itemId.toLowerCase(Locale.ROOT));
-    }
-
     public Map<String, ItemStack> getContainerReturnMap() {
         return containerReturnMap;
     }

@@ -9,15 +9,6 @@ import org.bukkit.entity.Ageable;
 
 /**
  * Matches when the entity the loot is evaluated for (the victim of an entity-death drop) is an adult.
- *
- *
- * Reads THIS_ENTITY rather than ENTITY: in CraftEngine's entity-death context
- * ENTITY is the killer, so the age of the drop source is only available on the former.
- *
- *
- * Typed to Context like every CraftEngine condition, because the condition registry only
- * accepts Condition<Context> factories; the loot system reads them back through
- * CommonConditions.fromConfig with the context type it needs.
  */
 public final class IsAdultCondition implements Condition<Context> {
 

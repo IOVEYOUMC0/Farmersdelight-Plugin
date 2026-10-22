@@ -97,12 +97,6 @@ dependencies {
     }
 
     compileOnly("me.clip:placeholderapi:2.11.6")
-    // AntiGriefLib: unified protection facade over 24+ land/claim plugins (MIT). Bundled and relocated:
-    // Bukkit plugin classloaders are NOT isolated for legacy plugin.yml plugins (PluginClassLoader falls
-    // back to the other plugins' loaders), so an un-relocated copy is shared server-wide and whichever
-    // plugin loads first decides the version everyone gets. isTransitive=false skips its compile-only
-    // annotations. Its per-plugin providers load only when the matching land plugin is present.
-    implementation("net.momirealms:antigrieflib:1.0.11") { isTransitive = false }
     // bStats metrics (Maven Central). Relocated for the same reason, which is also what bStats itself
     // requires of every plugin that bundles it.
     implementation("org.bstats:bstats-bukkit:3.1.0")
@@ -285,7 +279,6 @@ tasks.shadowJar {
         )
     }
     relocate("org.bstats", "com.huidu.farmersdelight.libs.bstats")
-    relocate("net.momirealms.antigrieflib", "com.huidu.farmersdelight.libs.antigrieflib")
 }
 
 // api-only jar: just com.huidu.farmersdelight.api.** — for addons to compile against (compileOnly) without

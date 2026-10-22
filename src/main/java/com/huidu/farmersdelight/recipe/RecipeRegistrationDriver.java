@@ -8,22 +8,6 @@ import java.util.Objects;
 
 /**
  * Drives the recipe registration rounds of this plugin.
- *
- *
- * A reload used to register every entry of a recipe file in a single tick, which is the spike behind the
- * reported TPS dip. Each round runs its first slice inline, on the calling thread — so a file no bigger than
- * the budget behaves exactly as before, with no tick of delay — and arms a repeating task for the remainder,
- * at most budget entries per tick. On Folia that task is the global region scheduler while the published sets
- * are read from region threads, which is why a round publishes only complete, immutable snapshots. Nothing
- * here is asynchronous and nothing here hands work to another thread.
- *
- *
- * Every source of one owner's reload (its own file plus one source per CraftEngine pack section) goes into
- * that owner's round, so exhausting one source hands the remaining budget to the next instead of cancelling
- * it. The owner is matched by identity and a new round for the same owner replaces that owner's previous one,
- * which keeps the single-active rule per owner: a reload that arrives mid-round never double-registers.
- * Different owners reloading in the same pass — the cooking pot and the cutting board are rebuilt back to back
- * by one reload — keep their own rounds and their own tails, and one armed task drains all of them.
  */
 public final class RecipeRegistrationDriver {
 

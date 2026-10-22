@@ -53,15 +53,6 @@ final class CraftEngineReadinessCoordinator {
     private static final long READINESS_RETRY_MAX_TICKS = 100L;
     /**
      * Attempts allowed, covering about 20 seconds (20+20+40+40+60+60+80+80 ticks).
-     *
-     *
-     * CraftEngine fires the reload event one tick after its own enable completes
-     * (CraftEngine.callReloadEvent() is scheduled right after isEnabling is cleared) while its
-     * pack contents finish loading asynchronously afterwards. Waiting a fixed handful of ticks therefore
-     * probes readiness before any custom item exists, and without a re-check the warm-up and the content
-     * summary never ran at all on a normal startup. Gating on readiness instead of on a fixed delay is what
-     * keeps this correct on slower servers: the observed gap on the test server was about 12 seconds, so the
-     * window is deliberately wider than that.
      */
     private static final int READINESS_RETRY_ATTEMPTS = 8;
 
@@ -198,19 +189,6 @@ final class CraftEngineReadinessCoordinator {
 
     /**
      * Runs the readiness-gated start-up work, or defers it until CraftEngine has content.
-     *
-     *
-     * FarmersDelight normally enables before CraftEngine has finished loading its packs, so every
-     * readiness-gated call made from onEnable is a no-op there. The CraftEngine reload event is the
-     * intended follow-up pass, but it is not something the start-up path can require: CraftEngine fires it
-     * from a delayed task rather than after its packs finish, and a listener that never reaches this
-     * coordinator would otherwise leave the recipe managers empty until an explicit /fd reload.
-     * Scheduling the retry here makes the warm-up independent of that event.
-     *
-     *
-     * Safe to call after the work already ran: runStartupReadinessWork() reports the summary
-     * rather than accumulating it. Unlike the reload event, this pass is not a config reload, so it leaves
-     * the language files and the config-backed caches alone.
      */
     void startupReadinessWork() {
         if (isReady()) {
@@ -285,16 +263,12 @@ final class CraftEngineReadinessCoordinator {
                         });
                 return;
             }
-            // Outside the first-warm-up guard on purpose: refreshAfterCraftEngineReload just emptied the
-            // item, sound and GUI caches this fills. Leaving it to the guard meant that after the first
-            // warm-up every later reload dropped the caches and never rebuilt them, so the work was paid
-            // again lazily, one item at a time, during play instead of once here.
+            // Outside the first-warm-up guard on purpose: refreshAfterCraftEngineReload just emptied the item,
+            // sound and GUI caches this fills.
             warmUpWhenReady("reload");
             indexLoadedChunkContentWhenReady();
             ToolRegistry.refresh();
-            // Report the content counts once the readiness pass has loaded everything. Runtime API
-            // registrations used to trigger this a tick later through their republish; recipes that arrive
-            // as CraftEngine pack content have no republish, so the pass itself has to report.
+            // Report the content counts once the readiness pass has loaded everything.
             reportContentSummaryWhenReady();
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE,
@@ -303,11 +277,6 @@ final class CraftEngineReadinessCoordinator {
     }
     /**
      * Re-checks readiness on a widening delay, then runs the pending readiness work once it is true.
-     *
-     *
-     * Used when CraftEngine's reload event arrives before its pack contents finished loading; see
-     * READINESS_RETRY_ATTEMPTS. Gives up with a visible line rather than retrying forever, so a
-     * CraftEngine that never finishes loading does not leave a task spinning behind it.
      */
     private void scheduleReadinessRetry() {
         if (!active) {
@@ -387,17 +356,6 @@ final class CraftEngineReadinessCoordinator {
 
     /**
      * Loads the recipe managers and runs this pass's recipe-dependent work once their rounds have published.
-     *
-     *
-     * The managers register their sets across ticks, so the work that reads them — the warm-up with its
-     * ingredient icons and the recipe index, and the content summary with its counts — has to wait for the
-     * publication rather than run against the set of the previous pass. A load whose files fit the budget
-     * publishes during the call below and the work still runs in the same tick.
-     *
-     *
-     * A pass whose publication failed, or that a newer pass replaced, keeps the catalog published before it and
-     * skips the work entirely: a failure is reported, the captured sets are put back so no component stays on
-     * the new files alone, and nothing is ever read out of a set that is only half registered.
      */
     private void loadRecipesThenPublish(String logKey, Runnable contentWork, Runnable recipeWork) {
         loadRecipesThenPublish(logKey, contentWork, recipeWork, null);
@@ -438,12 +396,6 @@ final class CraftEngineReadinessCoordinator {
 
     /**
      * Runs this pass's work once its recipes published, or puts the captured sets back when they did not.
-     *
-     *
-     * Work that reads recipe state waits for the publication; work that only reads CraftEngine content runs
-     * here as well, so one pass never leaves a step running against a set another step is replacing. A pass a
-     * newer one has overtaken does neither, and a pass that failed rolls back and reports instead of touching
-     * recipe state at all.
      */
     private void onRecipesPublished(long pass, RecipePublicationWatch.Outcome outcome,
                                     RecipePublicationRollback rollback, Runnable contentWork, Runnable recipeWork) {
@@ -470,10 +422,6 @@ final class CraftEngineReadinessCoordinator {
     /**
      * Captures what a failed pass has to put back: the pot and the cutting board sets, and the indexes derived
      * from them.
-     *
-     *
-     * The derived indexes are not captured: they are rebuilt from the managers, so putting the managers back
-     * and asking for a refresh restores them. That refresh runs last, after the sets it reads are in place.
      */
     private RecipePublicationRollback captureRecipePublication() {
         List<Runnable> restores = new ArrayList<>(3);
@@ -533,10 +481,6 @@ final class CraftEngineReadinessCoordinator {
     /**
      * Rebuilds the resolved ingredient-option caches after a change that invalidated them (common-tag
      * membership) so the next player to open the recipe book does not pay for the whole resolution.
-     *
-     *
-     * Warming is normally part of warmUp(String), which only runs once per enable; this is the
-     * targeted entry point for a tag change at runtime.
      */
     void rewarmRecipeIngredientIcons() {
         if (!isReady()) {

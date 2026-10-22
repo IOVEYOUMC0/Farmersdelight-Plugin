@@ -17,10 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * The reload cost guard: a pass over files that did not change must re-parse nothing.
- *
- *
- * The live defect was a reload that re-read and re-parsed every recipe file on the server thread on every
- * invocation; with the stamp cache the second pass over an untouched file parses zero files.
  */
 class RecipeFileStampsTest {
 

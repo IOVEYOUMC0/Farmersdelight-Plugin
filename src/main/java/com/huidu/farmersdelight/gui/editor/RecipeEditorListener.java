@@ -49,8 +49,13 @@ public final class RecipeEditorListener implements Listener {
 
     /** Queue a one-shot chat input for the player; the next chat message cancels itself and runs on main. */
     public static void promptChat(Player player, Consumer<String> onInput) {
+        promptChat(player, "gui.editor.tag.manual_prompt", onInput);
+    }
+
+    /** Same one-shot flow as promptChat(Player, Consumer), with the prompt line chosen by the caller. */
+    public static void promptChat(Player player, String messageKey, Consumer<String> onInput) {
         CHAT_PROMPTS.put(player.getUniqueId(), onInput);
-        player.sendMessage(I18n.get("gui.editor.tag.manual_prompt", player));
+        player.sendMessage(I18n.get(messageKey, player));
     }
 
     public static void cancelPrompt(UUID playerId) {

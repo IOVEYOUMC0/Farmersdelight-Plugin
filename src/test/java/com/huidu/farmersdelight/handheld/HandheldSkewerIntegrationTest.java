@@ -17,9 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * recipe per raw skewer: FarmersDelight's gate is result-driven (HandCookedSkewerHooks ->
  * CampfireSkewerResults -> CampfireRecipeCache.find, which reads Bukkit campfire recipes), so the addon needs
  * no FarmersDelight API and FarmersDelight ships no addon id at all.
- *
- * Removing a campfire recipe (or changing its result) turns the first case red; hardcoding an addon id in
- * FarmersDelight turns the second one red.
  */
 class HandheldSkewerIntegrationTest {
 

@@ -185,6 +185,109 @@ class BlockStateOccupancySelfTest(CheckSelfTest):
             "bamboo_button")
 
 
+class VerificationEvidenceSelfTest(CheckSelfTest):
+
+    script = "check_verification_evidence.py"
+    args = ("--quiet",)
+    path = "docs/verification/2026-10-21-offline/manifest.json"
+
+    # One complete manifest the check accepts; every test breaks a single rule of it.
+    manifest = (
+        "{\n"
+        '  "date": "2026-10-21",\n'
+        '  "scope": "Offline build and unit tests; no server run",\n'
+        '  "limitations": ["No Paper or Folia server start"],\n'
+        '  "artifacts": {\n'
+        '    "farmersdelight-1.0.3.jar": {"sha256": "' + "0" * 64 + '", "bytes": 1024}\n'
+        "  },\n"
+        '  "runs": [\n'
+        '    {"environment": "paper-26.2", "java": "21.0.9", "craft_engine": "26.9.2",\n'
+        '     "checks": {"junit": {"status": "PASS", "detail": "zero failures"}}}\n'
+        "  ]\n"
+        "}\n"
+    )
+
+    def test_a_round_without_limitations_fails(self):
+        self.assert_red_then_green(
+            {},
+            self.path,
+            self.manifest.replace('  "limitations": ["No Paper or Folia server start"],\n', ""),
+            self.manifest,
+            "limitations")
+
+    def test_an_unknown_check_status_fails(self):
+        self.assert_red_then_green(
+            {},
+            self.path,
+            self.manifest.replace('"status": "PASS"', '"status": "ok"'),
+            self.manifest,
+            "status")
+
+    def test_a_record_outside_the_repository_is_checked_only_on_request(self):
+        tree = build_tree({})
+        try:
+            record = "records/2026-10-21-round/manifest.json"
+            write(tree, record, self.manifest)
+            without = run_check(tree, self.script, *self.args)
+            self.assertEqual(0, without.returncode,
+                             "a record outside the repository must not be required:\n"
+                             + without.stdout + without.stderr)
+
+            inside = run_check(tree, self.script, *self.args, "--dir", str(tree / "records"))
+            self.assertEqual(0, inside.returncode,
+                             "a valid record given with --dir has to pass:\n" + inside.stdout + inside.stderr)
+
+            write(tree, record, self.manifest.replace('  "limitations": ["No Paper or Folia server start"],\n', ""))
+            broken = run_check(tree, self.script, *self.args, "--dir", str(tree / "records"))
+            self.assertNotEqual(0, broken.returncode,
+                                "--dir has to check the shape of an external record:\n"
+                                + broken.stdout + broken.stderr)
+            self.assertIn("limitations", broken.stdout + broken.stderr)
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+
+class ApiSignaturesSelfTest(unittest.TestCase):
+    """The binary surface check: a removed member fails, an added member does not, the restore passes."""
+
+    script = "check_api_signatures.py"
+    api_file = "src/main/java/com/huidu/farmersdelight/api/Example.java"
+
+    def test_a_removed_member_fails_and_a_restored_one_passes(self):
+        original = ("package com.huidu.farmersdelight.api;\n\n"
+                    "public final class Example {\n"
+                    "    public int value() {\n"
+                    "        return 1;\n"
+                    "    }\n"
+                    "}\n")
+        tree = build_tree({self.api_file: original})
+        try:
+            seeded = run_check(tree, self.script, "--update")
+            self.assertEqual(0, seeded.returncode, seeded.stdout + seeded.stderr)
+
+            write(tree, self.api_file,
+                  "package com.huidu.farmersdelight.api;\n\npublic final class Example {\n}\n")
+            failed = run_check(tree, self.script, "--quiet")
+            self.assertNotEqual(0, failed.returncode,
+                                f"{self.script} accepted a removed api member:\n{failed.stdout}{failed.stderr}")
+            self.assertIn("public int value()", failed.stdout + failed.stderr)
+
+            write(tree, self.api_file, original)
+            passed = run_check(tree, self.script, "--quiet")
+            self.assertEqual(0, passed.returncode,
+                             f"{self.script} rejected the restored api:\n{passed.stdout}{passed.stderr}")
+
+            write(tree, self.api_file,
+                  "package com.huidu.farmersdelight.api;\n\npublic final class Example {\n"
+                  "    public int value() {\n        return 1;\n    }\n\n"
+                  "    public String added() {\n        return \"x\";\n    }\n}\n")
+            extended = run_check(tree, self.script, "--quiet")
+            self.assertEqual(0, extended.returncode,
+                             f"{self.script} rejected an additive api change:\n{extended.stdout}{extended.stderr}")
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+
 class MealIconsSelfTest(unittest.TestCase):
     """The one check whose rule is a pure function, so its self-test drives the function directly."""
 

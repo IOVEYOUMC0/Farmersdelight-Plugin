@@ -4,18 +4,6 @@ import java.util.List;
 
 /**
  * Splits one recipe rebuild/registration pass over many entries into per-tick batches.
- *
- *
- * Rebuilding every recipe entry in a single tick is what produced the reported TPS spike on
- * /fd reload recipes. This is the resumable half of the fix: the round keeps the batch, calls
- * run(int) while it still has budget, on the thread that drives the round, and the batch never
- * does more than the configured budget. Nothing here is asynchronous, and nothing here touches published state
- * on its own — the caller registers entries through Step.
- *
- *
- * The single-active-batch rule (a reload that arrives mid-pass cancels the running batch and starts a fresh
- * one, so entries are never registered twice) belongs to the caller, which is why cancel() exists and
- * makes every later run(int) a no-op.
  */
 public final class RecipeRegistrationBatch {
 

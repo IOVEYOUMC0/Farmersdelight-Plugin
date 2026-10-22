@@ -15,13 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Ingredient parsing against the advanced tag groups the loaded packs declare.
- *
- *
- * An advtag: ingredient is only meaningful with a published snapshot, so these tests drive the same
- * setter the recipe loaders call. A group that cannot be resolved must refuse the recipe rather than parse
- * into an ingredient that can never match; the plain item and tag forms must be untouched by all of this.
- * Each test clears the snapshot afterwards, because the field is static and would otherwise leak a
- * declaration into the next test.
  */
 class RecipeParsingSupportTest {
 

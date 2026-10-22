@@ -18,11 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Locks the Folia rule the migration hooks share: work runs inline when the current thread already owns the
  * target, and is dispatched exactly once when it does not.
- *
- *
- * The dispatch is injected, so the decision is assertable without a region scheduler: the fake counts the
- * hand-offs and records whether the task body ran where it was called. owner is an opaque token here
- * because the production owner is a Location or an Entity, neither of which can be built offline.
  */
 class MigrationDispatchSeamTest {
 

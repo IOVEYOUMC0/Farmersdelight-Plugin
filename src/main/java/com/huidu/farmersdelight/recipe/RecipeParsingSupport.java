@@ -43,11 +43,6 @@ final class RecipeParsingSupport {
 
     /**
      * Expands a group into the choice of the items it lists.
-     *
-     *
-     * A group that is unknown, was dropped while resolving, or lists nothing is refused rather than turned
-     * into an ingredient that can never match: a recipe that quietly stops being craftable is worse than one
-     * that fails to load, where the operator can see which definition was wrong.
      */
     private static RecipeIngredient groupIngredient(String name) {
         if (name.isEmpty()) {

@@ -29,7 +29,6 @@ public final class CommonTagResolver {
 
     public static final String FILE_NAME = "common-tags.yml";
     private static final String ROOT_KEY = "tags";
-    private static final String BUILTIN_SOURCE = "farmersdelight";
 
     // Externally registered sources (addons). Guarded by this class's monitor during merge; reads.
     // never touch it directly. Values and member sets are immutable after registration.
@@ -214,6 +213,5 @@ public final class CommonTagResolver {
         }
         reportedProblems = current;
     }
-
 
 }

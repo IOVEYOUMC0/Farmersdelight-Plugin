@@ -14,22 +14,6 @@ import java.util.UUID;
 /**
  * Insertion-ordered, deduplicated queue of per-chunk work items, keyed by world and chunk coordinates.
  *
- *
- * The same chunk can be queued more than once (a startup pass and a later load event can name it twice),
- * and the queue is dropped from by key while another thread drains it, so both operations are keyed:
- * adding a chunk that is already queued replaces its payload in place instead of appending a second
- * entry, and dropping one is constant time instead of a walk over the whole queue.
- *
- *
- * Draining stays bounded: drain(int) removes at most the requested number of payloads, in
- * insertion order, and the caller does the work outside this class. A payload is removed even when the
- * caller then decides to skip it, so a chunk that unloaded before its turn is not retried from here; its
- * next load queues it again.
- *
- *
- * Alongside the queue live the pieces a bounded per-chunk scan needs: the payload a scan carries, the
- * region hand-off for one slice, and the band arithmetic a caller measures its per-chunk cost with.
- *
  * @param <T> payload type; this class never inspects it
  */
 final class PendingChunkScanQueue<T> {

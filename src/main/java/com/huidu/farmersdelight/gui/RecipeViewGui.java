@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.gui;
 
 import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.gui.editor.RecipeEditorListener;
 import com.huidu.farmersdelight.gui.editor.RecipeEditorView;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.recipe.JumpTarget;
@@ -21,6 +22,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -76,7 +78,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     final RecipeViewGuiConfig config;
     private GuiState state = GuiState.MAIN_MENU;
-    private int currentPage = 0;
+    final RecipePager pager = new RecipePager();
     private volatile String selectedRecipeId = null;
     private volatile String selectedSpecialRecipeId = null;
     private boolean cookingPotMode = true;
@@ -110,6 +112,9 @@ public class RecipeViewGui extends AbstractInventoryGui {
     private boolean backButtonCommandsEnabled = false;
     private Runnable onExit;
     private boolean editMode = false;
+    // Edit-mode list search: a lower-case substring matched against the recipe id and the result name the list
+    // shows. Empty means the whole list. It survives the editor round-trip because this GUI object stays alive.
+    private String editorSearch = "";
     // Resolve only once (lazily, during the first open, when the viewer is at the pot = same Folia region) and memoize the result,
     // so the per-tick / redraw flow never repeats a cross-region block read.
     private boolean recipeGroupResolved;
@@ -265,7 +270,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             if (gui.specialRecipeRenderer.isListOnlySpecial(info)) {
                 int index = plugin.getSpecialRecipeRegistry().getAll().indexOf(info);
                 int pageSize = Math.max(1, gui.config.getSpecialRecipeList().getRecipeSlots().size());
-                gui.currentPage = Math.max(0, index) / pageSize;
+                gui.pager.set(index / pageSize);
                 gui.state = GuiState.SPECIAL_RECIPE_LIST;
             } else {
                 gui.state = GuiState.SPECIAL_RECIPE_DETAIL;
@@ -282,7 +287,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         state = GuiState.COOKING_POT_LIST;
         cookingPotMode = true;
         recipeBackState = GuiState.COOKING_POT_LIST;
-        currentPage = 0;
+        pager.reset();
         open(player);
     }
 
@@ -291,14 +296,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
         state = GuiState.CUTTING_BOARD_LIST;
         cookingPotMode = false;
         recipeBackState = GuiState.CUTTING_BOARD_LIST;
-        currentPage = 0;
+        pager.reset();
         open(player);
     }
 
     public void openSpecialRecipes(Player player) {
         backButtonCommandsEnabled = true;
         state = GuiState.SPECIAL_RECIPE_LIST;
-        currentPage = 0;
+        pager.reset();
         open(player);
     }
 
@@ -467,22 +472,99 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     /**
      * The list the viewer actually sees, in the order the slots are laid out in.
-     *
-     *
-     * The discovery filter hides recipes the viewer has not unlocked. The recipe editor reuses this list,
-     * and an admin opening /fd recipe edit has no unlock record of their own, so filtering there hid
-     * exactly the recipes they came to edit. Draw and click both go through here, because a slot is resolved
-     * back to a recipe by rebuilding this list.
      */
     private <T> List<T> listVisibleTo(Player player, List<T> recipes, boolean isCookingPot) {
-        return editMode ? recipes : applyDiscoveryFilter(recipes, isCookingPot, player);
+        if (!editMode) {
+            return applyDiscoveryFilter(recipes, isCookingPot, player);
+        }
+        if (editorSearch.isEmpty()) {
+            return recipes;
+        }
+        List<T> matched = new ArrayList<>(recipes.size());
+        for (T recipe : recipes) {
+            if (matchesEditorSearch(recipe, isCookingPot, player)) {
+                matched.add(recipe);
+            }
+        }
+        return matched;
+    }
+
+    // Edit-mode search matches the recipe id and the name the list entry shows: the pot's result or the board's
+    // input. Case-insensitive substring, so a partial id or a translated item name both find the recipe.
+    private boolean matchesEditorSearch(Object recipe, boolean isCookingPot, Player player) {
+        String id;
+        ItemStack display;
+        if (isCookingPot) {
+            CookingPotRecipe potRecipe = (CookingPotRecipe) recipe;
+            id = potRecipe.getId();
+            display = potRecipe.getResult();
+        } else {
+            CuttingBoardRecipe boardRecipe = (CuttingBoardRecipe) recipe;
+            id = boardRecipe.getId();
+            display = boardRecipe.getInputDisplay();
+        }
+        if (id != null && id.toLowerCase(Locale.ROOT).contains(editorSearch)) {
+            return true;
+        }
+        if (display == null) {
+            return false;
+        }
+        String name = PlainTextComponentSerializer.plainText()
+                .serialize(itemNameComponent(display, player)).toLowerCase(Locale.ROOT);
+        return name.contains(editorSearch);
+    }
+
+    // Edit mode gives the filter slot to the recipe search: the craftable filter means nothing while picking a
+    // recipe to edit, and reusing the slot keeps older gui.yml layouts working. The name/lore are server-side
+    // text, so no pack locale has to carry edit-mode-only keys.
+    private void drawEditorSearchButton(Player player, RecipeViewGuiConfig.RecipeListConfig listConfig) {
+        int slot = listConfig.getFilterSlot();
+        if (slot < 0) {
+            return;
+        }
+        boolean active = !editorSearch.isEmpty();
+        ItemStack item = new ItemStack(active ? Material.ENDER_EYE : Material.SPYGLASS);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(I18n.getComponent(active ? "gui.recipe.search_active" : "gui.recipe.search", player));
+            List<Component> lore = new ArrayList<>();
+            if (active) {
+                lore.add(Component.text(I18n.get("gui.recipe.search_query", player) + ": " + editorSearch));
+                lore.add(I18n.getComponent("gui.recipe.search_clear_hint", player));
+            } else {
+                lore.add(I18n.getComponent("gui.recipe.search_hint", player));
+            }
+            meta.lore(lore);
+            item.setItemMeta(meta);
+        }
+        inventory.setItem(slot, item);
+    }
+
+    private void promptEditorSearch(Player player) {
+        RecipeEditorListener.promptChat(player, "gui.recipe.search_prompt", value -> {
+            String query = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+            if (query.equals("cancel")) {
+                // The chat line closed the list; reopen it unchanged so the player is not stranded.
+                open(player);
+                return;
+            }
+            editorSearch = query.length() > 64 ? query.substring(0, 64) : query;
+            pager.reset();
+            open(player);
+        });
+    }
+
+    private void clearEditorSearch(Player player) {
+        editorSearch = "";
+        pager.reset();
+        refreshContentsInPlace(player);
     }
 
     private <T> void drawRecipeList(Player player, RecipeViewGuiConfig.RecipeListConfig listConfig, 
                                     List<T> recipes, boolean isCookingPot) {
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "recipe-list");
-        int startIndex = currentPage * recipeSlots.size();
+        int startIndex = pager.start(recipeSlots.size());
 
         // Locale + (for cooking pots) the per-instance preview-count and active group fully determine
         // a non-locked display item's content, so cache the built item across opens/pages/players.
@@ -550,16 +632,11 @@ public class RecipeViewGui extends AbstractInventoryGui {
     // the total page count; the caller derives the start index from the current page.
     private int beginListPage(RecipeViewGuiConfig.BaseConfig listConfig, List<Integer> recipeSlots,
                               int totalItems, String guiPath) {
-        int itemsPerPage = recipeSlots.size();
-        int totalPages = Math.max(1, (int) Math.ceil(totalItems / (double) itemsPerPage));
-        if (currentPage < 0) {
-            currentPage = 0;
-        } else if (currentPage >= totalPages) {
-            currentPage = totalPages - 1;
-        }
+        int totalPages = pager.totalPages(totalItems, recipeSlots.size());
+        pager.clamp(totalPages);
 
         Map<String, String> titlePlaceholders = new HashMap<>();
-        titlePlaceholders.put("page", String.valueOf(currentPage + 1));
+        titlePlaceholders.put("page", String.valueOf(pager.page() + 1));
         titlePlaceholders.put("total", String.valueOf(totalPages));
         String title = titles.menuTitle(guiPath, listConfig.getTitle(), titlePlaceholders);
         inventory = Bukkit.createInventory(this, listConfig.getSize(), coloredComponent(title));
@@ -570,10 +647,10 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     // Draws the shared prev/next page affordances; only renders a button when its page exists.
     private void drawPageButtons(RecipeViewGuiConfig.BaseConfig listConfig, int prevSlot, int nextSlot, int totalPages) {
-        if (currentPage > 0) {
+        if (pager.page() > 0) {
             setGuiItem(listConfig, "prev_page", prevSlot);
         }
-        if (currentPage < totalPages - 1) {
+        if (pager.page() < totalPages - 1) {
             setGuiItem(listConfig, "next_page", nextSlot);
         }
     }
@@ -582,13 +659,17 @@ public class RecipeViewGui extends AbstractInventoryGui {
         drawPageButtons(listConfig, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages);
 
         drawListBackOrCloseButton(listConfig);
-        setFilterToggleItem(listConfig, player);
+        if (editMode) {
+            drawEditorSearchButton(player, listConfig);
+        } else {
+            setFilterToggleItem(listConfig, player);
+        }
 
         if (listConfig.getInfoSlot() >= 0) {
             GuiConfig.GuiItem infoItem = listConfig.getItem("info");
             if (infoItem != null) {
                 Map<String, String> placeholders = new HashMap<>();
-                placeholders.put("page", String.valueOf(currentPage + 1));
+                placeholders.put("page", String.valueOf(pager.page() + 1));
                 placeholders.put("total", String.valueOf(totalPages));
                 inventory.setItem(listConfig.getInfoSlot(), infoItem.createItem(placeholders));
             }
@@ -718,7 +799,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         RecipeViewGuiConfig.RecipeListConfig listConfig = config.getRecipeList();
         List<Integer> slots = listConfig.getRecipeSlots();
         int pageSize = Math.max(1, slots.size());
-        int totalPages = Math.max(1, (expandedIngredientOptions.size() + pageSize - 1) / pageSize);
+        int totalPages = pager.totalPages(expandedIngredientOptions.size(), pageSize);
         expandedIngredientPage = Math.max(0, Math.min(expandedIngredientPage, totalPages - 1));
         Map<String, String> placeholders = Map.of(
                 "page", String.valueOf(expandedIngredientPage + 1),
@@ -804,7 +885,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int totalPages = beginListPage(listConfig, recipeSlots, recipes.size(), "special-recipe-list");
-        int startIndex = currentPage * recipeSlots.size();
+        int startIndex = pager.start(recipeSlots.size());
 
         for (int i = 0; i < recipeSlots.size(); i++) {
             int recipeIndex = startIndex + i;
@@ -905,7 +986,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
                 ? plugin.getSpecialRecipeRegistry().getAll() : List.of();
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int itemsPerPage = recipeSlots.size();
-        int totalPages = (int) Math.ceil(recipes.size() / (double) itemsPerPage);
+        int totalPages = pager.totalPages(recipes.size(), itemsPerPage);
 
         if (handlePageClick(player, slot, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages)) {
             return;
@@ -924,7 +1005,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             navigateToState(player, GuiState.MAIN_MENU, false);
         } else if (recipeSlots.contains(slot)) {
             int slotIndex = recipeSlots.indexOf(slot);
-            int recipeIndex = currentPage * itemsPerPage + slotIndex;
+            int recipeIndex = pager.start(itemsPerPage) + slotIndex;
             if (recipeIndex < recipes.size()) {
                 SpecialRecipeInfo info = recipes.get(recipeIndex);
                 if (specialRecipeRenderer.isListOnlySpecial(info)) {
@@ -1242,21 +1323,29 @@ public class RecipeViewGui extends AbstractInventoryGui {
                                            List<T> recipes, boolean isCookingPot) {
         List<Integer> recipeSlots = listConfig.getRecipeSlots();
         int itemsPerPage = recipeSlots.size();
-        int totalPages = (int) Math.ceil(recipes.size() / (double) itemsPerPage);
+        int totalPages = pager.totalPages(recipes.size(), itemsPerPage);
 
         if (handlePageClick(player, slot, listConfig.getPrevPageSlot(), listConfig.getNextPageSlot(), totalPages)) {
             return;
         }
-        if (slot == listConfig.getFilterSlot()) {
+        if (editMode && slot == listConfig.getFilterSlot()) {
+            // The filter slot is the recipe search while editing: left click types a query, sneak-click clears it.
+            if (player.isSneaking()) {
+                clearEditorSearch(player);
+            } else {
+                promptEditorSearch(player);
+            }
+            return;
+        }
+        if (!editMode && slot == listConfig.getFilterSlot()) {
             craftableOnly = !craftableOnly;
-            currentPage = 0;
+            pager.reset();
             refreshContentsInPlace(player);
         } else if (slot == listConfig.getBackSlot()) {
             if (runBackButtonCommands(player, listConfig.getItem("back"))) {
                 return;
             }
             if (fromCookingPot && isCookingPot) {
-                closeGui(player);
                 returnToCookingPot(player);
             } else if (backButtonCommandsEnabled && !fromCookingPot) {
                 // A command-opened top-level list has no menu above it, so back closes instead of dropping the
@@ -1267,7 +1356,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             }
         } else if (recipeSlots.contains(slot)) {
             int slotIndex = recipeSlots.indexOf(slot);
-            int recipeIndex = currentPage * itemsPerPage + slotIndex;
+            int recipeIndex = pager.start(itemsPerPage) + slotIndex;
             if (recipeIndex < recipes.size()) {
                 Object clickedRecipe = recipes.get(recipeIndex);
                 if (isRecipeLocked(clickedRecipe, isCookingPot, player)) {
@@ -1281,7 +1370,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
                     recipeId = ((CuttingBoardRecipe) clickedRecipe).getId();
                 }
                 if (editMode) {
-                    closeGui(player);
                     openEditorForRecipe(player, recipeId, isCookingPot);
                     return;
                 }
@@ -1332,7 +1420,6 @@ public class RecipeViewGui extends AbstractInventoryGui {
         if (fromCookingPot && cookingPotMode && slot == detailConfig.getFillSlot()) {
             CookingPotFiller.FillResult result = cookingPotFiller().fillFromInventory(player, shiftClick, selectedRecipeId);
             if (result.returnToPot()) {
-                closeGui(player);
                 returnToCookingPot(player);
             } else {
                 fillButtonState = result.buttonState();
@@ -1407,7 +1494,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
             detailHistory.push(origin);
         }
         int pageSize = Math.max(1, config.getSpecialRecipeList().getRecipeSlots().size());
-        currentPage = index / pageSize;
+        pager.set(index / pageSize);
         navigateToState(player, GuiState.SPECIAL_RECIPE_LIST, true);
         return true;
     }
@@ -1532,7 +1619,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         // Entering a list from the main menu starts a fresh browse; returning from a detail view keeps the page.
         if (!preservePage
                 && (newState == GuiState.MAIN_MENU || newState == GuiState.COOKING_POT_LIST || newState == GuiState.CUTTING_BOARD_LIST)) {
-            currentPage = 0;
+            pager.reset();
         }
         if (newState == GuiState.RECIPE_DETAIL) {
             currentToolIndex = 0;
@@ -1568,18 +1655,18 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void changePage(Player player, int delta) {
-        currentPage += delta;
+        pager.set(pager.page() + delta);
         refreshAndReopen(player);
     }
 
     // Returns true and flips the page when slot is a usable prev/next button; false otherwise, so callers
     // can fall through to their other slot handlers.
     private boolean handlePageClick(Player player, int slot, int prevSlot, int nextSlot, int totalPages) {
-        if (slot == prevSlot && currentPage > 0) {
+        if (slot == prevSlot && pager.page() > 0) {
             changePage(player, -1);
             return true;
         }
-        if (slot == nextSlot && currentPage < totalPages - 1) {
+        if (slot == nextSlot && pager.page() < totalPages - 1) {
             changePage(player, 1);
             return true;
         }
@@ -1640,28 +1727,31 @@ public class RecipeViewGui extends AbstractInventoryGui {
 
     private void returnToCookingPot(Player player) {
         if (cookingPotLocation == null) {
+            closeGuiOnPlayerThread(player);
             return;
         }
-        
+
         plugin.scheduler().runLaterAt(cookingPotLocation, () -> {
             World world = cookingPotLocation.getWorld();
-            if (world == null) return;
-            
-            var blockEntity = CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
-            if (blockEntity == null) return;
-            
-            var blockBehavior = CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
-            if (blockBehavior == null) return;
+            var blockEntity = world == null ? null : CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
+            var blockBehavior = blockEntity == null
+                    ? null : CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
 
             // Re-check permission + land protection before re-opening: this is a fresh GUI open just like a
             // direct interaction, and access may have changed since the pot was first opened.
-            if (!blockBehavior.canPlayerOpen(player, cookingPotLocation.getBlock())) {
+            if (blockBehavior == null || !blockBehavior.canPlayerOpen(player, cookingPotLocation.getBlock())) {
+                closeGuiOnPlayerThread(player);
                 return;
             }
 
-            CookingPotGui gui = new CookingPotGui(plugin, blockEntity, blockBehavior, world, cookingPotLocation);
-            gui.open(player);
+            new CookingPotGui(plugin, blockEntity, blockBehavior, world, cookingPotLocation).open(player);
         }, 1L);
+    }
+
+    // This view stays open until the next screen replaces it, so a failed handoff closes it here; closing
+    // another player's inventory is an entity write on Folia, so it runs on that player's own scheduler.
+    private void closeGuiOnPlayerThread(Player player) {
+        plugin.scheduler().runForEntity(player, () -> closeGui(player));
     }
 
     public static void cleanupAll() {
