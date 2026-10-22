@@ -4,13 +4,17 @@ import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import com.huidu.farmersdelight.gui.CookingPotGui;
+import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.HandleManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.manager.TrayManager;
+import com.huidu.farmersdelight.recipe.PotIngredientFillPlan;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
+import com.huidu.farmersdelight.util.compat.KaleidoscopeCompat;
+import com.huidu.farmersdelight.util.compat.KaleidoscopePotFill;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
@@ -883,6 +887,19 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         TickManager tickManager = plugin.getTickManager();
         if (tickManager != null) {
             tickManager.markActive(world, posKey, TickManager.BlockType.COOKING_POT);
+        }
+
+        // A Kaleidoscope recipe item records its own ingredients on the stack: fill the pot from the recording
+        // instead of opening the GUI. The fill plan moves nothing unless every check passes.
+        if (KaleidoscopeCompat.isRecipeItem(heldItem)) {
+            PotIngredientFillPlan.Result outcome = KaleidoscopePotFill.fill(bukkitPlayer, heldItem, blockEntity);
+            if (outcome != null) {
+                bukkitPlayer.sendMessage(I18n.getComponent(KaleidoscopePotFill.messageKey(outcome), bukkitPlayer));
+                if (outcome == PotIngredientFillPlan.Result.FILLED) {
+                    ItemUtils.swingHand(bukkitPlayer, context.getHand());
+                }
+                return InteractionResult.SUCCESS_AND_CANCEL;
+            }
         }
 
         if (handleHeldContainerServing(bukkitPlayer, context.getHand(), world, posKey, blockEntity)) {

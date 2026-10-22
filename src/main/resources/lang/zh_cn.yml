@@ -68,6 +68,15 @@ gui:
         compost: "有机堆肥"
       output:
         rich_soil: "沃土"
+compat:
+  kaleidoscope:
+    auto_fill:
+      filled: "<green>已把菜谱记录的食材放入厨锅。"
+      already_filled: "<yellow>锅内已经是这份菜谱记录的全部食材。"
+      missing_items: "<red>背包缺少菜谱记录的食材。"
+      no_space: "<red>厨锅没有足够的输入空位。"
+      other_ingredients: "<red>锅里有这份菜谱未记录的其它食材。"
+      invalid_recipe: "<red>这个菜谱物品没有可用的食材记录。"
 console:
   recipe-discovery:
     save_failed: "保存配方解锁数据失败：{error}"

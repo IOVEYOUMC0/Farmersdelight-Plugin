@@ -68,6 +68,15 @@ gui:
         compost: "Organic Compost"
       output:
         rich_soil: "Rich Soil"
+compat:
+  kaleidoscope:
+    auto_fill:
+      filled: "<green>Moved the recipe's ingredients into the cooking pot."
+      already_filled: "<yellow>The pot already holds everything this recipe records."
+      missing_items: "<red>Your inventory is missing an ingredient recorded on the recipe."
+      no_space: "<red>The cooking pot does not have enough free input slots."
+      other_ingredients: "<red>The pot holds ingredients this recipe did not record."
+      invalid_recipe: "<red>This recipe item has no usable ingredient recording."
 console:
   recipe-discovery:
     save_failed: "Failed to save recipe discovery data: {error}"

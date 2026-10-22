@@ -72,6 +72,7 @@ import com.huidu.farmersdelight.util.CommonTagResolver;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CustomItemPresence;
+import com.huidu.farmersdelight.util.compat.KaleidoscopeCompat;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
@@ -1383,6 +1384,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         cookingPotExperienceRewardConfig.loadFromConfig(
                 getFirstConfigSection("experience-reward", "cooking-pot.experience-reward"));
         ItemUtils.configureExternalItemSources(getConfig().getStringList("external-item-sources"));
+        KaleidoscopeCompat.refresh(this);
         WorldDataConfig.reload(this, worldDataConfig);
         // Load the c: common-tag mapping before recipes load; it feeds recipe tag matching/indexing.
         CommonTagResolver.reload(this);
