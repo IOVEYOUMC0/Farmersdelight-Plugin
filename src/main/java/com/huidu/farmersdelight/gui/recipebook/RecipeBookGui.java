@@ -10,6 +10,7 @@ import com.huidu.farmersdelight.api.recipe.RecipeFiller;
 import com.huidu.farmersdelight.api.recipe.RecipeType;
 import com.huidu.farmersdelight.api.recipe.ViewableRecipe;
 import com.huidu.farmersdelight.gui.GuiConfig;
+import com.huidu.farmersdelight.gui.GuiPaging;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.recipe.RecipeDiscoveryManager;
@@ -293,11 +294,6 @@ public final class RecipeBookGui implements InventoryHolder {
     // Substitutes the {page}/{total} placeholders in a list title with the current page and page count, so an
     // addon's list title can show a page counter like FarmersDelight's own recipe list. A title without the
     // placeholders is returned unchanged.
-    private static Component withPageInfo(Component title, int page, int total) {
-        return title
-                .replaceText(b -> b.matchLiteral("{page}").replacement(Integer.toString(page)))
-                .replaceText(b -> b.matchLiteral("{total}").replacement(Integer.toString(total)));
-    }
 
     void drawList(RecipeType target, int targetPage) {
         view = View.LIST;
@@ -308,11 +304,11 @@ public final class RecipeBookGui implements InventoryHolder {
         List<Integer> recipeSlots = spec.slotsByType("recipe");
         int pageSize = Math.max(1, recipeSlots.size());
         List<ViewableRecipe> recipes = visibleRecipes(target);
-        int pages = Math.max(1, (recipes.size() + pageSize - 1) / pageSize);
-        page = Math.max(0, Math.min(targetPage, pages - 1));
-        inventory = Bukkit.createInventory(this, spec.size(), withPageInfo(spec.title(), page + 1, pages));
+        int pages = GuiPaging.pageCount(recipes.size(), pageSize);
+        page = GuiPaging.clampPage(targetPage, pages);
+        inventory = Bukkit.createInventory(this, spec.size(), GuiPaging.withPageInfo(spec.title(), page + 1, pages));
         spec.renderChrome(inventory);
-        int start = page * pageSize;
+        int start = GuiPaging.startIndex(page, pageSize);
         RecipeDiscoveryManager discovery = discovery();
         for (int i = 0; i < recipeSlots.size() && start + i < recipes.size(); i++) {
             ViewableRecipe recipe = recipes.get(start + i);
@@ -642,7 +638,7 @@ public final class RecipeBookGui implements InventoryHolder {
                     List<Integer> recipeSlots = cfg.slotsByType("recipe");
                     int slotIndex = recipeSlots.indexOf(rawSlot);
                     if (slotIndex >= 0) {
-                        int index = page * Math.max(1, recipeSlots.size()) + slotIndex;
+                        int index = GuiPaging.startIndex(page, Math.max(1, recipeSlots.size())) + slotIndex;
                         List<ViewableRecipe> recipes = visibleRecipes(type);
                         if (index < recipes.size()) {
                             ViewableRecipe clicked = recipes.get(index);

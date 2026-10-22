@@ -800,7 +800,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<Integer> slots = listConfig.getRecipeSlots();
         int pageSize = Math.max(1, slots.size());
         int totalPages = pager.totalPages(expandedIngredientOptions.size(), pageSize);
-        expandedIngredientPage = Math.max(0, Math.min(expandedIngredientPage, totalPages - 1));
+        expandedIngredientPage = GuiPaging.clampPage(expandedIngredientPage, totalPages);
         Map<String, String> placeholders = Map.of(
                 "page", String.valueOf(expandedIngredientPage + 1),
                 "total", String.valueOf(totalPages));
