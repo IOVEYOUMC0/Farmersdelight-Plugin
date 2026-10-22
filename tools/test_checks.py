@@ -288,6 +288,54 @@ class ApiSignaturesSelfTest(unittest.TestCase):
             shutil.rmtree(tree, ignore_errors=True)
 
 
+class ErrorHandlingSelfTest(unittest.TestCase):
+    """A new empty catch fails until it explains itself; a commented one passes without a baseline refresh."""
+
+    script = "check_error_handling.py"
+    path = "src/main/java/example/Example.java"
+
+    def test_a_new_empty_catch_fails_until_explained(self):
+        java = ("package example;\n\n"
+                "class Example {\n"
+                "    void a() {\n"
+                "        try { b(); } catch (RuntimeException ignored) {\n"
+                "        }\n"
+                "    }\n"
+                "    void b() {}\n"
+                "}\n")
+        tree = build_tree({self.path: java})
+        try:
+            seeded = run_check(tree, self.script, "--update")
+            self.assertEqual(0, seeded.returncode, seeded.stdout + seeded.stderr)
+            self.assertEqual(0, run_check(tree, self.script, "--quiet").returncode)
+
+            write(tree, self.path, java.replace(
+                "    void b() {}\n",
+                "    void c() {\n"
+                "        try { b(); } catch (RuntimeException ignored) {\n"
+                "        }\n"
+                "    }\n"
+                "    void b() {}\n"))
+            failed = run_check(tree, self.script, "--quiet")
+            self.assertNotEqual(0, failed.returncode,
+                                f"{self.script} accepted a new empty catch:\n{failed.stdout}{failed.stderr}")
+            self.assertIn("RuntimeException ignored", failed.stdout + failed.stderr)
+
+            write(tree, self.path, java.replace(
+                "    void b() {}\n",
+                "    void c() {\n"
+                "        try { b(); } catch (RuntimeException ignored) {\n"
+                "            // The optional integration is absent; the call degrades to no result.\n"
+                "        }\n"
+                "    }\n"
+                "    void b() {}\n"))
+            passed = run_check(tree, self.script, "--quiet")
+            self.assertEqual(0, passed.returncode,
+                             f"{self.script} rejected an explained empty catch:\n{passed.stdout}{passed.stderr}")
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+
 class MealIconsSelfTest(unittest.TestCase):
     """The one check whose rule is a pure function, so its self-test drives the function directly."""
 
