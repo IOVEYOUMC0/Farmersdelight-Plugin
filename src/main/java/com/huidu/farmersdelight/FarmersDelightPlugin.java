@@ -2,10 +2,9 @@ package com.huidu.farmersdelight;
 
 import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.advancement.AdvancementSystem;
 import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
-import com.huidu.farmersdelight.api.advancement.AdvancementAvailability;
-import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode;
 import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
@@ -134,10 +133,6 @@ import java.util.concurrent.TimeUnit;
 
 public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
-    // After a rebuild (/ce reload, /fd reload) the immediate advancement re-show can be dropped by a client
-    // still re-applying CraftEngine's resource pack; force a second re-send after this many ticks.
-    private static final long ADVANCEMENT_RESYNC_DELAY_TICKS = 20L;
-
     private static volatile FarmersDelightPlugin instance;
     private static volatile boolean enabled = false;
     
@@ -186,12 +181,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private volatile CuttingBoardDisplayConfig skilletDisplayConfig;
     private volatile CuttingBoardDisplayConfig stoveDisplayConfig;
     private volatile CookingPotExperienceRewardConfig cookingPotExperienceRewardConfig;
-    private AdvancementManager advancementManager;
-    // Addon-defined advancement tabs. Definitions persist across /fd reload; the registry survives the FD-tab
-    // dispose/rebuild cycle, so it is created once and kept for the plugin's whole life.
-    private AddonAdvancementRegistry addonAdvancementRegistry;
+    // Advancement runtime state (config switch, UAA manager, addon tabs) lives in its own class; this field only
+    // carries it so the advancement lifecycle block does not grow inside the plugin class.
+    private final AdvancementSystem advancementSystem = new AdvancementSystem(this);
     private RecipeDiscoveryManager recipeDiscoveryManager;
-    private boolean advancementsEnabled;
     // Master switch for the whole buff system (config buff.enabled). Written by the reload path from the
     // command thread and read by region/tick threads (effect ticker, buff feeds, api entry points), so it
     // must be volatile. buff.display.enabled remains a separate, narrower switch that only silences the
@@ -241,22 +234,13 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isAdvancementsEnabled() {
-        return advancementsEnabled;
+        return advancementSystem.isEnabled();
     }
 
     // Whether the advancement system may run, reporting the one cause worth a log line. Shared with the
     // readiness gate so both disable the system for the same reason instead of keeping their own checks.
     boolean advancementSystemUsable() {
-        AdvancementAvailability availability = FarmersDelightAdvancements.availability();
-        if (availability == AdvancementAvailability.AVAILABLE) {
-            return true;
-        }
-        if (availability == AdvancementAvailability.API_PATCH_MISSING) {
-            // Registering a tab needs the layout overload, so an unpatched UltimateAdvancementAPI would
-            // only throw NoSuchMethodError and silently drop every tree. Say so and run without them.
-            I18n.logSevere("advancement.layout_unsupported");
-        }
-        return false;
+        return advancementSystem.usable();
     }
 
     public boolean isBuffSystemEnabled() {
@@ -265,13 +249,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     void disableAdvancementSystem() {
         listeners.unregisterAchievementListener();
-        if (advancementManager != null) {
-            advancementManager.dispose();
-        }
-        advancementManager = null;
-        if (addonAdvancementRegistry != null) {
-            addonAdvancementRegistry.onSystemDown();
-        }
+        advancementSystem.disable();
         queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_disabled_advancements"));
     }
 
@@ -288,22 +266,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     void refreshAdvancementSystem(boolean reloading) {
-        if (!advancementSystemUsable()) {
+        if (!advancementSystem.usable()) {
             disableAdvancementSystem();
             return;
         }
 
-        try {
-            if (advancementManager == null) {
-                advancementManager = new AdvancementManager(this);
-                advancementManager.load();
-            } else if (reloading) {
-                advancementManager.reload();
-            }
-        } catch (Throwable t) {
-            // UltimateAdvancementAPI missing at runtime or version incompatible -- run without the advancement system.
-            advancementManager = null;
-            I18n.logWarning("advancement.award_failed", "id", "init", "error", String.valueOf(t.getMessage()));
+        if (!advancementSystem.prepare(reloading)) {
             return;
         }
 
@@ -313,27 +281,17 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         queueAdvancementDatapackRemoval(I18n.formatConsole("plugin.datapack_reason_remove_legacy_advancements"));
 
         // FD's own tab is up: (re)build any addon-registered tabs now that UAA + CraftEngine items are ready.
-        if (!getAddonAdvancementRegistry().isReady()) {
-            getAddonAdvancementRegistry().onSystemReady();
-        } else if (reloading) {
-            // CraftEngine may have added or removed package content; reload addon definitions before resync.
-            getAddonAdvancementRegistry().onSystemReady();
-        }
+        advancementSystem.refreshAddonTabs(reloading);
 
         // A rebuild (/ce reload) recreates the UAA tab, which drops it from online clients. Re-show FD's own
         // tab to online players (no-op on first load — no one is online yet). Addon tabs re-sync in onSystemReady.
-        advancementManager.resyncOnlinePlayers();
+        advancementSystem.resyncOnline();
 
         // On a rebuild the first resync packet can land while the client is still re-applying CraftEngine's
         // resource pack, so it is dropped and the tab only returns after the player re-fetches. Force a full
         // re-send a short while later so the settled client receives the tree.
         if (reloading) {
-            scheduler().runLater(() -> {
-                if (advancementManager != null) {
-                    advancementManager.forceResyncOnlinePlayers();
-                }
-                getAddonAdvancementRegistry().forceResyncOnline();
-            }, ADVANCEMENT_RESYNC_DELAY_TICKS);
+            advancementSystem.resyncLater();
         }
     }
 
@@ -662,10 +620,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         dropsConfig = null;
         strawDropConfig = null;
 
-        if (advancementManager != null) {
-            advancementManager.dispose();
+        if (advancementSystem.manager() != null) {
+            advancementSystem.dispose();
         }
-        advancementManager = null;
 
         I18n.logInfo("plugin.disabled");
         I18n.cleanup();
@@ -973,7 +930,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         configBootstrap.prefetchReloadFiles();
         configBootstrap.validateConfigTypes();
         long validateNanos = System.nanoTime() - phase;
-        boolean previousAdvancementsEnabled = advancementsEnabled;
+        boolean previousAdvancementsEnabled = advancementSystem.isEnabled();
         phase = System.nanoTime();
         loadConfigs();
         long loadNanos = System.nanoTime() - phase;
@@ -1015,7 +972,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (recipeDiscoveryManager != null) {
             recipeDiscoveryManager.reloadConfig();
         }
-        if (previousAdvancementsEnabled != advancementsEnabled) {
+        if (previousAdvancementsEnabled != advancementSystem.isEnabled()) {
             refreshAdvancementSystem(true);
         }
         long listenersNanos = System.nanoTime() - phase;
@@ -1297,7 +1254,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         YamlConfiguration worldDataConfig = configFiles.loadWorldData();
         YamlConfiguration loadedDropsConfig = configFiles.loadDrops();
         dropsConfig = loadedDropsConfig;
-        advancementsEnabled = getConfig().getBoolean("advancements.enabled", true);
+        advancementSystem.setEnabled(getConfig().getBoolean("advancements.enabled", true));
         // Missing buff.enabled preserves the enabled default.
         buffSystemEnabled = getConfigBoolean(true, "buff.enabled");
         // Mirror the switch into the addon-facing registry so its entry points can degrade to no-ops
@@ -1848,14 +1805,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     public AdvancementManager getAdvancementManager() {
-        return advancementManager;
+        return advancementSystem.manager();
     }
 
-    public synchronized AddonAdvancementRegistry getAddonAdvancementRegistry() {
-        if (addonAdvancementRegistry == null) {
-            addonAdvancementRegistry = new AddonAdvancementRegistry(this);
-        }
-        return addonAdvancementRegistry;
+    public AddonAdvancementRegistry getAddonAdvancementRegistry() {
+        return advancementSystem.addonRegistry();
     }
 
     public FoodEatListener getFoodEatListener() {
@@ -1925,7 +1879,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 "cooking_pot_hopper", stationSettings.cookingPotHopperEnabled(),
                 "cutting_board_hopper", stationSettings.cuttingBoardHopperEnabled(),
                 "skillet_hopper", stationSettings.skilletHopperEnabled(),
-                "advancements", advancementsEnabled);
+                "advancements", advancementSystem.isEnabled());
     }
 
     /**
