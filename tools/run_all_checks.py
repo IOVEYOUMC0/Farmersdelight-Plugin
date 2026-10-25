@@ -24,6 +24,7 @@ CHECKS = (
     ("check_lang_keys.py", ["--quiet"]),
     ("check_api_boundary.py", ["--quiet"]),
     ("check_api_signatures.py", ["--quiet"]),
+    ("check_error_handling.py", ["--quiet"]),
     ("check_config_paths.py", ["--quiet"]),
     ("check_duplicate_yaml_keys.py", ["--quiet"]),
     ("check_block_state_occupancy.py", ["--quiet"]),

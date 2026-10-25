@@ -2,6 +2,8 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
+import com.huidu.farmersdelight.api.block.FarmersDelightStation;
+import com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
@@ -15,6 +17,7 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.Text;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import com.huidu.farmersdelight.api.util.TooltipUtils;
@@ -31,9 +34,11 @@ import net.momirealms.craftengine.core.world.WorldPosition;
 import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.GameMode;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -123,6 +128,13 @@ public class BlockBreakListener implements Listener {
         }
         if (!isManagedInteractiveBlock(state)) {
             return;
+        }
+        FarmersDelightStation station = StationTypes.of(state);
+        if (station != null) {
+            Player breaker = event.getPlayer();
+            ItemStack tool = breaker == null ? null : breaker.getInventory().getItemInMainHand();
+            Bukkit.getPluginManager().callEvent(new FarmersDelightStationBrokenEvent(
+                    breaker, station, event.bukkitBlock().getLocation(), tool));
         }
         if (isCookingPotBlock(state)) {
             boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;

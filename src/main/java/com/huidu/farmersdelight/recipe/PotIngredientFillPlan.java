@@ -6,7 +6,7 @@ import java.util.Locale;
 
 /**
  * Detached plan for filling a cooking pot with the ingredients a recipe item recorded. Nothing mutates here: the
- * caller applies the moves only when the result is {@link Result#FILLED}, so a failed plan never moves an item.
+ * caller applies the moves only when the result is `Result.FILLED`, so a failed plan never moves an item.
  */
 public final class PotIngredientFillPlan {
 

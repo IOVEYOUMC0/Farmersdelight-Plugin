@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * A recipe editor whose persistence completes outside the player's owning thread. Addon recipe types that write
- * files asynchronously implement this instead of the callback defaults in {@link RecipeEditor}; the editor view
+ * files asynchronously implement this instead of the callback defaults in `RecipeEditor`; the editor view
  * keeps the GUI locked until the returned future completes.
  */
 @ApiStatus.OverrideOnly

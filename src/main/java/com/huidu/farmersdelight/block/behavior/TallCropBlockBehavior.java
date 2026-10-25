@@ -5,6 +5,7 @@ import com.huidu.farmersdelight.api.config.BehaviorArguments;
 import com.huidu.farmersdelight.api.event.FarmersDelightHarvestEvent;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
+import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -64,6 +65,13 @@ import net.momirealms.craftengine.proxy.minecraft.world.level.material.FluidsPro
 public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implements BonemealableBlock {
     // Vanilla's water tick delay; Fluids.WATER.getTickDelay returns this in every dimension.
     private static final int WATER_TICK_DELAY = 5;
+
+    // Guards the behavior's own in-place state swaps. CraftEngine/vanilla also invokes
+    // affectNeighborsAfterRemoval for the state that is being replaced, and that hook cannot tell a growth or
+    // bone-meal step from a real break: its cross-half cleanup would reset the lower half (and then remove the
+    // upper half) while only the age of one half was being changed. The set is per thread because place calls
+    // run synchronously on the region thread that owns the block.
+    private static final ThreadLocal<Set<BlockPosKey>> IN_PLACE_SWAPS = ThreadLocal.withInitial(HashSet::new);
 
 
     @Override
@@ -506,6 +514,11 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
             World world = CraftEngineAdapter.toWorld(args[1]);
             BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
 
+            if (pos != null && IN_PLACE_SWAPS.get().contains(new BlockPosKey(pos))) {
+                // An age/property swap done by this behavior: the sibling half must survive it.
+                return;
+            }
+
             if (state != null && !state.isEmpty() && world != null && pos != null) {
                 Object half = getHalf(state);
 
@@ -526,13 +539,33 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
 
                     ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
                     if (isSameCropState(lowerState)) {
-                        CraftEngineBlocks.place(lowerBlock.getLocation(), buildLowerResetState(lowerState), false);
+                        placeKeepingSibling(lowerBlock, buildLowerResetState(lowerState));
                     }
                 }
             }
         }
 
         
+    }
+
+    /**
+     * Places an updated state for one half while telling `affectNeighborsAfterRemoval` to leave the
+     * sibling half alone. Every in-place growth, bone-meal and supporting-state swap must go through this:
+     * the removal hook also fires when a custom state is replaced, and its break cleanup would otherwise
+     * reset the lower half and delete the panicle.
+     */
+    public static void placeKeepingSibling(Block block, ImmutableBlockState state) {
+        BlockPosKey key = new BlockPosKey(block.getLocation());
+        Set<BlockPosKey> active = IN_PLACE_SWAPS.get();
+        active.add(key);
+        try {
+            CraftEngineBlocks.place(block.getLocation(), state, false);
+        } finally {
+            active.remove(key);
+            if (active.isEmpty()) {
+                IN_PLACE_SWAPS.remove();
+            }
+        }
     }
 
     private boolean applyBoneMeal(BlockPos pos, World world, ImmutableBlockState state) {
@@ -590,7 +623,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         ImmutableBlockState lowerState = CraftEngineBlocks.getCustomBlockState(lowerBlock);
         if (!isSameCropState(lowerState) || isUpperHalf(lowerState)) return;
 
-        CraftEngineBlocks.place(lowerBlock.getLocation(), buildLowerResetState(lowerState), false);
+        placeKeepingSibling(lowerBlock, buildLowerResetState(lowerState));
     }
 
     private boolean isSameCropState(ImmutableBlockState state) {
@@ -625,7 +658,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
 
         ImmutableBlockState newState = state.with(config.ageProperty(), newAge);
         Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        CraftEngineBlocks.place(bukkitBlock.getLocation(), newState, false);
+        placeKeepingSibling(bukkitBlock, newState);
         return true;
     }
 
@@ -648,7 +681,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         playBonemealEffect(world, pos.x(), pos.y() + 1, pos.z());
 
             ImmutableBlockState newUpperState = upperState.with(config.ageProperty(), newUpperAge);
-            CraftEngineBlocks.place(upperBlock.getLocation(), newUpperState, false);
+            placeKeepingSibling(upperBlock, newUpperState);
             return true;
     }
 
@@ -674,7 +707,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         }
 
         ImmutableBlockState newState = state.with(config.ageProperty(), Math.min(newAge, config.maxAgeLower()));
-        CraftEngineBlocks.place(bukkitBlock.getLocation(), newState, false);
+        placeKeepingSibling(bukkitBlock, newState);
         return true;
     }
 
@@ -684,7 +717,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         if (!rollGrowth(growthSpeedOf(bukkitBlock))) return;
 
         ImmutableBlockState newState = state.with(config.ageProperty(), currentAge + 1);
-        CraftEngineBlocks.place(bukkitBlock.getLocation(), newState, false);
+        placeKeepingSibling(bukkitBlock, newState);
     }
 
     // Rice (upper-min-age reaching the lower half's maturity) spawns its panicle in the same tick the
@@ -713,7 +746,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 }
             } else {
                 ImmutableBlockState newState = state.with(config.ageProperty(), newAge);
-                CraftEngineBlocks.place(bukkitBlock.getLocation(), newState, false);
+                placeKeepingSibling(bukkitBlock, newState);
             }
         }
 
@@ -814,7 +847,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         if (config.supportingProperty() != null) {
             matureState = matureState.with(config.supportingProperty(), true);
         }
-        CraftEngineBlocks.place(bukkitBlock.getLocation(), matureState, false);
+        placeKeepingSibling(bukkitBlock, matureState);
     }
 
     private void placeUpperHalfWithAge(Block upperBlock, int age) {
@@ -829,7 +862,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 .with(config.ageProperty(), Math.max(0, Math.min(age, config.maxAgeUpper())))
                 ;
         upperState = withRaw(upperState, config.halfProperty(), config.halfUpperValue());
-        CraftEngineBlocks.place(upperBlock.getLocation(), upperState, false);
+        placeKeepingSibling(upperBlock, upperState);
     }
 
     private void runConfiguredBreakLoot(ImmutableBlockState state, Block bukkitBlock, Player player,

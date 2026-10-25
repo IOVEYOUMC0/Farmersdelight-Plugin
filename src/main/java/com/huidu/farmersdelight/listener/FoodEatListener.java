@@ -2,9 +2,11 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.event.FarmersDelightMealConsumedEvent;
 import com.huidu.farmersdelight.effect.EffectManager;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -17,6 +19,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FoodEatListener implements Listener {
@@ -44,6 +47,11 @@ public class FoodEatListener implements Listener {
     // External food-to-duration mappings registered through the API and unaffected by /fd reload.
     private final Map<BuffKind, Map<String, Integer>> externalDurations = new EnumMap<>(BuffKind.class);
     private final Map<BuffKind, Boolean> enabled = new EnumMap<>(BuffKind.class);
+    // Item tags that make a consumed stack part of the FarmersDelight meal family. The event reports those and
+    // anything in the plugin's own namespace; addon items stay silent unless they carry one of these tags.
+    private static final Set<String> MEAL_FAMILY_TAGS = Set.of(
+            "farmersdelight:meals", "farmersdelight:snacks", "farmersdelight:drinks",
+            "farmersdelight:sweets", "farmersdelight:pies", "farmersdelight:feasts", "farmersdelight:milk");
 
     public FoodEatListener(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -123,6 +131,22 @@ public class FoodEatListener implements Listener {
                 }
             }
         }
+
+        if (isMealFamily(itemId, item)) {
+            Bukkit.getPluginManager().callEvent(new FarmersDelightMealConsumedEvent(player, itemId, item));
+        }
+    }
+
+    private static boolean isMealFamily(String itemId, ItemStack item) {
+        if (itemId != null && itemId.startsWith("farmersdelight:")) {
+            return true;
+        }
+        for (String tag : ItemUtils.getItemTagIds(item)) {
+            if (MEAL_FAMILY_TAGS.contains(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void registerComfortFood(String itemId, int durationSeconds) {

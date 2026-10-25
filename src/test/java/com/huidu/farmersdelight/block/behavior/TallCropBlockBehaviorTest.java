@@ -210,6 +210,17 @@ class TallCropBlockBehaviorTest {
         assertTrue(readBehaviorSource().contains("&& (config.resetToAge() != null || config.resetOnHarvest())"));
     }
 
+    @Test
+    void everyInPlaceStateSwapKeepsTheSiblingHalf() {
+        String source = readBehaviorSource();
+        // The only direct CE place call must be the guard itself; growth, bone meal, the supporting-state
+        // sync and the post-harvest reset all have to go through it, otherwise the removal hook resets the
+        // lower half and deletes the panicle while one half's age changes.
+        assertEquals(1, source.split("CraftEngineBlocks\\.place\\(", -1).length - 1);
+        assertTrue(source.contains("placeKeepingSibling("));
+        assertTrue(source.contains("IN_PLACE_SWAPS"));
+    }
+
     private static String readBehaviorSource() {
         try {
             return Files.readString(Path.of(

@@ -2,6 +2,8 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.block.FarmersDelightStation;
+import com.huidu.farmersdelight.api.event.FarmersDelightStationPlacedEvent;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntityController;
@@ -15,6 +17,7 @@ import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.VanillaAdvancements;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
@@ -26,6 +29,7 @@ import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -191,6 +195,12 @@ public class BlockPlaceListener implements Listener {
         }
 
         ImmutableBlockState state = CustomBlockUtils.getState(blockLocation);
+
+        FarmersDelightStation station = StationTypes.of(state);
+        if (station != null) {
+            Bukkit.getPluginManager().callEvent(
+                    new FarmersDelightStationPlacedEvent(player, station, blockLocation, placedItem));
+        }
 
         if (CustomBlockUtils.hasBehavior(state, CuttingBoardBlockBehavior.class)) {
             ensureCuttingBoardRuntimeEntity(blockLocation);

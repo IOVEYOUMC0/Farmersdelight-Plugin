@@ -16,6 +16,7 @@ import com.huidu.farmersdelight.recipe.RecipeIngredient;
 import com.huidu.farmersdelight.recipe.RecipePublicationRollback;
 import com.huidu.farmersdelight.recipe.RecipePublicationWatch;
 import com.huidu.farmersdelight.tool.ToolRegistry;
+import com.huidu.farmersdelight.util.CraftEngineTagBridge;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Bukkit;
@@ -449,6 +450,9 @@ final class CraftEngineReadinessCoordinator {
         try {
             long start = System.nanoTime();
             int items = ItemUtils.warmItems("farmersdelight");
+            // CE content is loaded at this point, so the c: members declared in item settings can be merged
+            // into the family tag registry before the icon caches below resolve their tag ingredients.
+            CraftEngineTagBridge.refresh(plugin);
             long itemNanos = System.nanoTime() - start;
             long mark = System.nanoTime();
             TomatoVineBlockBehavior.warmAll();

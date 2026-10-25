@@ -11,7 +11,15 @@ import org.jetbrains.annotations.Nullable;
 
 /** Opt-in timings only; callers retain responsibility for world ownership and data consistency. */
 public final class PerformanceProbe {
-    public enum Operation { SERIALIZATION, ITEM_SERIALIZATION, SERIALIZATION_LOCK, INVENTORY_HOLDER }
+    public enum Operation {
+        SERIALIZATION, ITEM_SERIALIZATION, SERIALIZATION_LOCK, INVENTORY_HOLDER,
+        /** One recipe lookup on the cooking pot or cutting board path. */
+        RECIPE_MATCH,
+        /** One cooking-pot tick pass for a registered pot. */
+        STATION_TICK,
+        /** One list/detail screen refresh in the recipe viewer. */
+        GUI_REFRESH
+    }
 
     @FunctionalInterface
     public interface Timing {

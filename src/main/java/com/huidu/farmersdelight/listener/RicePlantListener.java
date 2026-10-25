@@ -362,7 +362,7 @@ public class RicePlantListener implements Listener {
                 return;
             }
 
-            CraftEngineBlocks.place(block.getLocation(), state.with(supportingProperty, shouldSupport), false);
+            TallCropBlockBehavior.placeKeepingSibling(block, state.with(supportingProperty, shouldSupport));
         } catch (Exception ignored) {
         }
     }
@@ -652,7 +652,7 @@ public class RicePlantListener implements Listener {
                 resetState = resetState.with(supporting, false);
             }
 
-            CraftEngineBlocks.place(lowerBlock.getLocation(), resetState, false);
+            TallCropBlockBehavior.placeKeepingSibling(lowerBlock, resetState);
         } catch (Exception ignored) {
         }
     }
