@@ -1,7 +1,8 @@
 package com.huidu.farmersdelight.gui;
 
 /**
- * The page index shared by the recipe lists and the expanded ingredient list.
+ * The page index shared by the recipe lists and the expanded ingredient list. The arithmetic itself lives in
+ * `GuiPaging` so the recipe book and this pager cannot drift apart.
  */
 final class RecipePager {
 
@@ -20,21 +21,15 @@ final class RecipePager {
     }
 
     int totalPages(int totalItems, int itemsPerPage) {
-        if (itemsPerPage <= 0) {
-            return 1;
-        }
-        return Math.max(1, (totalItems + itemsPerPage - 1) / itemsPerPage);
+        return GuiPaging.pageCount(totalItems, itemsPerPage);
     }
 
     int clamp(int totalPages) {
-        int last = Math.max(1, totalPages) - 1;
-        if (page > last) {
-            page = last;
-        }
+        page = GuiPaging.clampPage(page, totalPages);
         return page;
     }
 
     int start(int itemsPerPage) {
-        return page * Math.max(1, itemsPerPage);
+        return GuiPaging.startIndex(page, itemsPerPage);
     }
 }

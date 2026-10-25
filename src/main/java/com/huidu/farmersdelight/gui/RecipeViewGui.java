@@ -414,14 +414,16 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private void refresh(Player player, boolean resetDetailAnimations) {
-        switch (state) {
-            case MAIN_MENU -> drawMainMenu(player);
-            case COOKING_POT_LIST -> drawCookingPotList(player);
-            case CUTTING_BOARD_LIST -> drawCuttingBoardList(player);
-            case RECIPE_DETAIL -> drawRecipeDetail(player, resetDetailAnimations);
-            case INGREDIENT_OPTIONS -> drawIngredientOptions(player);
-            case SPECIAL_RECIPE_LIST -> drawSpecialRecipeList(player);
-            case SPECIAL_RECIPE_DETAIL -> drawSpecialRecipeDetail(player);
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.GUI_REFRESH)) {
+            switch (state) {
+                case MAIN_MENU -> drawMainMenu(player);
+                case COOKING_POT_LIST -> drawCookingPotList(player);
+                case CUTTING_BOARD_LIST -> drawCuttingBoardList(player);
+                case RECIPE_DETAIL -> drawRecipeDetail(player, resetDetailAnimations);
+                case INGREDIENT_OPTIONS -> drawIngredientOptions(player);
+                case SPECIAL_RECIPE_LIST -> drawSpecialRecipeList(player);
+                case SPECIAL_RECIPE_DETAIL -> drawSpecialRecipeDetail(player);
+            }
         }
     }
 
@@ -800,7 +802,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         List<Integer> slots = listConfig.getRecipeSlots();
         int pageSize = Math.max(1, slots.size());
         int totalPages = pager.totalPages(expandedIngredientOptions.size(), pageSize);
-        expandedIngredientPage = Math.max(0, Math.min(expandedIngredientPage, totalPages - 1));
+        expandedIngredientPage = GuiPaging.clampPage(expandedIngredientPage, totalPages);
         Map<String, String> placeholders = Map.of(
                 "page", String.valueOf(expandedIngredientPage + 1),
                 "total", String.valueOf(totalPages));

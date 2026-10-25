@@ -1,0 +1,27 @@
+# Frozen empty catches: file	catch header	count. Comment a new empty catch or refresh with --update.
+src/debugTools/java/com/huidu/farmersdelight/debug/DebugReadOnlyCommands.java	catch (Exception ignored)	1
+src/main/java/com/huidu/farmersdelight/advancement/AddonAdvancementTab.java	catch (Exception ignored)	1
+src/main/java/com/huidu/farmersdelight/advancement/AdvancementManager.java	catch (Exception ignored)	1
+src/main/java/com/huidu/farmersdelight/api/buff/CustomBuffRegistry.java	catch (RuntimeException | LinkageError ignored)	1
+src/main/java/com/huidu/farmersdelight/api/lang/AddonLanguage.java	catch (LinkageError ignored)	1
+src/main/java/com/huidu/farmersdelight/block/behavior/MushroomColonyBehavior.java	catch (IllegalArgumentException ignored)	1
+src/main/java/com/huidu/farmersdelight/block/behavior/TatamiPairingBehavior.java	catch (ReflectiveOperationException | RuntimeException ignored)	1
+src/main/java/com/huidu/farmersdelight/command/DebugToolsSubCommand.java	catch (ReflectiveOperationException ignored)	1
+src/main/java/com/huidu/farmersdelight/compat/PlaceholderApiHook.java	catch (RuntimeException ignored)	1
+src/main/java/com/huidu/farmersdelight/i18n/I18n.java	catch (Exception ignored)	1
+src/main/java/com/huidu/farmersdelight/i18n/I18n.java	catch (LinkageError ignored)	2
+src/main/java/com/huidu/farmersdelight/listener/HorseFeedTemptListener.java	catch (RuntimeException ignored)	2
+src/main/java/com/huidu/farmersdelight/listener/HorseFeedTemptListener.java	catch (Throwable ignored)	1
+src/main/java/com/huidu/farmersdelight/listener/RicePlantListener.java	catch (Exception ignored)	3
+src/main/java/com/huidu/farmersdelight/listener/worlddata/WorldDataConfig.java	catch (NumberFormatException ignored)	1
+src/main/java/com/huidu/farmersdelight/loot/KnifeDropHandler.java	catch (Exception ignored)	1
+src/main/java/com/huidu/farmersdelight/manager/StoveSlotOffsets.java	catch (Exception ignored)	1
+src/main/java/com/huidu/farmersdelight/manager/TickManager.java	catch (RuntimeException ignored)	1
+src/main/java/com/huidu/farmersdelight/resource/ResourceInstaller.java	catch (IOException ignored)	2
+src/main/java/com/huidu/farmersdelight/util/BehaviorArgParser.java	catch (NumberFormatException ignored)	3
+src/main/java/com/huidu/farmersdelight/util/BlockPosKey.java	catch (NumberFormatException ignored)	1
+src/main/java/com/huidu/farmersdelight/util/CustomBlockUtils.java	catch (Exception ignored)	1
+src/main/java/com/huidu/farmersdelight/util/CustomBlockUtils.java	catch (NumberFormatException ignored)	1
+src/main/java/com/huidu/farmersdelight/util/SoilRuleSupport.java	catch (IllegalArgumentException ignored)	1
+src/main/java/com/huidu/farmersdelight/util/compat/WorldGuardCompat.java	catch (ReflectiveOperationException | RuntimeException | LinkageError ignored)	2
+src/test/java/com/huidu/farmersdelight/block/behavior/CookingPotConcurrencyTest.java	catch (Exception ignored)	1

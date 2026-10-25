@@ -453,6 +453,9 @@ public class TickManager {
             case ITEM_SERIALIZATION -> PerformanceMonitor.Feature.ITEM_SERIALIZATION;
             case SERIALIZATION_LOCK -> PerformanceMonitor.Feature.SERIALIZATION_LOCK;
             case INVENTORY_HOLDER -> PerformanceMonitor.Feature.INVENTORY_HOLDER;
+            case RECIPE_MATCH -> PerformanceMonitor.Feature.RECIPE_MATCH;
+            case STATION_TICK -> PerformanceMonitor.Feature.STATION_TICK;
+            case GUI_REFRESH -> PerformanceMonitor.Feature.GUI_REFRESH;
         });
     }
 
@@ -610,7 +613,8 @@ public class TickManager {
 
     private void tickCookingPot(ActiveBlock activeBlock, World world, BlockPosKey posKey,
                                 int elapsedTicks, long currentTick) {
-        Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.STATION_TICK)) {
+            Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
 
         if (state == null || state.isEmpty()) {
@@ -737,6 +741,7 @@ public class TickManager {
         } else {
             progressDisplayLastUpdateTicks.remove(activeBlock);
             CookingPotBlockBehavior.removeProgressDisplay(world, posKey);
+        }
         }
     }
 

@@ -16,7 +16,7 @@ import java.util.Map;
 
 /**
  * Applies a recorded recipe item's ingredients to a cooking pot. The decision is made by
- * {@link PotIngredientFillPlan} before anything is written, and the pot is written before the player inventory so
+ * `PotIngredientFillPlan` before anything is written, and the pot is written before the player inventory so
  * a disappearing stack can never leave a half-filled pot.
  */
 public final class KaleidoscopePotFill {

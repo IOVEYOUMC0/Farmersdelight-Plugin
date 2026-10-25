@@ -1,9 +1,10 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
 import com.huidu.farmersdelight.api.recipe.IngredientMatchMemo;
-import com.huidu.farmersdelight.api.config.ConfigSectionReader;
+import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.pack.PackSection;
 import com.huidu.farmersdelight.pack.PackSections;
@@ -457,6 +458,12 @@ public class CuttingBoardRecipeManager {
     }
 
     public CuttingBoardRecipe matchRecipe(ItemStack input, ItemStack tool) {
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.RECIPE_MATCH)) {
+            return matchRecipeUnprobed(input, tool);
+        }
+    }
+
+    private CuttingBoardRecipe matchRecipeUnprobed(ItemStack input, ItemStack tool) {
         PublishedState state = published;
         String toolId = ItemUtils.getNonVanillaItemId(tool);
         // ToolContext depends only on the tool itself, not on any recipe; build it once outside the loop to avoid
