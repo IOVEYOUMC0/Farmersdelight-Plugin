@@ -225,16 +225,14 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         }
 
         int dataVersion = data.getInt(DATA_VERSION, Config.itemDataFixerUpperFallbackVersion());
-        ItemStack[] items;
-        try {
-            items = ItemStackUtils.parseBukkitItems(Optional.ofNullable(data.getList(ITEMS)).orElseGet(ListTag::new),
-                    entity.getInventorySize(),
-                    dataVersion);
-        } catch (RuntimeException e) {
-            // Corrupt/version-skewed inventory: load empty rather than aborting the whole block-entity load.
-            FarmersDelightPlugin.getInstance().getLogger()
-                    .warning("Skipping unreadable cooking pot inventory: " + e.getMessage());
-            items = new ItemStack[entity.getInventorySize()];
+        ListTag itemList = Optional.ofNullable(data.getList(ITEMS)).orElseGet(ListTag::new);
+        ItemStack[] items = new ItemStack[entity.getInventorySize()];
+        for (int i = 0; i < itemList.size(); i++) {
+            CompoundTag slotTag = itemList.getCompound(i);
+            int slot = slotTag.getInt("slot");
+            if (slot >= 0 && slot < items.length) {
+                items[slot] = ItemUtils.parseStoredItem(slotTag, dataVersion);
+            }
         }
         for (int i = 0; i < entity.getInventorySize(); i++) {
             entity.setInventorySlot(i, items[i]);
@@ -244,17 +242,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         entity.setCookingProgress(data.getInt(COOKING_PROGRESS, 0));
         entity.setCookingDuration(data.getInt(COOKING_DURATION, 200));
         Tag mealContainerTag = data.get(MEAL_CONTAINER);
-        if (mealContainerTag != null) {
-            try {
-                entity.setMealContainer(ItemStackUtils.parseBukkitItem(mealContainerTag, dataVersion));
-            } catch (RuntimeException e) {
-                FarmersDelightPlugin.getInstance().getLogger()
-                        .warning("Skipping unreadable cooking pot meal container: " + e.getMessage());
-                entity.setMealContainer(null);
-            }
-        } else {
-            entity.setMealContainer(null);
-        }
+        entity.setMealContainer(mealContainerTag == null ? null : ItemUtils.parseStoredItem(mealContainerTag, dataVersion));
     }
 
     private void queueLoadData(CompoundTag data) {
