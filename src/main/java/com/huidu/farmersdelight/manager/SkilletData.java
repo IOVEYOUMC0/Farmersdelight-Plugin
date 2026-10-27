@@ -6,9 +6,9 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 // Per-skillet in-memory state shared by the tick / interaction / save paths. A SkilletData also serves as
 // the per-block monitor: concurrent empty-hand takes, stacks, and a racing break all lock on it.
@@ -29,7 +29,8 @@ public final class SkilletData {
     int fireAspectLevel = 0;
     UUID ownerId;
     String ownerName;
-    final List<Integer> displayEntityIds = new ArrayList<>();
+    // Collected by /fd cleanup from the global thread; the owning region thread is the only writer.
+    final List<Integer> displayEntityIds = new CopyOnWriteArrayList<>();
     Boolean lastHeatState;
     // Tick stamp of the last actual heat-source probe; Long.MIN_VALUE = never probed. Combined with
     // lastHeatState this forms a short-TTL cache so hasHeatSource skips its two getBlockAt +

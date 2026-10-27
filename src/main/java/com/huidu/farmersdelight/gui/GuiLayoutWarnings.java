@@ -14,7 +14,36 @@ import java.util.Map;
  */
 public final class GuiLayoutWarnings {
 
+    /** The row range `Bukkit.createInventory` accepts: at least one row, at most six. */
+    private static final int MIN_ROWS = 1;
+    private static final int MAX_ROWS = 6;
+
     private GuiLayoutWarnings() {
+    }
+
+    /**
+     * Clamps a configured row count to what a Bukkit inventory accepts (1-6) and reports the change.
+     * `Bukkit.createInventory` throws for any other size, so an out-of-range `rows` value would otherwise
+     * break every GUI that reads it at open time instead of producing a config warning.
+     */
+    public static int clampRows(int rows, String sectionPath, String fallbackPath) {
+        if (rows >= MIN_ROWS && rows <= MAX_ROWS) {
+            return rows;
+        }
+        int clamped = clampedRows(rows);
+        String path = sectionPath == null || sectionPath.isBlank() ? fallbackPath : sectionPath;
+        warnConfig("console.gui.rows_out_of_range",
+                "path", path,
+                "rows", rows,
+                "min", MIN_ROWS,
+                "max", MAX_ROWS,
+                "clamped", clamped);
+        return clamped;
+    }
+
+    /** The clamp itself, without reporting; kept separate so the rule is testable without a server logger. */
+    static int clampedRows(int rows) {
+        return Math.min(MAX_ROWS, Math.max(MIN_ROWS, rows));
     }
 
     /** Warns about a grid whose row count, row width or characters do not match the legend. */

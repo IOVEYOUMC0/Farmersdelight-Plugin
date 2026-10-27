@@ -98,7 +98,7 @@ public final class ContainerGuiKernel {
         synchronized (controller.storeLock()) {
             ensurePainted(view, layout.size());
             for (int rawSlot = 0; rawSlot < layout.size(); rawSlot++) {
-                if (!layout.isFunctional(rawSlot)) {
+                if (!layout.isFunctional(rawSlot) && holdsSlot(view, rawSlot)) {
                     ItemStack backdrop = controller.backdrop();
                     view.setItem(rawSlot, backdrop == null ? null : backdrop.clone());
                 }
@@ -311,6 +311,9 @@ public final class ContainerGuiKernel {
      * Returns true when the value was committed.
      */
     private boolean commit(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
+        if (!holdsSlot(view, rawSlot)) {
+            return false;
+        }
         ItemStack stored = controller.stored(storeIndex);
         if (!controller.mayCommit(stored, painted.get(view)[rawSlot])) {
             // The store moved on since this cell was painted: adopt its value, never keep the stale one.
@@ -328,6 +331,9 @@ public final class ContainerGuiKernel {
      * window commit the stale on-screen value.
      */
     private boolean commitCell(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
+        if (!holdsSlot(view, rawSlot)) {
+            return false;
+        }
         ItemStack stored = controller.stored(storeIndex);
         if (!controller.mayCommit(stored, painted.get(view)[rawSlot])) {
             return false;
@@ -338,6 +344,9 @@ public final class ContainerGuiKernel {
 
     /** Writes the cell's current value into the store, dropping placeholder icons. */
     private void storeFromView(Inventory view, int rawSlot, int storeIndex, @Nullable String iconType) {
+        if (!holdsSlot(view, rawSlot)) {
+            return;
+        }
         ItemStack item = view.getItem(rawSlot);
         boolean placeholder = item != null && !item.getType().isAir() && controller.isPlaceholder(item, iconType);
         controller.store(storeIndex, placeholder ? null : item);
@@ -347,6 +356,9 @@ public final class ContainerGuiKernel {
 
     /** Paints one cell from a store value and records that value as the cell's write-back baseline. */
     private void paint(Inventory view, int rawSlot, @Nullable ItemStack stored, @Nullable String iconType) {
+        if (!holdsSlot(view, rawSlot)) {
+            return;
+        }
         painted.get(view)[rawSlot] = stored == null ? null : stored.clone();
         if (stored == null || stored.getType().isAir()) {
             ItemStack icon = controller.icon(iconType);
@@ -354,6 +366,15 @@ public final class ContainerGuiKernel {
         } else {
             view.setItem(rawSlot, stored.clone());
         }
+    }
+
+    /**
+     * Whether the open view is still the inventory this layout describes. A gui.yml reload can raise the row
+     * count while a viewer's old view is still open, and painting a cell the view does not have would throw
+     * out of the periodic refresh; the viewer keeps the stale grid until they reopen.
+     */
+    private static boolean holdsSlot(Inventory view, int rawSlot) {
+        return rawSlot >= 0 && rawSlot < view.getSize();
     }
 
     private void ensurePainted(Inventory view, int size) {

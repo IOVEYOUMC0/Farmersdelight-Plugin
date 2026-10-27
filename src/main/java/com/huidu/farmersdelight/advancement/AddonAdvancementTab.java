@@ -9,6 +9,7 @@ import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementFrameT
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.MultiTasksAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.TaskAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.database.TeamProgression;
+import com.fren_gor.ultimateAdvancementAPI.exceptions.UserNotLoadedException;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import org.bukkit.entity.Player;
@@ -224,8 +225,20 @@ public final class AddonAdvancementTab {
     }
 
     public void showTo(Player player) {
-        if (tab != null && tab.isInitialised() && player != null) {
+        if (tab == null || !tab.isInitialised() || player == null) {
+            return;
+        }
+        if (!AdvancementManager.isUserLoaded(plugin, player)) {
+            // UAA has not loaded this player's data yet (still joining, or a fake player/NPC). showTab would
+            // throw UserNotLoadedException; the loading-completed hook shows the tab once the data is there.
+            return;
+        }
+        try {
             tab.showTab(player);
+        } catch (UserNotLoadedException concurrentlyUnloaded) {
+            // The player quit, or UAA unloaded them, between the check and the call.
+        } catch (RuntimeException disposedOrRebuilding) {
+            // A disposed or rebuilding tab: the next resync re-sends it.
         }
     }
 

@@ -30,8 +30,6 @@ public final class ProtectionCompat {
         }
     }
 
-    private static volatile boolean antiGriefReady;
-
     private ProtectionCompat() {
     }
 
@@ -50,9 +48,13 @@ public final class ProtectionCompat {
     }
 
     public static void init(JavaPlugin plugin) {
-        // Non-WorldGuard land plugins are checked through CraftEngine's AntiGriefLib provider; WorldGuard
-        // keeps its own flag layer. The provider resolves on first use, once CraftEngine is enabled.
-        antiGriefReady = AntiGriefBridge.isActive();
+        // The provider resolves lazily on first use (CraftEngine enables after this plugin) and is retried
+        // through reset() on every CraftEngine reload, so no eager snapshot is taken here.
+    }
+
+    /** Allows a later CraftEngine reload to retry a previously failed AntiGriefLib provider. */
+    public static void reset() {
+        AntiGriefBridge.reset();
     }
 
     // Master-only overloads (no flag): still respect WorldGuard's master flag + all other land plugins.
@@ -101,7 +103,7 @@ public final class ProtectionCompat {
             return true;
         }
         return WorldGuardCompat.canBuild(player, location, flagName)
-                && (!antiGriefReady || AntiGriefBridge.canPlace(player, location));
+                && AntiGriefBridge.canPlace(player, location);
     }
 
     /** Checks a block break. WorldGuard exposes this through BUILD; AntiGriefLib has a distinct BREAK flag. */
@@ -122,7 +124,7 @@ public final class ProtectionCompat {
             return true;
         }
         return WorldGuardCompat.canBuild(player, location, flagName)
-                && (!antiGriefReady || AntiGriefBridge.canBreak(player, location));
+                && AntiGriefBridge.canBreak(player, location);
     }
 
     public static boolean canUse(Player player, Block block, Feature feature) {
@@ -142,6 +144,6 @@ public final class ProtectionCompat {
             return true;
         }
         return WorldGuardCompat.canUse(player, location, flagName)
-                && (!antiGriefReady || AntiGriefBridge.canInteract(player, location));
+                && AntiGriefBridge.canInteract(player, location);
     }
 }

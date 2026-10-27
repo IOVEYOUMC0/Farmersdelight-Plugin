@@ -113,6 +113,8 @@ public final class AddonAdvancementRegistry {
 
     // Re-shows every registered addon tab to all players currently online. Safe to call repeatedly; each
     // showTab re-pushes the advancement tree (a fresh tab instance re-sends even to already-shown players).
+    // Players whose UAA data is not loaded yet are skipped (a fake player/NPC never loads at all); the
+    // player-loading hook resumes them.
     public void resyncOnline() {
         var online = Bukkit.getOnlinePlayers();
         if (online.isEmpty()) {
@@ -120,8 +122,21 @@ public final class AddonAdvancementRegistry {
         }
         for (AddonAdvancementTab tab : tabs.values()) {
             for (Player player : online) {
+                if (!AdvancementManager.isUserLoaded(plugin, player)) {
+                    continue;
+                }
                 runForPlayer(player, () -> tab.resyncPlayer(player));
             }
+        }
+    }
+
+    /** Re-shows every registered addon tab to one player, once UAA reports their data as loaded. */
+    public void resyncPlayer(Player player) {
+        if (player == null || tabs.isEmpty()) {
+            return;
+        }
+        for (AddonAdvancementTab tab : tabs.values()) {
+            runForPlayer(player, () -> tab.resyncPlayer(player));
         }
     }
 
@@ -135,6 +150,9 @@ public final class AddonAdvancementRegistry {
         }
         for (AddonAdvancementTab tab : tabs.values()) {
             for (Player player : online) {
+                if (!AdvancementManager.isUserLoaded(plugin, player)) {
+                    continue;
+                }
                 runForPlayer(player, () -> tab.forceResend(player));
             }
         }

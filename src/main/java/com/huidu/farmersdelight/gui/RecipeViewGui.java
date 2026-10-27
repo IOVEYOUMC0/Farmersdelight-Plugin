@@ -1733,16 +1733,36 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
 
-        plugin.scheduler().runLaterAt(cookingPotLocation, () -> {
-            World world = cookingPotLocation.getWorld();
-            var blockEntity = world == null ? null : CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
+        // Opening an inventory is a write on the viewer, so the whole hand-off runs on the player's own
+        // entity scheduler. A player standing in the pot's region then reads the pot, re-checks access and
+        // opens the GUI on that region's thread; a player whose current region does not own the pot cannot
+        // keep a pot GUI open there anyway (its tick closes itself on a foreign region), so the recipe view
+        // is closed instead of opening a GUI that would immediately disappear.
+        plugin.scheduler().runLaterForEntity(player, () -> {
+            if (!player.isOnline() || closed) {
+                return;
+            }
+            World world;
+            try {
+                world = cookingPotLocation.getWorld();
+            } catch (RuntimeException unloaded) {
+                // Bukkit throws "World unloaded" once the location's weakly held world has been collected.
+                closeGui(player);
+                return;
+            }
+            if (world == null || !plugin.scheduler().isOwnedByCurrentRegion(cookingPotLocation)) {
+                closeGui(player);
+                return;
+            }
+
+            var blockEntity = CookingPotBlockBehavior.getBlockEntity(cookingPotLocation);
             var blockBehavior = blockEntity == null
                     ? null : CookingPotBlockBehavior.getBlockBehavior(cookingPotLocation);
 
             // Re-check permission + land protection before re-opening: this is a fresh GUI open just like a
             // direct interaction, and access may have changed since the pot was first opened.
             if (blockBehavior == null || !blockBehavior.canPlayerOpen(player, cookingPotLocation.getBlock())) {
-                closeGuiOnPlayerThread(player);
+                closeGui(player);
                 return;
             }
 

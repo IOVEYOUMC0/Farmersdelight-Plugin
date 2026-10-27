@@ -78,6 +78,10 @@ public final class EffectManager {
     // Unified state storage
 
     private static final Map<UUID, EnumMap<BuffKind, BuffState>> playerBuffs = new ConcurrentHashMap<>();
+    // Comfort healing accumulates real elapsed ticks instead of testing duration % heal-interval, so a
+    // configured interval that is not a multiple of the effect tick interval still heals (and odd
+    // durations cannot skip the modulo window forever).
+    private static final Map<UUID, Integer> comfortHealTicks = new ConcurrentHashMap<>();
 
     private static EnumMap<BuffKind, BuffState> ensurePlayer(UUID playerId) {
         return playerBuffs.computeIfAbsent(playerId, k -> {
@@ -208,6 +212,7 @@ public final class EffectManager {
     private static void removeBuff(Player player, BuffKind kind) {
         UUID playerId = player.getUniqueId();
         putBuff(playerId, kind, BuffState.EMPTY);
+        if (kind == BuffKind.COMFORT) comfortHealTicks.remove(playerId);
         if (player.isOnline()) {
             BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, kind.bossbarKey);
         }
@@ -239,13 +244,14 @@ public final class EffectManager {
             for (BuffKind kind : BuffKind.values()) {
                 BuffState state = buffs.get(kind);
                 if (!state.isActive()) continue;
-                if (kind == BuffKind.COMFORT) tickComfort(player, state.duration());
+                if (kind == BuffKind.COMFORT) tickComfort(player, interval);
                 else if (kind == BuffKind.NOURISHMENT) tickNourishment(player);
                 if (!player.isValid()) break;
                 int newDuration = state.duration() - interval;
                 buffs.put(kind, newDuration > 0
                     ? new BuffState(newDuration, state.initial(), state.level())
                     : BuffState.EMPTY);
+                if (kind == BuffKind.COMFORT && newDuration <= 0) comfortHealTicks.remove(playerId);
             }
             if (buffs.values().stream().noneMatch(BuffState::isActive)) {
                 EffectListener.untrackPlayer(playerId);
@@ -287,6 +293,7 @@ public final class EffectManager {
         if (player == null) return;
         UUID playerId = player.getUniqueId();
         playerBuffs.remove(playerId);
+        comfortHealTicks.remove(playerId);
         if (player.isOnline()) {
             for (BuffKind kind : BuffKind.values()) {
                 BuffBossbar.hide(FarmersDelightPlugin.getInstance(), player, kind.bossbarKey);
@@ -296,6 +303,7 @@ public final class EffectManager {
 
     public static void clearAll() {
         playerBuffs.clear();
+        comfortHealTicks.clear();
     }
 
     // PDC persistence
@@ -383,11 +391,19 @@ public final class EffectManager {
         }
     }
 
-    private static void tickComfort(Player player, int durationTicks) {
+    private static void tickComfort(Player player, int elapsedTicks) {
         if (player.isDead() || player.hasPotionEffect(PotionEffectType.REGENERATION)) return;
         if (player.getSaturation() > 0.0F) return;
         int healIntervalTicks = getComfortHealIntervalTicks();
-        if (healIntervalTicks <= 0 || durationTicks % healIntervalTicks != 0) return;
+        if (healIntervalTicks <= 0) return;
+
+        UUID playerId = player.getUniqueId();
+        int accumulated = comfortHealTicks.getOrDefault(playerId, 0) + Math.max(1, elapsedTicks);
+        if (accumulated < healIntervalTicks) {
+            comfortHealTicks.put(playerId, accumulated);
+            return;
+        }
+        comfortHealTicks.put(playerId, accumulated % healIntervalTicks);
 
         var maxHealthAttr = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealthAttr == null) return;

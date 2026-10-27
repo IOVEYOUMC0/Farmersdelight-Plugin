@@ -79,6 +79,17 @@ class GuiConfigLayoutTest {
         assertEquals(22, config.slotsOf("output")[0]);
     }
 
+    @Test
+    void aConfiguredRowCountIsClampedToWhatAnInventoryAccepts() {
+        // Bukkit.createInventory rejects anything outside 1-6 rows, and every GUI here builds its inventory
+        // straight from the configured row count.
+        assertEquals(3, GuiLayoutWarnings.clampedRows(3));
+        assertEquals(6, GuiLayoutWarnings.clampedRows(9));
+        assertEquals(6, GuiLayoutWarnings.clampedRows(7));
+        assertEquals(1, GuiLayoutWarnings.clampedRows(0));
+        assertEquals(1, GuiLayoutWarnings.clampedRows(-4));
+    }
+
     /** Three rows: nine ingredients, a background row, then an output cell under the background. */
     private static GuiConfig config() {
         return new GuiConfig("title", "", "", true, 3,

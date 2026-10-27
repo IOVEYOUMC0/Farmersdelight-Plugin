@@ -2,7 +2,8 @@ package com.huidu.farmersdelight.migration;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.migration.LegacyIdMigration;
-import com.huidu.farmersdelight.util.scheduler.RegionTasks;
+import com.huidu.farmersdelight.manager.PendingChunkScanQueue;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
@@ -14,6 +15,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -22,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class LegacyIdMigrationService {
 
+    private static final int DEFAULT_STARTUP_CHUNKS_PER_TICK = 16;
+
     private final FarmersDelightPlugin plugin;
     private final MigrationDispatch dispatch;
     private final AtomicInteger migratedStacks = new AtomicInteger();
@@ -29,6 +33,8 @@ public final class LegacyIdMigrationService {
     private volatile boolean hooksEnabled = true;
     private volatile boolean logSummary = true;
     private volatile int lastLoggedTotal;
+    /** The throttled sweep, so a disable cancels it instead of rewriting inventories into a stopped plugin. */
+    private volatile PluginTask startupSweepTask;
 
     public LegacyIdMigrationService(FarmersDelightPlugin plugin, MigrationDispatch dispatch) {
         this.plugin = plugin;
@@ -146,17 +152,35 @@ public final class LegacyIdMigrationService {
     /**
      * Walks the loaded chunks once and migrates the inventories of the block entities in them. Each chunk is
      * handed to its own region, and the chunk is re-checked inside the task, so nothing is read across
-     * regions and an unloaded chunk is skipped.
+     * regions and an unloaded chunk is skipped. The walk is spread over ticks at
+     * the configured performance.budgets.startup-chunk-loads-per-tick chunks per tick, because a mature server has
+     * thousands of loaded chunks and this sweep runs inside the start-up burst right after CraftEngine
+     * reports ready.
      */
     public void scheduleStartupSweep() {
         if (!hooksEnabled()) {
             return;
         }
+        PendingChunkScanQueue<PendingChunkScanQueue.ChunkTarget> pending = new PendingChunkScanQueue<>();
         for (World world : Bukkit.getWorlds()) {
+            UUID worldId = world.getUID();
             for (Chunk chunk : world.getLoadedChunks()) {
-                int chunkX = chunk.getX();
-                int chunkZ = chunk.getZ();
-                RegionTasks.runAtLoadedChunk(plugin.scheduler(), world, chunkX, chunkZ, () -> {
+                pending.add(worldId, chunk.getX(), chunk.getZ(),
+                        new PendingChunkScanQueue.ChunkTarget(world, chunk.getX(), chunk.getZ()));
+            }
+        }
+        if (pending.isEmpty()) {
+            logSummary();
+            return;
+        }
+        PluginTask previous = startupSweepTask;
+        if (previous != null) {
+            previous.cancel();
+        }
+        startupSweepTask = PendingChunkScanQueue.startDrainTask(plugin.scheduler(), pending,
+                Math.max(1, plugin.getConfigInt(DEFAULT_STARTUP_CHUNKS_PER_TICK,
+                        "performance.budgets.startup-chunk-loads-per-tick")),
+                (world, chunkX, chunkZ) -> {
                     for (BlockState state : world.getChunkAt(chunkX, chunkZ).getTileEntities(false)) {
                         if (state instanceof InventoryHolder holder) {
                             migrateBlockHolder(holder);
@@ -164,9 +188,16 @@ public final class LegacyIdMigrationService {
                     }
                     logSummary();
                 });
-            }
-        }
         logSummary();
+    }
+
+    /** Cancels a sweep still running from start-up; called when the plugin stops. */
+    public void shutdown() {
+        PluginTask task = startupSweepTask;
+        startupSweepTask = null;
+        if (task != null) {
+            task.cancel();
+        }
     }
 
     /** Logs one aggregated line; only when something changed since the previous line, so it cannot spam. */

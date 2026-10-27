@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
@@ -49,6 +50,9 @@ public final class HandheldCookingModels implements Listener {
     // handheld interaction resolves a recipe for the held ingredient before it ever asks for a model.
     private final Supplier<List<ItemStack>> cookingIngredients;
     private final AtomicBoolean clientModelFallbackWarned = new AtomicBoolean();
+    // One warning per unreadable external pack. A corrupt third-party zip must not abort this pass or
+    // repeat its stack trace on every cache reload.
+    private final Set<String> warnedPackFailures = ConcurrentHashMap.newKeySet();
     private volatile Set<String> available = Set.of();
 
     HandheldCookingModels(FarmersDelightPlugin plugin, Path folder, BooleanSupplier enabled,
@@ -128,15 +132,13 @@ public final class HandheldCookingModels implements Listener {
             HandheldCookingModelPack.addPresetModels(models, "item", AbstractPackManager.PRESET_MODERN_MODELS_ITEM);
             HandheldCookingModelPack.addPresetModels(models, "block", AbstractPackManager.PRESET_MODELS_BLOCK);
             for (var pack : BukkitCraftEngine.instance().packManager().loadedPacks()) {
-                for (Path root : pack.resourcePackFolders()) HandheldCookingModelPack.readAssets(root, items, models);
+                for (Path root : pack.resourcePackFolders()) readPackFolder(root, items, models);
             }
             for (Path root : event.cacheData().externalFolders()) {
-                if (!root.equals(folder)) HandheldCookingModelPack.readAssets(root, items, models);
+                if (!root.equals(folder)) readPackFolder(root, items, models);
             }
             for (Path zip : event.cacheData().externalZips()) {
-                try (var fs = FileSystems.newFileSystem(zip)) {
-                    HandheldCookingModelPack.readAssets(fs.getPath("/"), items, models);
-                }
+                readPackZip(zip, items, models);
             }
             var manager = BukkitItemManager.instance();
             manager.modelsToGenerate().forEach((key, value) -> models.putIfAbsent(key.asString(), value.get()));
@@ -182,6 +184,39 @@ public final class HandheldCookingModels implements Listener {
             event.registerExternalResourcePack(folder);
         } catch (IOException | RuntimeException e) {
             plugin.getLogger().log(Level.WARNING, I18n.formatConsole("skillet.models_failed", "error", e.getMessage()), e);
+        }
+    }
+
+    // Third-party packs are merged into CE's cache and may include a corrupt or half-written zip. Isolate
+    // every root so one bad pack only loses its own ingredient models instead of the whole generation pass.
+    private void readPackFolder(Path root, Map<String, JsonObject> items, Map<String, JsonObject> models) {
+        try {
+            HandheldCookingModelPack.readAssets(root, items, models);
+        } catch (IOException | RuntimeException e) {
+            warnPackFailure(root, e);
+        }
+    }
+
+    private void readPackZip(Path zip, Map<String, JsonObject> items, Map<String, JsonObject> models) {
+        try {
+            if (!Files.isRegularFile(zip) || Files.size(zip) == 0L) {
+                warnPackFailure(zip, new IOException("missing or empty zip"));
+                return;
+            }
+            try (var fs = FileSystems.newFileSystem(zip)) {
+                HandheldCookingModelPack.readAssets(fs.getPath("/"), items, models);
+            }
+        } catch (IOException | RuntimeException e) {
+            warnPackFailure(zip, e);
+        }
+    }
+
+    private void warnPackFailure(Path path, Exception failure) {
+        String key = path.toAbsolutePath().normalize().toString();
+        if (warnedPackFailures.add(key)) {
+            I18n.logWarning("skillet.models_pack_skipped",
+                    "file", String.valueOf(path.getFileName()),
+                    "error", String.valueOf(failure.getMessage()));
         }
     }
 

@@ -8,6 +8,8 @@ import com.fren_gor.ultimateAdvancementAPI.advancement.RootAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementFrameType;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.MultiTasksAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.TaskAdvancement;
+import com.fren_gor.ultimateAdvancementAPI.events.PlayerLoadingCompletedEvent;
+import com.fren_gor.ultimateAdvancementAPI.exceptions.UserNotLoadedException;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.Constants;
@@ -16,7 +18,12 @@ import com.huidu.farmersdelight.api.FarmersDelightApi;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -125,6 +132,13 @@ public class AdvancementManager {
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();
     private final Map<String, Map<String, TaskAdvancement>> multiTasks = new ConcurrentHashMap<>();
     private final Set<UUID> rootAwarded = ConcurrentHashMap.newKeySet();
+    // UAA loads a player's data asynchronously after join, so showTab/grant throw UserNotLoadedException until
+    // that finishes. A retry count per player bounds the wait: a fake player/NPC never goes through UAA's
+    // login path at all, so it is simply skipped after the limit instead of being retried forever.
+    private static final int SHOW_RETRY_LIMIT = 10;
+    private static final long SHOW_RETRY_DELAY_TICKS = 20L;
+    private final Map<UUID, Integer> showRetries = new ConcurrentHashMap<>();
+    private Listener loadingListener;
     private AdvancementTab tab;
     // IDs gated by the last completed tree construction. Writes occur during load/reload and later
     // constructions may read the set from another thread.
@@ -133,7 +147,6 @@ public class AdvancementManager {
     public AdvancementManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
     }
-
     public int getLoadedCount() {
         return byId.size();
     }
@@ -150,6 +163,8 @@ public class AdvancementManager {
             }
             tab = api.createAdvancementTab(TAB);
             buildTree();
+            ensureLoadingListener();
+            logApiState();
             I18n.logDetail("startup", "advancement.loaded_keys", "count", byId.size());
         } catch (Exception | LinkageError e) {
             // Discard the half-built (uninitialized) tab so it doesn't remain registered.
@@ -223,7 +238,14 @@ public class AdvancementManager {
             byId.put(spec.id(), built);
             children.add(built);
         }
-        tab.registerAdvancements(root, children, true);
+        if (AutomaticAdvancementLayout.isSupported()) {
+            // Patched API: the vanilla tidy-tree layout computes the positions.
+            tab.registerAdvancements(root, children, true);
+        } else {
+            // Stock UltimateAdvancementAPI has no layout overload. Registering through the plain overload keeps
+            // the tree visible and uses the coordinates declared in NODES instead of failing the whole tab.
+            tab.registerAdvancements(root, children.toArray(new BaseAdvancement[0]));
+        }
         // Recorded only once the tab is actually registered: a build that threw part-way must not become the
         // baseline, or the next successful build would compare against a tree that never existed and skip the
         // line announcing that an advancement came back.
@@ -326,15 +348,85 @@ public class AdvancementManager {
 
     public void showTo(Player player) {
         if (tab == null || !tab.isInitialised() || player == null) return;
-        if (FarmersDelightApi.get().isFolia()) {
-            player.getScheduler().run(plugin, task -> showToNow(player), null);
-        } else {
-            showToNow(player);
-        }
+        scheduleOnPlayer(player, () -> showToNow(player));
     }
 
     private void showToNow(Player player) {
-        if (tab != null && tab.isInitialised() && player.isOnline()) tab.showTab(player);
+        if (tab == null || !tab.isInitialised() || player == null || !player.isOnline()) return;
+        if (!isUserLoaded(plugin, player)) {
+            // The player's data has not reached UAA's cache yet: showTab would throw UserNotLoadedException.
+            // Retry a few times and then give up silently, which is what fake players/NPCs need, since they
+            // never go through UAA's login path and would otherwise throw on every attempt.
+            scheduleShowRetry(player);
+            return;
+        }
+        try {
+            tab.showTab(player);
+            showRetries.remove(player.getUniqueId());
+        } catch (UserNotLoadedException stillLoading) {
+            scheduleShowRetry(player);
+        } catch (RuntimeException failure) {
+            // A disposed or re-registering tab: report once in debug rather than failing the entity task.
+            if (plugin.isDebugEnabled()) {
+                I18n.logWarning("advancement.show_failed",
+                        "tab", TAB, "player", player.getName(), "error", String.valueOf(failure.getMessage()));
+            }
+        }
+    }
+
+    // The wrapper getInstance() returns is a thin view over the API singleton, but obtaining it allocates and
+    // re-checks the owning plugin's state on every call. Loaded-state checks run per player per resync and on
+    // each show retry, so the view is cached for the plugin instance that created it.
+    private static volatile UltimateAdvancementAPI cachedApi;
+    private static volatile FarmersDelightPlugin cachedApiOwner;
+
+    /** The UAAPI view for this plugin, or null when the API is not installed/enabled. */
+    static UltimateAdvancementAPI apiView(FarmersDelightPlugin plugin) {
+        if (plugin == null) {
+            return null;
+        }
+        UltimateAdvancementAPI cached = cachedApi;
+        if (cached != null && cachedApiOwner == plugin) {
+            return cached;
+        }
+        try {
+            UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
+            cachedApi = api;
+            cachedApiOwner = plugin;
+            return api;
+        } catch (RuntimeException | LinkageError unavailable) {
+            return null;
+        }
+    }
+
+    /** True once UAA has the player's team progression cached; false while joining or for a fake player. */
+    static boolean isUserLoaded(FarmersDelightPlugin plugin, Player player) {
+        if (plugin == null || player == null || !player.isOnline()) {
+            return false;
+        }
+        UltimateAdvancementAPI view = apiView(plugin);
+        return view != null && view.isLoaded(player);
+    }
+
+    private void scheduleShowRetry(Player player) {
+        UUID playerId = player.getUniqueId();
+        int attempt = showRetries.merge(playerId, 1, Integer::sum);
+        if (attempt > SHOW_RETRY_LIMIT) {
+            showRetries.remove(playerId);
+            return;
+        }
+        if (plugin.scheduler() == null) {
+            return;
+        }
+        plugin.scheduler().runLaterForEntity(player, () -> showToNow(player), SHOW_RETRY_DELAY_TICKS);
+    }
+
+    private void scheduleOnPlayer(Player player, Runnable action) {
+        if (FarmersDelightApi.get().isFolia()) {
+            player.getScheduler().run(plugin, task -> action.run(), null);
+        } else {
+            action.run();
+        }
     }
 
     public void resyncOnlinePlayers() {
@@ -342,7 +434,12 @@ public class AdvancementManager {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            Runnable resync = () -> {
+            // Skipped players get the tab through the loading-completed hook; iterating getOnlinePlayers()
+            // also yields fake players/NPCs, whose data UAA never loads.
+            if (!isUserLoaded(plugin, player)) {
+                continue;
+            }
+            scheduleOnPlayer(player, () -> {
                 try {
                     award(player, "root");
                     showToNow(player);
@@ -350,12 +447,7 @@ public class AdvancementManager {
                     plugin.getLogger().log(Level.WARNING,
                             "Failed to resync advancements for " + player.getName() + ':', e);
                 }
-            };
-            if (FarmersDelightApi.get().isFolia()) {
-                player.getScheduler().run(plugin, task -> resync.run(), null);
-            } else {
-                resync.run();
-            }
+            });
         }
     }
 
@@ -366,18 +458,18 @@ public class AdvancementManager {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            Runnable resend = () -> {
+            if (!isUserLoaded(plugin, player)) {
+                continue;
+            }
+            scheduleOnPlayer(player, () -> {
                 try {
                     tab.updateAdvancementsToTeam(player);
-                } catch (Exception ignored) {
-                    // data not loaded; UAA re-shows the tab once the player's data finishes loading
+                } catch (UserNotLoadedException ignored) {
+                    // The player left or their data was unloaded in between; the loading hook re-shows it.
+                } catch (RuntimeException ignored) {
+                    // A disposed tab: nothing left to resend.
                 }
-            };
-            if (FarmersDelightApi.get().isFolia()) {
-                player.getScheduler().run(plugin, task -> resend.run(), null);
-            } else {
-                resend.run();
-            }
+            });
         }
     }
 
@@ -428,6 +520,7 @@ public class AdvancementManager {
     public void forgetPlayer(UUID playerId) {
         if (playerId != null) {
             rootAwarded.remove(playerId);
+            showRetries.remove(playerId);
         }
     }
 
@@ -505,6 +598,7 @@ public class AdvancementManager {
     }
 
     public void dispose() {
+        removeLoadingListener();
         try {
             UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(plugin);
             if (api.isAdvancementTabRegistered(TAB)) {
@@ -514,7 +608,65 @@ public class AdvancementManager {
             // UAA already unloaded / not enabled -- nothing to dispose.
         }
         tab = null;
+        showRetries.clear();
         clearRegistries();
+    }
+
+    /**
+     * UAA loads a player's data asynchronously, so this event - not PlayerJoinEvent - is the first moment
+     * showTab and grant can run for them. Handlers are registered once per manager lifetime.
+     */
+    /**
+     * Reports the installed UltimateAdvancementAPI build and whether it carries the layout overload this
+     * plugin prefers. On a stock build the tree still registers, so this is a warning about the layout
+     * quality rather than a reason to stop.
+     */
+    private void logApiState() {
+        Plugin uaapi = Bukkit.getPluginManager().getPlugin("UltimateAdvancementAPI");
+        String version = uaapi == null ? "unknown" : uaapi.getDescription().getVersion();
+        boolean patched = AutomaticAdvancementLayout.isSupported();
+        I18n.logDetail("startup", "advancement.api_version",
+                "version", version,
+                "layout", patched ? "automatic" : "declared coordinates");
+        if (!patched) {
+            I18n.logWarning("advancement.layout_unsupported", "version", version);
+        }
+    }
+
+    private void ensureLoadingListener() {
+        if (loadingListener != null) {
+            return;
+        }
+        loadingListener = new PlayerLoadingListener();
+        Bukkit.getPluginManager().registerEvents(loadingListener, plugin);
+    }
+
+    private void removeLoadingListener() {
+        Listener listener = loadingListener;
+        loadingListener = null;
+        if (listener != null) {
+            HandlerList.unregisterAll(listener);
+        }
+    }
+
+    private final class PlayerLoadingListener implements Listener {
+
+        @EventHandler(priority = EventPriority.MONITOR)
+        public void onPlayerLoadingCompleted(PlayerLoadingCompletedEvent event) {
+            Player player = event.getPlayer();
+            if (player == null || !player.isOnline()) {
+                return;
+            }
+            showRetries.remove(player.getUniqueId());
+            scheduleOnPlayer(player, () -> {
+                award(player, ROOT_ID);
+                showToNow(player);
+                AddonAdvancementRegistry registry = plugin.getAddonAdvancementRegistry();
+                if (registry != null) {
+                    registry.resyncPlayer(player);
+                }
+            });
+        }
     }
 
     public void reload() {

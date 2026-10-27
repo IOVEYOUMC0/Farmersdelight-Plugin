@@ -35,7 +35,7 @@ Expanded Delight 仍在移植，不属于已发布附属。
 
 - Paper 或 Folia 1.21.5 及以上
 - Minecraft 1.21.5–1.21.11 使用 Java 21；Minecraft 26.1+ 使用 Java 25（插件主线字节码目标为 21）
-- CraftEngine 26.8.2 及以上（用 26.9.1 编译；26.8.2 / 26.9 / 26.9.1 已实机核对）
+- CraftEngine 26.8.2 及以上（用 26.9.1 编译；26.8.2 / 26.9 / 26.9.1 已做符号核对，其中 26.9.1 有 Paper 1.21.5 启动记录；其余组合仍待实机验证）
 
 先安装 CraftEngine，再将 FarmersDelight 放入 `plugins/`。修改插件配置后使用 `/fd reload`，修改 CraftEngine 资源后使用 `/ce reload`。
 

@@ -59,19 +59,15 @@ public final class BasketVacuumController extends BlockEntityController {
 
     private void vacuum(BlockPos pos, ImmutableBlockState state) {
         this.transferCooldown--;
-        if (this.transferCooldown > 0) {
-            return;
-        }
-        this.transferCooldown = 0;
 
         World world = CustomBlockUtils.getBukkitWorld(this.blockEntity);
         if (world == null) {
+            this.transferCooldown = 0;
             return;
         }
 
-        // Pause collection while the basket receives a redstone signal.
-        // Check periodically when unpowered and every tick while powered,
-        // so collection resumes promptly without continuous idle neighbor scans.
+        // Poll on a fixed cadence even while the transfer cooldown is running, otherwise a long cooldown
+        // delays the redstone check and the "~1/s" comment becomes ~220 ticks for the default setup.
         if (this.poweredByRedstone || ++this.redstonePollTicks >= REDSTONE_POLL_INTERVAL) {
             this.redstonePollTicks = 0;
             this.poweredByRedstone = world.getBlockAt(pos.x(), pos.y(), pos.z()).isBlockIndirectlyPowered();
@@ -80,6 +76,10 @@ public final class BasketVacuumController extends BlockEntityController {
             this.transferCooldown = NO_OP_COOLDOWN;
             return;
         }
+        if (this.transferCooldown > 0) {
+            return;
+        }
+        this.transferCooldown = 0;
 
         Inventory inventory = storageInventory();
         if (inventory == null) {

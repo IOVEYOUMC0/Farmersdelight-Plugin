@@ -27,7 +27,7 @@ class StaticServiceLocatorBudgetTest {
      * static behavior factories, which run before any instance exists) account for most of what remains; the
      * api package resolves through api.PluginAccess instead.
      */
-    private static final int MAX_STATIC_LOOKUPS = 52;
+    private static final int MAX_STATIC_LOOKUPS = 50;
 
     @Test
     void staticServiceLookupsDoNotGrow() throws IOException {
