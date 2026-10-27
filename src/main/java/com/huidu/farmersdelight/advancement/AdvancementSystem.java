@@ -49,15 +49,9 @@ public final class AdvancementSystem {
     /** Whether the advancement system may run, reporting the one cause worth a log line. */
     public boolean usable() {
         AdvancementAvailability availability = FarmersDelightAdvancements.availability();
-        if (availability == AdvancementAvailability.AVAILABLE) {
-            return true;
-        }
-        if (availability == AdvancementAvailability.API_PATCH_MISSING) {
-            // Registering a tab needs the layout overload, so an unpatched UltimateAdvancementAPI would only
-            // throw NoSuchMethodError and silently drop every tree. Say so and run without them.
-            I18n.logSevere("advancement.layout_unsupported");
-        }
-        return false;
+        // API_PATCH_MISSING is no longer returned: the manager falls back to this plugin's declared
+        // coordinates on a stock UltimateAdvancementAPI, so only a missing or disabled API stops the system.
+        return availability == AdvancementAvailability.AVAILABLE;
     }
 
     /**

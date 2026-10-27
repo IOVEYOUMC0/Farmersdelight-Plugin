@@ -101,7 +101,10 @@ dependencies {
     // requires of every plugin that bundles it.
     implementation("org.bstats:bstats-bukkit:3.1.0")
     // UltimateAdvancementAPI: separate server plugin; vendored only for offline compile against its API.
-    compileOnly(files("libs/UltimateAdvancementAPI-Plugin-2.8.0-folia.jar"))
+    // The file name is deliberately version-neutral: the jar is the local fork's build (its plugin.yml reports
+    // the upstream version it backports, plus Folia support and the automatic advancement-layout overload),
+    // and libs/README.md records the exact version, sha256 and rebuild steps.
+    compileOnly(files("libs/UltimateAdvancementAPI-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.5-R0.1-SNAPSHOT")
     if (ceJar.isPresent) {
         testImplementation(files(ceJar.get()))

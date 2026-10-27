@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -382,7 +383,10 @@ public final class ItemUtils {
         return parseStoredItem(tag, -1);
     }
 
-    /** Same as {@link #parseStoredItem(net.momirealms.craftengine.libraries.nbt.Tag)}, but retries with the version recorded in the saved data. */
+    // A failed read drops the slot; report it once instead of silently losing the item on every load.
+    private static final AtomicBoolean STORED_ITEM_FAILURE_REPORTED = new AtomicBoolean();
+
+    /** Same as parseStoredItem(Tag), but retries with the version recorded in the saved data. */
     public static ItemStack parseStoredItem(net.momirealms.craftengine.libraries.nbt.Tag tag, int storedVersion) {
         if (tag == null) {
             return null;
@@ -407,7 +411,10 @@ public final class ItemUtils {
         }
         try {
             return ItemStackUtils.parseBukkitItem(tag, Config.itemDataFixerUpperFallbackVersion());
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException failure) {
+            if (STORED_ITEM_FAILURE_REPORTED.compareAndSet(false, true)) {
+                I18n.logWarning("stored_item_unreadable", "error", String.valueOf(failure.getMessage()));
+            }
             return null;
         }
     }

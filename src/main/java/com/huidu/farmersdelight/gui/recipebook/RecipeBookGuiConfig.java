@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.gui.recipebook;
 
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.gui.GuiConfig;
+import com.huidu.farmersdelight.gui.GuiLayoutWarnings;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.Inventory;
@@ -131,7 +132,9 @@ public final class RecipeBookGuiConfig {
                 return fallback;
             }
             String title = ConfigSectionReader.optionalString(section, "title", fallback.title);
-            int rows = ConfigSectionReader.optionalInt(section, "rows", fallback.rows);
+            int rows = GuiLayoutWarnings.clampRows(
+                    ConfigSectionReader.optionalInt(section, "rows", fallback.rows),
+                    section.getCurrentPath(), "recipe-book-gui");
             List<String> layout = ConfigSectionReader.optionalStringList(section, "layout");
             if (layout.isEmpty()) {
                 layout = fallback.layout;

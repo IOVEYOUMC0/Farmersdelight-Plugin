@@ -30,6 +30,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.Color;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay.ItemDisplayTransform;
 import org.bukkit.entity.Player;
 import org.bukkit.configuration.ConfigurationSection;
@@ -910,6 +911,40 @@ public final class FarmersDelightApi {
             return;
         }
         plugin.scheduler().runLaterAt(location, task, delayTicks);
+    }
+
+    /**
+     * Runs the task on the entity's owning scheduler (its region on Folia, the main thread otherwise).
+     * Use this for anything that reads or writes a player's inventory, position or client state: a bare
+     * Bukkit scheduler call is not valid on Folia and throws from the caller's region thread.
+     */
+    public void runForEntity(Entity entity, Runnable task) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin == null || entity == null || task == null) {
+            return;
+        }
+        plugin.scheduler().runForEntity(entity, task);
+    }
+
+    /** Like runForEntity, delayed by ticks on the same scheduler. */
+    public void runLaterForEntity(Entity entity, Runnable task, long delayTicks) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin == null || entity == null || task == null) {
+            return;
+        }
+        plugin.scheduler().runLaterForEntity(entity, task, delayTicks);
+    }
+
+    /**
+     * Runs the task once on the global scheduler (the global region on Folia, the main thread otherwise).
+     * This is for global state only; world, block and entity access belongs to runAtLocation/runForEntity.
+     */
+    public void runLater(Runnable task, long delayTicks) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin == null || task == null) {
+            return;
+        }
+        plugin.scheduler().runLater(task, delayTicks);
     }
 
     public ApiTask runRepeating(Runnable task, long delayTicks, long periodTicks) {

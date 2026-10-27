@@ -96,11 +96,14 @@ class ContainerGuiBaselineTest {
     }
 
     private static final class View {
+        /** The one-row layout this fixture serves; the kernel asks the view for its size when it paints. */
+        private static final int SIZE = 9;
         private ItemStack item;
         private final Inventory inventory = (Inventory) Proxy.newProxyInstance(Inventory.class.getClassLoader(),
                 new Class<?>[]{Inventory.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "getItem" -> item;
                     case "setItem" -> { item = (ItemStack) args[1]; yield null; }
+                    case "getSize" -> SIZE;
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
                     default -> throw new AssertionError(method.getName());

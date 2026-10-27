@@ -19,7 +19,12 @@ public enum AdvancementAvailability {
     /** UltimateAdvancementAPI is missing or disabled. */
     API_NOT_INSTALLED,
 
-    /** UltimateAdvancementAPI is installed but lacks the advancement layout this plugin registers through. */
+    /**
+     * UltimateAdvancementAPI is installed but lacks the advancement layout this plugin registers through.
+     * No longer reported: an unpatched API still gets the tree registered with this plugin's declared
+     * coordinates, so the system counts as available. The constant stays so addons compiled against it
+     * keep linking, and so a future hard requirement can report it again.
+     */
     API_PATCH_MISSING;
 
     /**

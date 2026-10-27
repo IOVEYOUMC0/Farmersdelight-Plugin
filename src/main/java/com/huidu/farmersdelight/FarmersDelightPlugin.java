@@ -19,10 +19,8 @@ import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.listener.BlockPlaceListener;
-import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
 import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
-import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
 import com.huidu.farmersdelight.command.ReloadTiming;
@@ -105,7 +103,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
-import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
@@ -135,7 +132,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private static volatile FarmersDelightPlugin instance;
     private static volatile boolean enabled = false;
     
-    private volatile boolean startupSyncCompleted = false;
     private CraftEngineReadinessCoordinator craftEngineReadinessCoordinator;
     private DatapackCoordinator datapackCoordinator;
     // CraftEngine hands pack sections over once per pack load; null when the section ids were taken by
@@ -363,13 +359,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             craftEngineReadinessCoordinator.loadRecipesWhenReady("plugin.loading_recipes");
         }
 
-        // If CraftEngine is disabled while the server keeps running, FD cannot function; disable ourselves
-        // cleanly instead of throwing from every CraftEngine-bound task. See CraftEngineWatchdogListener.
-        getServer().getPluginManager().registerEvents(new CraftEngineWatchdogListener(this), this);
-
+        // The watchdog and recipe-discovery listeners are registered once, in the ListenerRegistry order
+        // that ListenerRegistrationOrderTest pins. They were previously also registered here, which made
+        // every CE-reload recipe restore and every join/quit/pickup discovery pass run twice.
         recipeDiscoveryManager = new RecipeDiscoveryManager(this);
         recipeDiscoveryManager.load();
-        getServer().getPluginManager().registerEvents(new RecipeDiscoveryListener(this), this);
 
         specialRecipeRegistry = new SpecialRecipeRegistry();
         SpecialRecipeLoader.load(this, specialRecipeRegistry);
@@ -415,8 +409,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // now when CraftEngine is already up, and otherwise retries until its content exists — so the
         // warm-up does not depend on CraftEngine's reload event arriving.
         craftEngineReadinessCoordinator.startupReadinessWork();
-
-        scheduler.run(() -> startupSyncCompleted = true);
 
         registerMainCommand();
 
@@ -698,18 +690,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         WorldDataPersistence.saveWorldBlockData(this, world);
     }
 
-    @EventHandler
-    public void onWorldLoad(WorldLoadEvent event) {
-        if (!startupSyncCompleted) {
-            return;
-        }
-        World primaryWorld = getPrimaryWorld();
-        if (primaryWorld == null || !primaryWorld.getUID().equals(event.getWorld().getUID())) {
-            return;
-        }
-        // Advancements are sent via datapack; no per-world datapack sync.
-    }
-
     public void queueDatapackReload(String reason) {
         if (datapackCoordinator != null) {
             datapackCoordinator.queueReload(reason);
@@ -729,6 +709,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // The reload can also have removed every custom item, so the remembered "custom items exist" answer
         // has to be re-asked; a reload that loads items needs no reset because only positives are remembered.
         CustomItemPresence.invalidate();
+        // A transient AntiGriefLib resolution failure before/during the reload must not disable land checks
+        // for the rest of the server run.
+        ProtectionCompat.reset();
         if (craftEngineReadinessCoordinator != null) {
             craftEngineReadinessCoordinator.queueReloadProcessing();
         }

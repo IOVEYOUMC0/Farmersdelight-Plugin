@@ -18,7 +18,6 @@ AGPL 第 13 条还要求：**如果你修改后的版本通过网络对外提供
 | 内容 | 来源 | 作者 | 许可证 |
 |---|---|---|---|
 | 贴图、配方、数值、游戏行为 | Farmer's Delight（Minecraft 模组） | vectorwing | MIT |
-| AntiGriefLib（shade 进 jar，重定位到 `com.huidu.farmersdelight.libs`） | AntiGriefLib | XiaoMoMi | MIT |
 | bStats（shade 进 jar，重定位到 `com.huidu.farmersdelight.libs`） | bStats | Bastian Oppermann | MIT |
 
 MIT 与 AGPL-3.0 兼容，第三方内容的 MIT 声明随 jar 分发，完整文本见
@@ -29,6 +28,7 @@ MIT 与 AGPL-3.0 兼容，第三方内容的 MIT 声明随 jar 分发，完整�
 以下依赖不打进 jar，只在运行时调用，因此不随本仓库分发其授权文本：
 
 - CraftEngine（GPL-3.0），内容平台与配方数据来源
+- AntiGriefLib（MIT，Copyright (c) 2024 XiaoMoMi），由 CraftEngine 的 `antiGriefProvider()` 在运行时提供，不随本插件分发
 - UltimateAdvancementAPI（LGPL-3.0-or-later），成就系统；本仓库带了一份 fork，见 `libs/` 与
   [UltimateAdvancementAPI](https://github.com/IOVEYOUMC0/UltimateAdvancementAPI)。
   该 fork 的 `LICENSE` 是 GPL-3.0 全文、`COPYING.LESSER` 是 LGPL 附加许可，`LGPL` 是同文短名文件。

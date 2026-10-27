@@ -244,7 +244,9 @@ public class RecipeViewGuiConfig {
             }
 
             String title = ConfigSectionReader.optionalString(section, "title", "GUI");
-            int rows = ConfigSectionReader.optionalInt(section, "rows", 3);
+            int rows = GuiLayoutWarnings.clampRows(
+                    ConfigSectionReader.optionalInt(section, "rows", 3),
+                    section.getCurrentPath(), "recipe-view-gui");
             List<String> layout = ConfigSectionReader.optionalStringList(section, "layout");
 
             Map<Character, String> legend = new HashMap<>();

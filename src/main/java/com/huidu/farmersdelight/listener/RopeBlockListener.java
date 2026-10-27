@@ -5,9 +5,10 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.RopeBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.RopeGateWallBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.manager.PendingChunkScanQueue;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
-import com.huidu.farmersdelight.util.scheduler.RegionTasks;
+import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
@@ -54,6 +55,9 @@ public class RopeBlockListener implements Listener {
     private record WallEdge(Cell cell, BlockFace side) {}
     private final Map<WallEdge, Boolean> pendingWallConnections = new ConcurrentHashMap<>();
     private volatile boolean stopped;
+    /** The throttled start-up index pass, so a disable cancels it instead of scanning into a stopped plugin. */
+    private volatile PluginTask startupIndexTask;
+    private static final int DEFAULT_STARTUP_CHUNKS_PER_TICK = 16;
     // Tracked rope positions, bucketed by chunk. Maintained by CustomBlockPlace/Break, rebuilt per chunk on
     // ChunkLoad and drained on chunk/world unload. The set short-circuits scheduleRopeRefreshIfNearby so a place
     // or break with no rope nearby skips the CE hasBehavior queries. Coverage is not authoritative: a rope
@@ -112,6 +116,11 @@ public class RopeBlockListener implements Listener {
             active = null;
         }
         stopped = true;
+        PluginTask task = startupIndexTask;
+        startupIndexTask = null;
+        if (task != null) {
+            task.cancel();
+        }
         pendingRopeRefreshes.clear();
         pendingWallConnections.clear();
         placedRopes.clear();
@@ -341,16 +350,32 @@ public class RopeBlockListener implements Listener {
 
     // Chunks that were already loaded when this listener registered never fire ChunkLoadEvent, so the
     // ropes in them (typically the spawn area, which often never unloads) would stay outside the index
-    // for the lifetime of the server. Each chunk is indexed on its own region.
+    // for the lifetime of the server. Each chunk is indexed on its own region, a bounded batch per tick:
+    // on a mature server this list is thousands of chunks, and dispatching them all inside one tick would
+    // hand every region scheduler a burst at exactly the moment CraftEngine just became ready.
     public void indexRopesInLoadedChunks() {
+        if (stopped) {
+            return;
+        }
+        PendingChunkScanQueue<PendingChunkScanQueue.ChunkTarget> pending = new PendingChunkScanQueue<>();
         for (World world : plugin.getServer().getWorlds()) {
+            UUID worldId = world.getUID();
             for (Chunk chunk : world.getLoadedChunks()) {
-                int chunkX = chunk.getX();
-                int chunkZ = chunk.getZ();
-                RegionTasks.runAtLoadedChunk(plugin.scheduler(), world, chunkX, chunkZ,
-                        () -> indexRopesInChunk(world, chunkX, chunkZ));
+                pending.add(worldId, chunk.getX(), chunk.getZ(),
+                        new PendingChunkScanQueue.ChunkTarget(world, chunk.getX(), chunk.getZ()));
             }
         }
+        if (pending.isEmpty()) {
+            return;
+        }
+        PluginTask previous = startupIndexTask;
+        if (previous != null) {
+            previous.cancel();
+        }
+        startupIndexTask = PendingChunkScanQueue.startDrainTask(plugin.scheduler(), pending,
+                Math.max(1, plugin.getConfigInt(DEFAULT_STARTUP_CHUNKS_PER_TICK,
+                        "performance.budgets.startup-chunk-loads-per-tick")),
+                this::indexRopesInChunk);
     }
 
     @SuppressWarnings("UnstableApiUsage")

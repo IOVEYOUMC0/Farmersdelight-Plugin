@@ -33,10 +33,13 @@ Bundled libraries
 
 This jar also contains, relocated under com.huidu.farmersdelight.libs:
 
-AntiGriefLib -- MIT License -- Copyright (c) 2024 XiaoMoMi
-bStats       -- MIT License -- Copyright (c) Bastian Oppermann
+bStats -- MIT License -- Copyright (c) Bastian Oppermann
 
-Both are distributed under the MIT terms reproduced above.
+bStats is distributed under the MIT terms reproduced above.
+
+AntiGriefLib is not bundled with this plugin: land-claim checks run through
+CraftEngine's own antiGriefProvider(), so its MIT notice belongs to the
+CraftEngine distribution.
 
 --------------------------------------------------------------------------------
 Plugin licence

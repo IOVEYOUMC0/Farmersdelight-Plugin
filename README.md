@@ -35,7 +35,7 @@ Expanded Delight is still being ported and is not part of the released addon set
 
 - Paper or Folia 1.21.5 or newer
 - Java 21 for Minecraft 1.21.5–1.21.11; Java 25 for Minecraft 26.1+ (the plugin bytecode targets Java 21)
-- CraftEngine 26.8.2 or newer (compiled against 26.9.1; 26.8.2, 26.9 and 26.9.1 verified on a live server)
+- CraftEngine 26.8.2 or newer (compiled against 26.9.1; 26.8.2, 26.9 and 26.9.1 have their referenced symbols checked, 26.9.1 has a Paper 1.21.5 startup record; other combinations still need live verification)
 
 Install CraftEngine first, then place the FarmersDelight jar in `plugins/`. Use `/fd reload` for plugin configuration and `/ce reload` after changing CraftEngine resources.
 

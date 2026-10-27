@@ -124,7 +124,8 @@ public class GuiConfig implements GuiLayout {
         String titleLayoutOffset = ConfigSectionReader.optionalString(section, "title-layout.craftengine.offset", "");
         String titleLayoutIcon = ConfigSectionReader.optionalString(section, "title-layout.craftengine.icon", "");
         boolean fillersEnabled = ConfigSectionReader.optionalBoolean(section, "fillers-enabled", true);
-        int rows = ConfigSectionReader.optionalInt(section, "rows", 3);
+        int rows = GuiLayoutWarnings.clampRows(
+                ConfigSectionReader.optionalInt(section, "rows", 3), section.getCurrentPath(), "cooking-pot-gui");
         List<String> layout = ConfigSectionReader.optionalStringList(section, "layout");
 
         Map<Character, String> legend = new HashMap<>();

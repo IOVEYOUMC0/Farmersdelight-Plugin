@@ -66,6 +66,14 @@ public final class RecipeDiscoveryManager {
     // leaves the file stale, and `unlocked` then holds the only copy of everything discovered since the last
     // successful one, so dropping the entry at quit time would throw those unlocks away for good.
     private final Set<UUID> pendingEvictions = ConcurrentHashMap.newKeySet();
+    // Serializes the disk-write half of save() only. The monitor that guards the unlock table must never be
+    // held across file I/O: region threads call isUnlocked/unlock/ensureLoaded while a flush is running.
+    private final Object writeLock = new Object();
+    // Flush ordering. Snapshots are taken under the monitor, writes happen outside it, so two flushes can
+    // overlap; a flush that captured an older view must not overwrite the file (or diskSnapshot) after a
+    // newer flush already committed, even when it loses the writeLock race.
+    private long saveSequence;      // guarded by this
+    private long writtenSequence;   // guarded by this (read/updated while holding writeLock for ordering)
 
     public RecipeDiscoveryManager(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -631,42 +639,76 @@ public final class RecipeDiscoveryManager {
         }
     }
 
-    public synchronized void save() {
-        if (!dirty) return;
-        if (diskSnapshot == null) {
-            requestDiskSnapshot();
-            return;
-        }
-        // Clear dirty before snapshotting so a concurrent unlock re-marks it and is caught by the next flush.
-        dirty = false;
-        File file = dataFile();
-        YamlConfiguration yaml = new YamlConfiguration();
-        Map<UUID, Set<String>> saved = new HashMap<>(diskSnapshot);
-        saved.forEach((id, keys) -> yaml.set(id.toString(), new ArrayList<>(keys)));
-        for (Map.Entry<UUID, Set<String>> entry : unlocked.entrySet()) {
-            Set<String> keys = Set.copyOf(entry.getValue());
-            saved.put(entry.getKey(), keys);
-            // An in-memory player with nothing unlocked is an explicit "everything locked" state, so clear
-            // the stored key rather than leaving a stale list behind.
-            yaml.set(entry.getKey().toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
-        }
-        try {
-            ConfigFileUpdater.writeStringAtomically(file.toPath(), yaml.saveToString(), false);
-        } catch (IOException e) {
-            dirty = true; // failed write: keep state dirty so the next flush retries
-            I18n.logWarning("recipe-discovery.save_failed", "error", String.valueOf(e.getMessage()));
-            return;
-        }
-        diskSnapshot = Map.copyOf(saved);
-        // The file carries everyone now, so the evictions that waited for a successful write can run. Only
-        // when nothing was unlocked while the write ran: that newer state lives in `unlocked` alone, and
-        // dropping it here would lose it exactly the way this bookkeeping exists to prevent.
-        if (!dirty && !pendingEvictions.isEmpty()) {
-            for (UUID id : pendingEvictions) {
-                unlocked.remove(id);
-                lifecycleVersions.remove(id);
+    /**
+     * Writes the unlock table to disk. The snapshot and YAML are built under the monitor that guards the
+     * table, the file is written outside it, and the result is committed under a short lock afterwards, so
+     * region threads are never blocked by a file write. Overlapping flushes are ordered by
+     * the save/written sequence numbers, so a stale snapshot can never overwrite a newer one.
+     */
+    public void save() {
+        File file;
+        String yaml;
+        Map<UUID, Set<String>> saved;
+        long sequence;
+        synchronized (this) {
+            if (!dirty) return;
+            if (diskSnapshot == null) {
+                requestDiskSnapshot();
+                return;
             }
-            pendingEvictions.clear();
+            // Clear dirty before snapshotting so a concurrent unlock re-marks it and is caught by the next flush.
+            dirty = false;
+            file = dataFile();
+            YamlConfiguration configuration = new YamlConfiguration();
+            saved = new HashMap<>(diskSnapshot);
+            saved.forEach((id, keys) -> configuration.set(id.toString(), new ArrayList<>(keys)));
+            for (Map.Entry<UUID, Set<String>> entry : unlocked.entrySet()) {
+                Set<String> keys = Set.copyOf(entry.getValue());
+                saved.put(entry.getKey(), keys);
+                // An in-memory player with nothing unlocked is an explicit "everything locked" state, so clear
+                // the stored key rather than leaving a stale list behind.
+                configuration.set(entry.getKey().toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
+            }
+            yaml = configuration.saveToString();
+            sequence = ++saveSequence;
         }
+
+        // File I/O happens off the monitor: isUnlocked/unlock/ensureLoaded on region threads keep running.
+        synchronized (writeLock) {
+            synchronized (this) {
+                // A later flush already committed a newer view, and that view is a superset of this snapshot.
+                if (!isNewerSnapshot(sequence, writtenSequence)) {
+                    return;
+                }
+            }
+            try {
+                ConfigFileUpdater.writeStringAtomically(file.toPath(), yaml, false);
+            } catch (IOException e) {
+                // Failed write: keep state dirty so the next flush retries. The file still holds the last
+                // successful flush, which is exactly why `unlocked` must keep its entries (pendingEvictions).
+                synchronized (this) { dirty = true; }
+                I18n.logWarning("recipe-discovery.save_failed", "error", String.valueOf(e.getMessage()));
+                return;
+            }
+            synchronized (this) {
+                writtenSequence = sequence;
+                diskSnapshot = Map.copyOf(saved);
+                // The file carries everyone now, so the evictions that waited for a successful write can run. Only
+                // when nothing was unlocked while the write ran: that newer state lives in `unlocked` alone, and
+                // dropping it here would lose it exactly the way this bookkeeping exists to prevent.
+                if (!dirty && !pendingEvictions.isEmpty()) {
+                    for (UUID id : pendingEvictions) {
+                        unlocked.remove(id);
+                        lifecycleVersions.remove(id);
+                    }
+                    pendingEvictions.clear();
+                }
+            }
+        }
+    }
+
+    /** Ordering rule between overlapping flushes: a snapshot may only be committed if no newer one did. */
+    static boolean isNewerSnapshot(long sequence, long writtenSequence) {
+        return sequence > writtenSequence;
     }
 }

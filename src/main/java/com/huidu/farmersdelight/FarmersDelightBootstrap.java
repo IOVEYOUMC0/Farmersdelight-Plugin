@@ -28,7 +28,12 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
             try {
                 prepare(context.getDataDirectory(), ServerBuildInfo.buildInfo().minecraftVersionId(), event.registrar());
             } catch (Exception failure) {
-                throw new IllegalStateException("Could not prepare FarmersDelight registry data", failure);
+                // Registry data is prepared before the plugin enables, so throwing here prevents the whole
+                // server from starting. Report the exact failure and let the server boot; onEnable validates
+                // the same files again and disables only this plugin if they are still unusable.
+                System.getLogger(FarmersDelightBootstrap.class.getName()).log(System.Logger.Level.ERROR,
+                        "Could not prepare FarmersDelight registry data; the server will start without "
+                                + "the managed datapacks: " + failure.getMessage(), failure);
             }
         });
     }

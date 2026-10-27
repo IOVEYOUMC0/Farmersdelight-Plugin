@@ -17,10 +17,10 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 
 public class CuttingBoardBlockEntity {
@@ -32,7 +32,9 @@ public class CuttingBoardBlockEntity {
     private volatile World world;
     private ItemStack storedItem;
     private boolean itemCarved;
-    private final List<Integer> displayEntityIds = new ArrayList<>();
+    // /fd cleanup collects these ids from the global thread while the owning region thread updates the
+    // display; a copy-on-write list keeps that cross-thread read from throwing ConcurrentModificationException.
+    private final List<Integer> displayEntityIds = new CopyOnWriteArrayList<>();
     private ItemStack displayedBaseItem;
     private boolean displayedCarved;
     private BlockFace displayedFacing;

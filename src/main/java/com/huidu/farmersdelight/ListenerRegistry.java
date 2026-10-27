@@ -442,6 +442,10 @@ final class ListenerRegistry {
         if (chunkLoadListener != null) {
             chunkLoadListener.shutdown();
         }
+        // A start-up sweep still draining chunks must not rewrite inventories while the plugin is stopping.
+        if (legacyIdMigrationHooks != null && legacyIdMigrationHooks.service() != null) {
+            legacyIdMigrationHooks.service().shutdown();
+        }
         strawDropListener = null;
         foodEatListener = null;
         backstabListener = null;

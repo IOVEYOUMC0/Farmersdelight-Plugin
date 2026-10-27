@@ -6,7 +6,6 @@ import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AddonAdvancementTab;
 import com.huidu.farmersdelight.advancement.AdvancementDef;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
-import com.huidu.farmersdelight.advancement.AutomaticAdvancementLayout;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -30,9 +29,8 @@ public final class FarmersDelightAdvancements {
         if (!Bukkit.getPluginManager().isPluginEnabled("UltimateAdvancementAPI")) {
             return AdvancementAvailability.API_NOT_INSTALLED;
         }
-        if (!AutomaticAdvancementLayout.isSupported()) {
-            return AdvancementAvailability.API_PATCH_MISSING;
-        }
+        // A stock UltimateAdvancementAPI without the layout overload still works: the tree is registered with
+        // the coordinates declared in this plugin (advancement.layout_unsupported reports the fallback once).
         return AdvancementAvailability.AVAILABLE;
     }
 
