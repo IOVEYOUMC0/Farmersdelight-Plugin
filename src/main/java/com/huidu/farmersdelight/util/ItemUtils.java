@@ -20,12 +20,15 @@ import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.core.plugin.CraftEngine;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
+import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
-import net.momirealms.craftengine.libraries.nbt.CompoundTag;
+import net.momirealms.craftengine.core.plugin.config.Config;
 import net.momirealms.craftengine.core.util.Key;
 import net.momirealms.craftengine.core.util.UniqueKey;
+import net.momirealms.craftengine.core.util.VersionHelper;
+import net.momirealms.craftengine.libraries.nbt.CompoundTag;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -367,6 +370,46 @@ public final class ItemUtils {
 
     public static CompoundTag saveBukkitItemAsTag(ItemStack item) {
         return PerformanceProbe.item(item);
+    }
+
+    /**
+     * Parses an item tag stored in block-entity data. CraftEngine writes tags with the running server's codec,
+     * so the tag is already current; running the configured fallback version over it makes the vanilla item
+     * data fixer treat text components as legacy JSON and drops custom-named items. The stored version and the
+     * configured fallback are only tried when the current-version read yields nothing.
+     */
+    public static ItemStack parseStoredItem(net.momirealms.craftengine.libraries.nbt.Tag tag) {
+        return parseStoredItem(tag, -1);
+    }
+
+    /** Same as {@link #parseStoredItem(net.momirealms.craftengine.libraries.nbt.Tag)}, but retries with the version recorded in the saved data. */
+    public static ItemStack parseStoredItem(net.momirealms.craftengine.libraries.nbt.Tag tag, int storedVersion) {
+        if (tag == null) {
+            return null;
+        }
+        try {
+            ItemStack current = ItemStackUtils.parseBukkitItem(tag, VersionHelper.WORLD_VERSION);
+            if (current != null && !current.getType().isAir()) {
+                return current;
+            }
+        } catch (RuntimeException ignored) {
+            // Fall through to the legacy data-fixer paths below.
+        }
+        if (storedVersion > 0 && storedVersion != VersionHelper.WORLD_VERSION) {
+            try {
+                ItemStack stored = ItemStackUtils.parseBukkitItem(tag, storedVersion);
+                if (stored != null && !stored.getType().isAir()) {
+                    return stored;
+                }
+            } catch (RuntimeException ignored) {
+                // Fall through to the configured fallback.
+            }
+        }
+        try {
+            return ItemStackUtils.parseBukkitItem(tag, Config.itemDataFixerUpperFallbackVersion());
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     public static boolean isValidItemId(String itemId) {

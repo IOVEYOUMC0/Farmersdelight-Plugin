@@ -178,7 +178,7 @@ public final class CuttingBoardBlockEntityController extends BlockEntityControll
 
         ItemStack storedItem;
         try {
-            storedItem = ItemStackUtils.parseBukkitItem(itemTag, Config.itemDataFixerUpperFallbackVersion());
+            storedItem = ItemUtils.parseStoredItem(itemTag);
         } catch (RuntimeException e) {
             // Corrupt/version-skewed stored item: drop it (return true so it isn't retried forever) and warn.
             plugin.getLogger()

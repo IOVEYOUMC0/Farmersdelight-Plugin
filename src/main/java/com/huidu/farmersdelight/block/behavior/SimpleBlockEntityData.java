@@ -71,7 +71,7 @@ final class SimpleBlockEntityData {
             if (itemKeySet.contains(key)) {
                 ItemStack item;
                 try {
-                    item = ItemStackUtils.parseBukkitItem(value, Config.itemDataFixerUpperFallbackVersion());
+                    item = ItemUtils.parseStoredItem(value);
                 } catch (RuntimeException e) {
                     // Corrupt/version-skewed item: skip this key rather than aborting the whole load.
                     FarmersDelightPlugin.getInstance().getLogger()
