@@ -122,7 +122,7 @@ console:
     reload_breakdown: "重载分项（主线程同步执行）：合计 {total}ms——配置 {config}ms、工具与语言 {tools}ms、缓存失效 {caches}ms、管理器刷新 {managers}ms、监听器 {listeners}ms。"
     reload_addons: "附属重载事件耗时 {ms}ms（附属在主线程同步重建，不包含在上面的分项里）。"
     reload_breakdown_config: "配置分项：读 config.yml {read}ms、键迁移 {migrate}ms、类型校验 {validate}ms、加载其余 yml {load}ms。"
-    reload_report: "重载报告：合计 {total}ms（{split}）。"
+    reload_report: "重载报告：合计 {total}ms（{split}），发现 {issues} 个问题。"
     configuration_reloaded: "配置已重新加载。"
     main_configuration_reloaded: "主配置已重新加载。"
     gui_configuration_reloaded: "GUI 配置已重新加载：{file}"

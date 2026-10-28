@@ -459,6 +459,66 @@ templates:
             duration: 600
             amplifier: 0
             particles: false
+      - on: break
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: farmersdelight:is_knife
+          - type: match_block_property
+            properties:
+              bites: 1
+        functions:
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 3
+                  entries:
+                    - type: item
+                      item: ${__NAMESPACE__}:${__ID__}_slice
+                      count: 1
+      - on: break
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: farmersdelight:is_knife
+          - type: match_block_property
+            properties:
+              bites: 2
+        functions:
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 2
+                  entries:
+                    - type: item
+                      item: ${__NAMESPACE__}:${__ID__}_slice
+                      count: 1
+      - on: break
+        conditions:
+          - type: test_flag
+            flag: interact
+          - type: farmersdelight:is_knife
+          - type: match_block_property
+            properties:
+              bites: 3
+        functions:
+          - type: drop_loot
+            x: <arg:position.block_x> + 0.5
+            y: <arg:position.block_y> + 0.5
+            z: <arg:position.block_z> + 0.5
+            loot:
+              pools:
+                - rolls: 1
+                  entries:
+                    - type: item
+                      item: ${__NAMESPACE__}:${__ID__}_slice
+                      count: 1
   farmersdelight:feast_events_with_leftover:
     events:
       - on: break

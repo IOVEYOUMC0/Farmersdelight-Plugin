@@ -1,6 +1,9 @@
 package com.huidu.farmersdelight.tool;
 
 import com.huidu.farmersdelight.util.SoundUtils;
+import com.huidu.farmersdelight.api.tag.FarmersDelightTags;
+import com.huidu.farmersdelight.util.ItemUtils;
+import com.destroystokyo.paper.event.entity.EntityKnockbackByEntityEvent;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Location;
@@ -14,23 +17,38 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
+import org.bukkit.util.Vector;
 
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class ToolAttackListener implements Listener {
 
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onSweepAttack(EntityDamageByEntityEvent event) {
-        if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK) return;
-        if (!(event.getDamager() instanceof Player player)) return;
-
-        ItemStack weapon = player.getInventory().getItemInMainHand();
-        if (resolveToolData(weapon) != null) {
-            event.setCancelled(true);
+    /**
+     * Reduces the knockback of a hit made with a knife by 0.1 strength, matching the mod: a knife trades
+     * knockback for damage. The event only exposes the resulting acceleration vector, so the strength is
+     * converted to the scale the vector needs.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onKnockback(EntityKnockbackByEntityEvent event) {
+        if (!(event.getHitBy() instanceof Player player)) {
+            return;
         }
+        ItemStack weapon = player.getInventory().getItemInMainHand();
+        if (weapon == null || weapon.isEmpty()
+                || !ItemUtils.matchesCustomOrVanillaTag(weapon, FarmersDelightTags.ITEM_KNIVES)) {
+            return;
+        }
+        float strength = event.getKnockbackStrength();
+        if (strength <= 0.1F) {
+            return;
+        }
+        Vector knockback = event.getKnockback();
+        if (knockback == null) {
+            return;
+        }
+        event.setKnockback(knockback.multiply((strength - 0.1F) / strength));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

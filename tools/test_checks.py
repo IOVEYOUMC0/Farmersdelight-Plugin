@@ -63,6 +63,17 @@ class LangKeysSelfTest(CheckSelfTest):
             'command:\n  greeting: "Hello"\n',
             "greeting")
 
+    def test_a_placeholder_that_differs_between_locales_fails(self):
+        # One message must substitute the same named arguments in both locales; a missing one renders the raw
+        # placeholder to every player of that language.
+        self.assert_red_then_green(
+            {"src/main/resources/lang/en_us.yml":
+                 'command:\n  report: "Report: {total}ms, {issues} issue(s)"\n'},
+            self.path,
+            'command:\n  report: "共 {total}ms"\n',
+            'command:\n  report: "共 {total}ms，{issues} 个问题"\n',
+            "report")
+
 
 class ApiBoundarySelfTest(CheckSelfTest):
 

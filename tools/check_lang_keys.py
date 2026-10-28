@@ -10,15 +10,23 @@ What it reports:
   * MISSING   - a literal key that no bundled locale defines,
   * ASYMMETRY - a key defined in only one locale,
   * EMPTY     - a defined key whose value is blank,
+  * PLACEHOLDERS - the same message uses different named arguments in en_us and zh_cn (the missing one renders
+                  as a raw ``{name}`` to that locale's players),
+  * CONTENT LANGUAGE - a shipped item/block name that is missing, blank, contains CJK in English, lacks CJK in
+                  zh_cn, or differs between the client resource pack and the CraftEngine translations,
   * dynamic   - call sites whose key is composed at runtime (shown so they can be checked by hand),
   * unused    - keys nothing references statically (informational; some are reached dynamically).
+
+Content names are advisory for zh_tw/zh_hk: their files exist but are not fully translated yet, so the count of
+keys still falling back to English is printed without failing the check.
 
 Scope: it checks this repository's own language files; the addon namespaces it scans from this repository's
 sources (``*Lang.get("...")`` call sites) are listed in ADDON_CALL_SITES below.
 
     python tools/check_lang_keys.py [--quiet]
 
-Exit code 1 when a literal key is missing, locales are asymmetric or a value is blank.
+Exit code 1 when a literal key is missing, locales are asymmetric, a value is blank, a message's named
+placeholders differ, or a shipped content name is missing/untagged.
 """
 
 from __future__ import annotations
@@ -36,6 +44,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # Java source roots that may reference a language key, and the language directory they resolve against.
 JAVA_ROOTS = ["src/main/java", "src/debugTools/java"]
 LANG_DIR = "src/main/resources/lang"
+# The shipped content pack: client language files plus the CraftEngine translations that mirror their names.
+CONTENT_ROOT = "src/main/resources/craftengine/farmersdelight"
+NAMED_PLACEHOLDER = re.compile(r"\{([A-Za-z][A-Za-z0-9_-]*)\}")
+HAN = re.compile(r"[\u3400-\u9fff]")
 
 # Helper calls whose literal argument is a language key, with the lookup mode the helper applies:
 #   "plain"   - the key is looked up as written,
@@ -155,6 +167,80 @@ def literal_candidates(en: dict[str, object], zh: dict[str, object]) -> dict[str
     return candidates
 
 
+def placeholder_problems(en: dict[str, object], zh: dict[str, object]) -> list[str]:
+    """One message must substitute the same named arguments in both locales."""
+    problems: list[str] = []
+    for key in sorted(set(en) & set(zh)):
+        if set(NAMED_PLACEHOLDER.findall(str(en[key]))) != set(NAMED_PLACEHOLDER.findall(str(zh[key]))):
+            problems.append(f"{key}: named placeholders differ between en_us and zh_cn")
+    return problems
+
+
+def content_language_problems() -> tuple[list[str], list[str]]:
+    """Item and block names must agree between the client pack and the CraftEngine translations.
+
+    Returns (problems, advisory). ``advisory`` carries shipped locales that are not fully translated yet
+    (zh_tw/zh_hk today); they are reported but do not fail the check.
+    """
+    pack = ROOT / CONTENT_ROOT
+    languages = pack / "resourcepack/assets/farmersdelight/lang"
+    translations = pack / "configuration/translations.yml"
+    if not languages.is_dir():
+        return [], []
+    problems: list[str] = []
+    advisory: list[str] = []
+    try:
+        english = json.loads((languages / "en_us.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return [f"en_us.json is unreadable: {error}"], []
+    item_keys = sorted(key for key in english if key.startswith(("item.farmersdelight.", "block.farmersdelight.")))
+    for key in item_keys:
+        value = english[key]
+        if not isinstance(value, str) or not value.strip() or HAN.search(value):
+            problems.append(f"en_us: invalid English name for {key}: {value!r}")
+    chinese: dict[str, str] = {}
+    try:
+        chinese = json.loads((languages / "zh_cn.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        problems.append(f"zh_cn.json is unreadable: {error}")
+    for key in item_keys:
+        value = chinese.get(key, "")
+        if not isinstance(value, str) or not HAN.search(value):
+            problems.append(f"zh_cn: missing Chinese name for {key}: {value!r}")
+    for locale in ("zh_tw", "zh_hk"):
+        path = languages / f"{locale}.json"
+        if not path.is_file():
+            continue
+        try:
+            localized = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            problems.append(f"{locale}.json is unreadable: {error}")
+            continue
+        untranslated = sum(1 for key in item_keys
+                           if not HAN.search(str(localized.get(key, ""))))
+        if untranslated:
+            advisory.append(f"{locale}: {untranslated}/{len(item_keys)} item/block names still fall back to English")
+    if translations.is_file():
+        try:
+            raw = yaml.safe_load(translations.read_text(encoding="utf-8")) or {}
+            server = raw.get("translations", {}) or {}
+            ce_en = server.get("en", {}) or {}
+            ce_zh = server.get("zh_cn", {}) or {}
+        except (OSError, ValueError) as error:
+            problems.append(f"translations.yml is unreadable: {error}")
+            ce_en, ce_zh = {}, {}
+        for key in item_keys:
+            if key not in ce_en:
+                problems.append(f"CE en: missing name for {key}")
+            elif ce_en[key] != english[key]:
+                problems.append(f"CE en: name differs from the client pack for {key}: {ce_en[key]!r} != {english[key]!r}")
+            if key not in ce_zh:
+                problems.append(f"CE zh_cn: missing name for {key}")
+            elif ce_zh[key] != chinese.get(key):
+                problems.append(f"CE zh_cn: name differs from the client pack for {key}: {ce_zh[key]!r} != {chinese.get(key)!r}")
+    return problems, advisory
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="only print problems")
@@ -215,7 +301,22 @@ def main() -> int:
             which = "en+zh" if key not in en and key not in zh else ("en_us" if key not in en else "zh_cn")
             print(f"   MISSING in {which}: {key}  ({source})")
 
-    print(f"\nproblems: {problems}" + ("" if problems == 0 else "  <-- referenced keys missing, asymmetric or blank"))
+    # Same message, same named arguments: a placeholder present in only one locale renders raw there.
+    placeholders = placeholder_problems(en, zh)
+    problems += len(placeholders)
+    for problem in placeholders:
+        print(f"   PLACEHOLDERS: {problem}")
+
+    # Shipped item/block names agree between the client pack and the CraftEngine translations.
+    content, advisory = content_language_problems()
+    problems += len(content)
+    for problem in content:
+        print(f"   CONTENT LANGUAGE: {problem}")
+    for note in advisory:
+        print(f"   content language (advisory): {note}")
+
+    print(f"\nproblems: {problems}" + ("" if problems == 0
+                                      else "  <-- referenced keys missing, asymmetric, blank or inconsistent"))
     return 1 if problems else 0
 
 

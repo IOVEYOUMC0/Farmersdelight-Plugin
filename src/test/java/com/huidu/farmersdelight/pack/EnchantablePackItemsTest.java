@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,6 +34,41 @@ class EnchantablePackItemsTest {
     @Test
     void theSkilletDeclaresAVanillaEnchantableComponent() throws IOException {
         assertItemEnchantable(packFile("blocks.yml"), "farmersdelight:skillet");
+    }
+
+    @Test
+    void everyKnifeDeclaresTheVanillaToolComponentAtItsTierSpeed() throws IOException {
+        String yaml = packFile("knives.yml");
+        // Vanilla tier speeds used by the mod: flint is its own tier at 4.0, the rest follow their material.
+        Map<String, String> expected = Map.of(
+                "farmersdelight:flint_knife", "4.0",
+                "farmersdelight:iron_knife", "6.0",
+                "farmersdelight:golden_knife", "12.0",
+                "farmersdelight:diamond_knife", "8.0",
+                "farmersdelight:netherite_knife", "9.0");
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
+            String item = entry.getKey();
+            String block = itemBlock(yaml, item);
+            assertTrue(block.contains("minecraft:tool:"),
+                    item + " must declare minecraft:tool, or it mines the knife-mineable blocks at hand speed");
+            assertTrue(block.contains("default_mining_speed: 1.0"),
+                    item + " must keep vanilla speed outside the knife-mineable blocks");
+            assertTrue(block.contains("damage_per_block: 1"),
+                    item + " must consume one durability per broken block like the mod's DiggerItem");
+            assertTrue(block.contains("'#farmersdelight:mineable/knife'"),
+                    item + " must use the knife-mineable block tag");
+            assertTrue(block.contains("correct_for_drops: true"),
+                    item + " must be the correct tool for the knife-mineable blocks");
+            assertTrue(block.contains("speed: " + entry.getValue()),
+                    item + " must mine at the mod's tier speed " + entry.getValue());
+        }
+    }
+
+    private static String itemBlock(String yaml, String item) {
+        int itemStart = yaml.indexOf("  " + item + ":");
+        assertTrue(itemStart >= 0, item + " has to exist in the pack configuration");
+        int nextItem = yaml.indexOf("\n  farmersdelight:", itemStart + 1);
+        return nextItem < 0 ? yaml.substring(itemStart) : yaml.substring(itemStart, nextItem);
     }
 
     private static void assertItemEnchantable(String yaml, String item) {

@@ -6,6 +6,37 @@ items:
       components:
         minecraft:enchantable:
           value: 14
+        minecraft:tool:
+          default_mining_speed: 1.0
+          damage_per_block: 1
+          rules:
+            - blocks:
+                - '#farmersdelight:mineable/knife'
+                - minecraft:cactus
+                - minecraft:melon
+                - minecraft:pumpkin
+                - minecraft:carved_pumpkin
+                - minecraft:jack_o_lantern
+                - minecraft:cobweb
+                - minecraft:cake
+                - '#minecraft:candle_cakes'
+                - '#minecraft:wool'
+                - '#minecraft:wool_carpets'
+                - farmersdelight:apple_pie
+                - farmersdelight:canvas_rug
+                - farmersdelight:chocolate_pie
+                - farmersdelight:cocoa_beans_bag
+                - farmersdelight:full_tatami_mat
+                - farmersdelight:glow_berries_bag
+                - farmersdelight:half_tatami_mat
+                - farmersdelight:pumpkin_pie
+                - farmersdelight:rice_bag
+                - farmersdelight:rope
+                - farmersdelight:safety_net
+                - farmersdelight:sweet_berries_bag
+                - farmersdelight:sweet_berry_cheesecake
+              speed: 4.0
+              correct_for_drops: true
       item-name: <!i><lang:item.farmersdelight.flint_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -39,6 +70,37 @@ items:
       components:
         minecraft:enchantable:
           value: 14
+        minecraft:tool:
+          default_mining_speed: 1.0
+          damage_per_block: 1
+          rules:
+            - blocks:
+                - '#farmersdelight:mineable/knife'
+                - minecraft:cactus
+                - minecraft:melon
+                - minecraft:pumpkin
+                - minecraft:carved_pumpkin
+                - minecraft:jack_o_lantern
+                - minecraft:cobweb
+                - minecraft:cake
+                - '#minecraft:candle_cakes'
+                - '#minecraft:wool'
+                - '#minecraft:wool_carpets'
+                - farmersdelight:apple_pie
+                - farmersdelight:canvas_rug
+                - farmersdelight:chocolate_pie
+                - farmersdelight:cocoa_beans_bag
+                - farmersdelight:full_tatami_mat
+                - farmersdelight:glow_berries_bag
+                - farmersdelight:half_tatami_mat
+                - farmersdelight:pumpkin_pie
+                - farmersdelight:rice_bag
+                - farmersdelight:rope
+                - farmersdelight:safety_net
+                - farmersdelight:sweet_berries_bag
+                - farmersdelight:sweet_berry_cheesecake
+              speed: 6.0
+              correct_for_drops: true
       item-name: <!i><lang:item.farmersdelight.iron_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -72,6 +134,37 @@ items:
       components:
         minecraft:enchantable:
           value: 22
+        minecraft:tool:
+          default_mining_speed: 1.0
+          damage_per_block: 1
+          rules:
+            - blocks:
+                - '#farmersdelight:mineable/knife'
+                - minecraft:cactus
+                - minecraft:melon
+                - minecraft:pumpkin
+                - minecraft:carved_pumpkin
+                - minecraft:jack_o_lantern
+                - minecraft:cobweb
+                - minecraft:cake
+                - '#minecraft:candle_cakes'
+                - '#minecraft:wool'
+                - '#minecraft:wool_carpets'
+                - farmersdelight:apple_pie
+                - farmersdelight:canvas_rug
+                - farmersdelight:chocolate_pie
+                - farmersdelight:cocoa_beans_bag
+                - farmersdelight:full_tatami_mat
+                - farmersdelight:glow_berries_bag
+                - farmersdelight:half_tatami_mat
+                - farmersdelight:pumpkin_pie
+                - farmersdelight:rice_bag
+                - farmersdelight:rope
+                - farmersdelight:safety_net
+                - farmersdelight:sweet_berries_bag
+                - farmersdelight:sweet_berry_cheesecake
+              speed: 12.0
+              correct_for_drops: true
       item-name: <!i><lang:item.farmersdelight.golden_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -105,6 +198,37 @@ items:
       components:
         minecraft:enchantable:
           value: 10
+        minecraft:tool:
+          default_mining_speed: 1.0
+          damage_per_block: 1
+          rules:
+            - blocks:
+                - '#farmersdelight:mineable/knife'
+                - minecraft:cactus
+                - minecraft:melon
+                - minecraft:pumpkin
+                - minecraft:carved_pumpkin
+                - minecraft:jack_o_lantern
+                - minecraft:cobweb
+                - minecraft:cake
+                - '#minecraft:candle_cakes'
+                - '#minecraft:wool'
+                - '#minecraft:wool_carpets'
+                - farmersdelight:apple_pie
+                - farmersdelight:canvas_rug
+                - farmersdelight:chocolate_pie
+                - farmersdelight:cocoa_beans_bag
+                - farmersdelight:full_tatami_mat
+                - farmersdelight:glow_berries_bag
+                - farmersdelight:half_tatami_mat
+                - farmersdelight:pumpkin_pie
+                - farmersdelight:rice_bag
+                - farmersdelight:rope
+                - farmersdelight:safety_net
+                - farmersdelight:sweet_berries_bag
+                - farmersdelight:sweet_berry_cheesecake
+              speed: 8.0
+              correct_for_drops: true
       item-name: <!i><lang:item.farmersdelight.diamond_knife>
       max-stack-size: 1
       hide-tooltip:
@@ -138,6 +262,37 @@ items:
       components:
         minecraft:enchantable:
           value: 15
+        minecraft:tool:
+          default_mining_speed: 1.0
+          damage_per_block: 1
+          rules:
+            - blocks:
+                - '#farmersdelight:mineable/knife'
+                - minecraft:cactus
+                - minecraft:melon
+                - minecraft:pumpkin
+                - minecraft:carved_pumpkin
+                - minecraft:jack_o_lantern
+                - minecraft:cobweb
+                - minecraft:cake
+                - '#minecraft:candle_cakes'
+                - '#minecraft:wool'
+                - '#minecraft:wool_carpets'
+                - farmersdelight:apple_pie
+                - farmersdelight:canvas_rug
+                - farmersdelight:chocolate_pie
+                - farmersdelight:cocoa_beans_bag
+                - farmersdelight:full_tatami_mat
+                - farmersdelight:glow_berries_bag
+                - farmersdelight:half_tatami_mat
+                - farmersdelight:pumpkin_pie
+                - farmersdelight:rice_bag
+                - farmersdelight:rope
+                - farmersdelight:safety_net
+                - farmersdelight:sweet_berries_bag
+                - farmersdelight:sweet_berry_cheesecake
+              speed: 9.0
+              correct_for_drops: true
         minecraft:max_stack_size: 1
       item-name: <!i><lang:item.farmersdelight.netherite_knife>
       hide-tooltip:

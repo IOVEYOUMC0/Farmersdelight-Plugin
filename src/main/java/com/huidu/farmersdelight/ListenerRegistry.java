@@ -13,6 +13,8 @@ import com.huidu.farmersdelight.listener.BlockPlaceListener;
 import com.huidu.farmersdelight.listener.ChunkLoadListener;
 import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
 import com.huidu.farmersdelight.listener.CropInteractProtectionListener;
+import com.huidu.farmersdelight.listener.CakeSliceListener;
+import com.huidu.farmersdelight.listener.PumpkinCarveListener;
 import com.huidu.farmersdelight.listener.CuttingBoardDispenseListener;
 import com.huidu.farmersdelight.listener.CuttingBoardInteractListener;
 import com.huidu.farmersdelight.listener.DamageTypeDatapackInstaller;
@@ -95,6 +97,8 @@ final class ListenerRegistry {
                 new RottenTomatoListener(plugin),
                 new CuttingBoardInteractListener(plugin),
                 new CuttingBoardDispenseListener(plugin),
+                new CakeSliceListener(plugin),
+                new PumpkinCarveListener(plugin),
                 new StrawDropListener(plugin),
                 new RicePlantListener(plugin),
                 // Awards master_chef criteria and preserves addon/legacy food registrations. Built-in food

@@ -4,6 +4,8 @@ import com.huidu.farmersdelight.api.util.PluginManagerGuard;
 import com.huidu.farmersdelight.listener.BackstabListener;
 import com.huidu.farmersdelight.listener.BlockBreakListener;
 import com.huidu.farmersdelight.listener.BlockPlaceListener;
+import com.huidu.farmersdelight.listener.CakeSliceListener;
+import com.huidu.farmersdelight.listener.PumpkinCarveListener;
 import com.huidu.farmersdelight.listener.ChunkLoadListener;
 import com.huidu.farmersdelight.listener.CraftEngineWatchdogListener;
 import com.huidu.farmersdelight.listener.CropInteractProtectionListener;
@@ -57,6 +59,8 @@ class ListenerRegistrationOrderTest {
             RottenTomatoListener.class,
             CuttingBoardInteractListener.class,
             CuttingBoardDispenseListener.class,
+            CakeSliceListener.class,
+            PumpkinCarveListener.class,
             StrawDropListener.class,
             RicePlantListener.class,
             FoodEatListener.class,

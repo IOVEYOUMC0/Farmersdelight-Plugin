@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.migration;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.event.FarmersDelightMigrateEvent;
 import com.huidu.farmersdelight.api.migration.LegacyIdMigration;
 import com.huidu.farmersdelight.manager.PendingChunkScanQueue;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -85,6 +86,10 @@ public final class LegacyIdMigrationService {
      * that owns the inventory.
      */
     public int migrateInventory(@Nullable Inventory inventory) {
+        return migrateInventory(inventory, "inventory", true);
+    }
+
+    private int migrateInventory(@Nullable Inventory inventory, String migrationKey, boolean notify) {
         if (inventory == null || !hooksEnabled()) {
             return 0;
         }
@@ -101,6 +106,9 @@ public final class LegacyIdMigrationService {
         if (changed > 0) {
             migratedInventories.incrementAndGet();
             migratedStacks.addAndGet(changed);
+            if (notify) {
+                notifyMigrated(migrationKey, changed);
+            }
         }
         return changed;
     }
@@ -110,7 +118,12 @@ public final class LegacyIdMigrationService {
         if (player == null || !hooksEnabled()) {
             return 0;
         }
-        return migrateInventory(player.getInventory()) + migrateInventory(player.getEnderChest());
+        int changed = migrateInventory(player.getInventory(), "player", false)
+                + migrateInventory(player.getEnderChest(), "player", false);
+        if (changed > 0) {
+            notifyMigrated("player", changed);
+        }
+        return changed;
     }
 
     /** Rewrites a dropped item; must run on the item's thread. */
@@ -124,6 +137,7 @@ public final class LegacyIdMigrationService {
         }
         item.setItemStack(migrated);
         migratedStacks.incrementAndGet();
+        notifyMigrated("item", 1);
         return true;
     }
 
@@ -132,7 +146,7 @@ public final class LegacyIdMigrationService {
         if (holder == null) {
             return 0;
         }
-        return migrateInventory(holder.getInventory());
+        return migrateInventory(holder.getInventory(), "block", true);
     }
 
     /**
@@ -181,10 +195,14 @@ public final class LegacyIdMigrationService {
                 Math.max(1, plugin.getConfigInt(DEFAULT_STARTUP_CHUNKS_PER_TICK,
                         "performance.budgets.startup-chunk-loads-per-tick")),
                 (world, chunkX, chunkZ) -> {
+                    int migrated = 0;
                     for (BlockState state : world.getChunkAt(chunkX, chunkZ).getTileEntities(false)) {
                         if (state instanceof InventoryHolder holder) {
-                            migrateBlockHolder(holder);
+                            migrated += migrateInventory(holder.getInventory(), "startup", false);
                         }
+                    }
+                    if (migrated > 0) {
+                        notifyMigrated("startup", migrated);
                     }
                     logSummary();
                 });
@@ -212,5 +230,18 @@ public final class LegacyIdMigrationService {
         lastLoggedTotal = total;
         plugin.getLogger().info("Legacy id migration: rewrote " + total + " stack(s) across "
                 + migratedInventories.get() + " inventory(ies).");
+    }
+
+    /**
+     * Reports one migration pass to the public migrate event (addons use it to drop caches keyed by a legacy
+     * id). Fired on the thread that performed the rewrite, which is the owner of the storage in every hook.
+     */
+    private void notifyMigrated(String migrationKey, int removed) {
+        if (removed <= 0 || !plugin.isEnabled()) {
+            return;
+        }
+        FarmersDelightMigrateEvent event = new FarmersDelightMigrateEvent(migrationKey);
+        event.addRemoved(removed);
+        Bukkit.getPluginManager().callEvent(event);
     }
 }
