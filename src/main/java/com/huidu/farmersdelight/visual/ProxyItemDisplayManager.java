@@ -894,6 +894,13 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             return false;
         }
 
+        // Already registered with CraftEngine's tracker: its culling owns visibility from here on, so neither
+        // our distance math nor a removal may overrule it (a culled entity must stay tracked to be restored).
+        var cePlayer = net.momirealms.craftengine.bukkit.api.BukkitAdaptor.adapt(player);
+        if (cePlayer != null && cePlayer.getTrackedEntity(display.entityId) != null) {
+            return true;
+        }
+
         // Compute squared distance by hand to avoid allocating a Location per visibility check.
         // Same world is already guaranteed (see check above), so no cross-world exception; equivalent to distanceSquared.
         double dx = player.getX() - location.getX();
