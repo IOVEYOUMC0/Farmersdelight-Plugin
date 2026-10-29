@@ -125,8 +125,9 @@ public class TrayManager {
         if (pos.y() < world.getMinHeight() || pos.y() >= world.getMaxHeight()) {
             return false;
         }
-        if (!plugin.scheduler().isOwnedByCurrentRegion(new Location(world, pos.x(), pos.y(), pos.z()))
-                || !world.isChunkLoaded(pos.x() >> 4, pos.z() >> 4)) {
+        // Same column as the broken block, so the caller's region owns it; only an unloaded chunk can make
+        // the read unsafe, and that check must not allocate a Location on this per-break path.
+        if (!world.isChunkLoaded(pos.x() >> 4, pos.z() >> 4)) {
             return false;
         }
         ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(
