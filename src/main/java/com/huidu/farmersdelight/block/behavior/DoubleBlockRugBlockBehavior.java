@@ -5,7 +5,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -207,7 +207,7 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
         }
         // The teardown is a block state change, so a player who may not build at the partner cell keeps it
         // standing; that half is left for them or an administrator to clear by hand.
-        if (breaker != null && !ProtectionCompat.canPlace(breaker, partner, (ProtectionCompat.Feature) null)) {
+        if (breaker != null && !ProtectionChecks.canPlace(breaker, partner, (ProtectionChecks.Feature) null)) {
             return;
         }
         ImmutableBlockState partnerState = CraftEngineBlocks.getCustomBlockState(partner);
@@ -244,7 +244,7 @@ public class DoubleBlockRugBlockBehavior extends RugBlockBehavior {
         }
         BlockPos clicked = context.getClickedPos();
         Block foot = world.getBlockAt(clicked.x(), clicked.y(), clicked.z()).getRelative(facing);
-        return ProtectionCompat.canBuild(bukkitPlayer, foot, (String) null);
+        return ProtectionChecks.canBuild(bukkitPlayer, foot, (String) null);
     }
 
     private boolean footCellBlocked(BlockPlaceContext context, BlockFace facing) {

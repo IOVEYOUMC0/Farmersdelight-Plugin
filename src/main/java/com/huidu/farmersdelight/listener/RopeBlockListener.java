@@ -7,7 +7,7 @@ import com.huidu.farmersdelight.block.behavior.RopeGateWallBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.PendingChunkScanQueue;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
@@ -209,7 +209,7 @@ public class RopeBlockListener implements Listener {
         if (!CustomBlockUtils.hasBehavior(event.blockState(), RopeBlockBehavior.class)) return;
 
         Block block = event.bukkitBlock();
-        if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.ROPE)) return;
+        if (!ProtectionChecks.canUse(player, block, ProtectionChecks.Feature.ROPE)) return;
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         if (!mainHand.getType().isAir()) return;
@@ -230,7 +230,7 @@ public class RopeBlockListener implements Listener {
         }
 
         Block bottomBlock = world.getBlockAt(block.getX(), bottomY, block.getZ());
-        if (!ProtectionCompat.canBuild(player, bottomBlock, ProtectionCompat.Feature.ROPE)) return;
+        if (!ProtectionChecks.canBuild(player, bottomBlock, ProtectionChecks.Feature.ROPE)) return;
         boolean isCreative = player.getGameMode() == GameMode.CREATIVE;
 
         if (!isCreative) {

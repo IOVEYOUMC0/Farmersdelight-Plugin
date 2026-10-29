@@ -5,7 +5,7 @@ import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -132,8 +132,8 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
         BlockPos pos = context.getClickedPos();
         World world = bukkitPlayer.getWorld();
         Block targetBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        if (!ProtectionCompat.canUse(bukkitPlayer, targetBlock, (String) null)
-                || !ProtectionCompat.canBuild(bukkitPlayer, targetBlock, (String) null)) {
+        if (!ProtectionChecks.canUse(bukkitPlayer, targetBlock, (String) null)
+                || !ProtectionChecks.canBuild(bukkitPlayer, targetBlock, (String) null)) {
             return InteractionResult.PASS;
         }
         Location loc = new Location(world, pos.x() + 0.5, pos.y(), pos.z() + 0.5);

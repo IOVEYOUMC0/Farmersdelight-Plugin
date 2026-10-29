@@ -14,7 +14,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -572,8 +572,8 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
         World world = bukkitPlayer.getWorld();
         Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
-        if (!ProtectionCompat.canUse(bukkitPlayer, block, ProtectionCompat.Feature.CUTTING_BOARD)
-                || !ProtectionCompat.canBuild(bukkitPlayer, block, ProtectionCompat.Feature.CUTTING_BOARD)) {
+        if (!ProtectionChecks.canUse(bukkitPlayer, block, ProtectionChecks.Feature.CUTTING_BOARD)
+                || !ProtectionChecks.canBuild(bukkitPlayer, block, ProtectionChecks.Feature.CUTTING_BOARD)) {
             return InteractionResult.PASS;
         }
         Map<BlockPosKey, CuttingBoardBlockEntity> worldEntities = worldBlockEntities.computeIfAbsent(

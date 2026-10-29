@@ -5,7 +5,7 @@ import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -51,7 +51,7 @@ public final class RichSoilHoeListener implements Listener {
         // Respect WorldGuard build protection (mirrors SkilletPlaceListener). Without this a player
         // with no build permission could till rich_soil into rich_soil_farmland inside a protected
         // region — this listener runs at HIGH and would otherwise place the block unconditionally.
-        if (!ProtectionCompat.canPlace(event.player(), target, ProtectionCompat.Feature.RICH_SOIL)) {
+        if (!ProtectionChecks.canPlace(event.player(), target, ProtectionChecks.Feature.RICH_SOIL)) {
             event.setCancelled(true);
             return;
         }

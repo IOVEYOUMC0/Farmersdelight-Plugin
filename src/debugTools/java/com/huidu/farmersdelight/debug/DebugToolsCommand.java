@@ -24,7 +24,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -794,7 +794,7 @@ public final class DebugToolsCommand {
         return location.getBlockY() >= world.getMinHeight() && location.getBlockY() < world.getMaxHeight()
                 && plugin.scheduler().isOwnedByCurrentRegion(location)
                 && world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)
-                && ProtectionCompat.canBuild(player, location);
+                && ProtectionChecks.canBuild(player, location);
     }
 
     private void placeAddon(Player player, PlacementBatch batch, Location location, String target) {

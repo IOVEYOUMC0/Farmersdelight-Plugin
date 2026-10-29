@@ -6,7 +6,7 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockInteractEvent;
 import net.momirealms.craftengine.core.entity.player.InteractionHand;
@@ -44,8 +44,8 @@ public class CuttingBoardInteractListener implements Listener {
         if (!PermissionChecker.check(player, "farmersdelight.use.cutting_board")) {
             return;
         }
-        if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.CUTTING_BOARD)
-                || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.CUTTING_BOARD)) {
+        if (!ProtectionChecks.canUse(player, block, ProtectionChecks.Feature.CUTTING_BOARD)
+                || !ProtectionChecks.canBuild(player, block, ProtectionChecks.Feature.CUTTING_BOARD)) {
             return;
         }
 

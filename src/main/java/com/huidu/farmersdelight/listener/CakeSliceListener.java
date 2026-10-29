@@ -4,7 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -77,7 +77,7 @@ public final class CakeSliceListener implements Listener {
         }
         if (player.getGameMode() == org.bukkit.GameMode.SPECTATOR
                 || player.getGameMode() == org.bukkit.GameMode.ADVENTURE
-                || !ownsRegion(block) || !ProtectionCompat.canUse(player, block, (String) null)) {
+                || !ownsRegion(block) || !ProtectionChecks.canUse(player, block, (String) null)) {
             return;
         }
         CakeSliceRules.Click click = new CakeSliceRules.Click(block.getWorld().getUID(), block.getX(), block.getY(),

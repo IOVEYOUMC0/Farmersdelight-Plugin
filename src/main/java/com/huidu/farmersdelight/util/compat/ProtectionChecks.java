@@ -6,7 +6,7 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class ProtectionCompat {
+public final class ProtectionChecks {
 
     public enum Feature {
         CUTTING_BOARD("farmersdelight-cutting-board"),
@@ -30,7 +30,7 @@ public final class ProtectionCompat {
         }
     }
 
-    private ProtectionCompat() {
+    private ProtectionChecks() {
     }
 
     public static void registerFlags() {

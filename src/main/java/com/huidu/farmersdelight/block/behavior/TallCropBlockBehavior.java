@@ -10,7 +10,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
@@ -381,9 +381,9 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         return getAge(state) == config.maxAgeUpper();
     }
 
-    static ProtectionCompat.Feature protectionFeature(Key cropId) {
+    static ProtectionChecks.Feature protectionFeature(Key cropId) {
         return cropId != null && Constants.BLOCK_RICE.equals(cropId.toString())
-                ? ProtectionCompat.Feature.RICE : null;
+                ? ProtectionChecks.Feature.RICE : null;
     }
 
     @Override
@@ -406,7 +406,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 Block bukkitBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
                 // Harvesting removes the block and drops loot while cancelling native interaction.
                 // Check land protection before allowing either change.
-                if (!ProtectionCompat.canBreak(bukkitPlayer, bukkitBlock, protectionFeature(block().id()))) {
+                if (!ProtectionChecks.canBreak(bukkitPlayer, bukkitBlock, protectionFeature(block().id()))) {
                     return InteractionResult.PASS;
                 }
                 Location loc = bukkitBlock.getLocation().add(0.5, 0.5, 0.5);
@@ -443,7 +443,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
 
         if (mainHand.getType() == Material.BONE_MEAL && config.isBoneMealTarget()) {
             // Bone meal changes the crop while cancelling native interaction, so check protection first.
-            if (!ProtectionCompat.canBuild(bukkitPlayer, world.getBlockAt(pos.x(), pos.y(), pos.z()),
+            if (!ProtectionChecks.canBuild(bukkitPlayer, world.getBlockAt(pos.x(), pos.y(), pos.z()),
                     protectionFeature(block().id()))) {
                 return InteractionResult.PASS;
             }
@@ -913,7 +913,7 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
     // which the harvest path runs just above through runConfiguredBreakLoot, so only the advancement is
     // awarded here.
     private void awardHarvestStraw(Block block, Player player) {
-        if (block == null || player == null || protectionFeature(block().id()) != ProtectionCompat.Feature.RICE) {
+        if (block == null || player == null || protectionFeature(block().id()) != ProtectionChecks.Feature.RICE) {
             return;
         }
 

@@ -12,7 +12,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.RiceCropRules;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockBreakEvent;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -175,7 +175,7 @@ public class RicePlantListener implements Listener {
             event.setCancelled(true);
             return;
         }
-        if (!ProtectionCompat.canPlace(player, plantLocation, ProtectionCompat.Feature.RICE)) {
+        if (!ProtectionChecks.canPlace(player, plantLocation, ProtectionChecks.Feature.RICE)) {
             event.setCancelled(true);
             return;
         }
@@ -212,7 +212,7 @@ public class RicePlantListener implements Listener {
     private void plantWildRice(PlayerInteractEvent event, Player player, EquipmentSlot hand, ItemStack item, Block clickedBlock) {
         Location plantLocation = findPlantLocation(clickedBlock);
         if (plantLocation != null && canPlantWildRiceAt(plantLocation.getBlock())) {
-            if (!ProtectionCompat.canPlace(player, plantLocation, ProtectionCompat.Feature.RICE)) {
+            if (!ProtectionChecks.canPlace(player, plantLocation, ProtectionChecks.Feature.RICE)) {
                 event.setCancelled(true);
                 return;
             }

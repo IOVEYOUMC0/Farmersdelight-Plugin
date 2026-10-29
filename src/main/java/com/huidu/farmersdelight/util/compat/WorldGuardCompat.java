@@ -15,7 +15,7 @@ public final class WorldGuardCompat {
     private static final String WORLD_GUARD_PLUGIN = "WorldGuard";
     private static final String MASTER_FLAG_NAME = "farmersdelight-use";
 
-    // Per-station protection features live on the ProtectionCompat facade; this class maps each to its
+    // Per-station protection features live on the protection facade; this class maps each to its
     // WorldGuard StateFlag (feature.flagName()) and defaults every flag to ALLOW (unset = no change).
     private static volatile Object useFlag;
     // Registered StateFlag instances resolved once in registerFlags() during onLoad. null when
@@ -68,7 +68,7 @@ public final class WorldGuardCompat {
             masterFlag = registerStateFlag(registry, stateFlagClass, register, get, MASTER_FLAG_NAME);
             // Start from the current map so addon flags registered before FD's own onLoad are preserved.
             Map<String, Object> resolved = new HashMap<>(customFlags);
-            for (ProtectionCompat.Feature feature : ProtectionCompat.Feature.values()) {
+            for (ProtectionChecks.Feature feature : ProtectionChecks.Feature.values()) {
                 Object flag = registerStateFlag(registry, stateFlagClass, register, get, feature.flagName());
                 if (flag != null) {
                     resolved.put(feature.flagName(), flag);
@@ -151,11 +151,11 @@ public final class WorldGuardCompat {
     }
 
     // -- Query layer: WG BUILD/USE flag AND master flag AND the feature/addon flag (null flagName = master only). --
-    public static boolean canBuild(Player player, Location location, ProtectionCompat.Feature feature) {
+    public static boolean canBuild(Player player, Location location, ProtectionChecks.Feature feature) {
         return canBuild(player, location, feature == null ? null : feature.flagName());
     }
 
-    public static boolean canUse(Player player, Location location, ProtectionCompat.Feature feature) {
+    public static boolean canUse(Player player, Location location, ProtectionChecks.Feature feature) {
         return canUse(player, location, feature == null ? null : feature.flagName());
     }
 

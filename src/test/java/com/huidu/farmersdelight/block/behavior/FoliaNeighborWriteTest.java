@@ -147,11 +147,11 @@ class FoliaNeighborWriteTest {
     void thePartnerClearChecksBuildPermissionWithTheHookPlayer() throws IOException {
         String clear = body("DoubleBlockRugBlockBehavior.java",
                 "private void clearPartner(Block partner, Player breaker)");
-        int permission = clear.indexOf("!ProtectionCompat.canPlace(breaker, partner,");
+        int permission = clear.indexOf("!ProtectionChecks.canPlace(breaker, partner,");
         int write = clear.indexOf("partner.setType(Material.AIR");
         assertTrue(permission >= 0, "the teardown is a block state change, so it needs a build check");
-        assertTrue(clear.contains("if (breaker != null && !ProtectionCompat.canPlace(breaker, partner,"
-                        + " (ProtectionCompat.Feature) null)) { return; }"),
+        assertTrue(clear.contains("if (breaker != null && !ProtectionChecks.canPlace(breaker, partner,"
+                        + " (ProtectionChecks.Feature) null)) { return; }"),
                 "a rejected check has to leave the half standing instead of clearing it");
         assertTrue(write > permission, "the permission check has to come before the partner is cleared");
     }

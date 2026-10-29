@@ -19,7 +19,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.ManagerSupport;
 import com.huidu.farmersdelight.util.PermissionChecker;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.kyori.adventure.text.Component;
@@ -831,8 +831,8 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             if (!PermissionChecker.check(bukkitPlayer, config.permission())) {
                 return InteractionResult.PASS;
             }
-            if (!ProtectionCompat.canUse(bukkitPlayer, bukkitPlayer.getWorld().getBlockAt(
-                    pos.x(), pos.y(), pos.z()), ProtectionCompat.Feature.COOKING_POT)) {
+            if (!ProtectionChecks.canUse(bukkitPlayer, bukkitPlayer.getWorld().getBlockAt(
+                    pos.x(), pos.y(), pos.z()), ProtectionChecks.Feature.COOKING_POT)) {
                 return InteractionResult.PASS;
             }
             hm.toggleHandle(bukkitPlayer.getWorld(), pos, bukkitPlayer);
@@ -858,7 +858,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
         World world = bukkitPlayer.getWorld();
         Block targetBlock = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        if (!ProtectionCompat.canUse(bukkitPlayer, targetBlock, ProtectionCompat.Feature.COOKING_POT)) {
+        if (!ProtectionChecks.canUse(bukkitPlayer, targetBlock, ProtectionChecks.Feature.COOKING_POT)) {
             return InteractionResult.PASS;
         }
 
@@ -926,7 +926,7 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
     public boolean canPlayerOpen(Player player, Block block) {
         return PermissionChecker.check(player, config.permission())
-                && ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.COOKING_POT);
+                && ProtectionChecks.canUse(player, block, ProtectionChecks.Feature.COOKING_POT);
     }
 
     private boolean handleHeldContainerServing(Player player, InteractionHand hand, World world,

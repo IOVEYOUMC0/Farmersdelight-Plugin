@@ -21,11 +21,11 @@ public final class ProtectionCompat {
      * Idempotent; safe to call from onLoad even when WorldGuard is absent.
      */
     public static void registerCustomFlag(String flagName) {
-        com.huidu.farmersdelight.util.compat.ProtectionCompat.registerCustomFlag(flagName);
+        com.huidu.farmersdelight.util.compat.ProtectionChecks.registerCustomFlag(flagName);
     }
 
     public static boolean canBuild(Player player, Location location, String flagName) {
-        return com.huidu.farmersdelight.util.compat.ProtectionCompat.canBuild(player, location, flagName);
+        return com.huidu.farmersdelight.util.compat.ProtectionChecks.canBuild(player, location, flagName);
     }
 
     public static boolean canBuild(Player player, Block block, String flagName) {
@@ -33,7 +33,7 @@ public final class ProtectionCompat {
     }
 
     public static boolean canBreak(Player player, Location location, String flagName) {
-        return com.huidu.farmersdelight.util.compat.ProtectionCompat.canBreak(player, location, flagName);
+        return com.huidu.farmersdelight.util.compat.ProtectionChecks.canBreak(player, location, flagName);
     }
 
     public static boolean canBreak(Player player, Block block, String flagName) {
@@ -41,7 +41,7 @@ public final class ProtectionCompat {
     }
 
     public static boolean canUse(Player player, Location location, String flagName) {
-        return com.huidu.farmersdelight.util.compat.ProtectionCompat.canUse(player, location, flagName);
+        return com.huidu.farmersdelight.util.compat.ProtectionChecks.canUse(player, location, flagName);
     }
 
     public static boolean canUse(Player player, Block block, String flagName) {

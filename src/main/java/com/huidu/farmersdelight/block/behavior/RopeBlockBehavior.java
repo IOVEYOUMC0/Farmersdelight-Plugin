@@ -6,7 +6,7 @@ import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -283,7 +283,7 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
 
             // This path cancels native interaction and places directly through CraftEngineBlocks.place.
             // Check protection here because the native placement permission check will not run.
-            if (!ProtectionCompat.canPlace(bukkitPlayer, target, ProtectionCompat.Feature.ROPE)) {
+            if (!ProtectionChecks.canPlace(bukkitPlayer, target, ProtectionChecks.Feature.ROPE)) {
                 return InteractionResult.FAIL;
             }
 
@@ -353,7 +353,7 @@ public class RopeBlockBehavior extends FarmersDelightBlockBehavior {
 
         Block bell = world.getBlockAt(x, pos.y() + 1 + bellOffset, z);
         // The bell can sit up to the configured distance away, so it needs its own use check.
-        if (!ProtectionCompat.canUse(player, bell, ProtectionCompat.Feature.ROPE)) {
+        if (!ProtectionChecks.canUse(player, bell, ProtectionChecks.Feature.ROPE)) {
             return false;
         }
         ringBell(bell, player);

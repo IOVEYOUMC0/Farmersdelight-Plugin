@@ -10,7 +10,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.block.behavior.AbstractCanSurviveBlockBehavior;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
@@ -299,8 +299,8 @@ public class MushroomColonyBehavior extends AbstractCanSurviveBlockBehavior impl
         BlockPos pos = context.getClickedPos();
         World world = player.getWorld();
         Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
-        if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.MUSHROOM_COLONY)
-                || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.MUSHROOM_COLONY)) {
+        if (!ProtectionChecks.canUse(player, block, ProtectionChecks.Feature.MUSHROOM_COLONY)
+                || !ProtectionChecks.canBuild(player, block, ProtectionChecks.Feature.MUSHROOM_COLONY)) {
             return InteractionResult.PASS;
         }
         Location loc = block.getLocation().add(0.5, 0.5, 0.5);

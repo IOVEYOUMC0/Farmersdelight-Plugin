@@ -4,7 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -65,7 +65,7 @@ public final class PumpkinCarveListener implements Listener {
             return;
         }
         if (player.getGameMode() == GameMode.SPECTATOR || player.getGameMode() == GameMode.ADVENTURE
-                || !ownsRegion(block) || !ProtectionCompat.canUse(player, block, (String) null)) {
+                || !ownsRegion(block) || !ProtectionChecks.canUse(player, block, (String) null)) {
             return;
         }
 

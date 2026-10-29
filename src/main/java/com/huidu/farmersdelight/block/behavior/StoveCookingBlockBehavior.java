@@ -11,7 +11,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.registry.RegistryAccess;
@@ -300,8 +300,8 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
         if (!PermissionChecker.check(player, "farmersdelight.use.stove")) {
             return InteractionResult.PASS;
         }
-        if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.STOVE)
-                || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.STOVE)) {
+        if (!ProtectionChecks.canUse(player, block, ProtectionChecks.Feature.STOVE)
+                || !ProtectionChecks.canBuild(player, block, ProtectionChecks.Feature.STOVE)) {
             return InteractionResult.PASS;
         }
 

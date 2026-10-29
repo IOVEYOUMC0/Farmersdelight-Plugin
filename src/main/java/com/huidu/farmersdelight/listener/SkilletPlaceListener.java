@@ -4,7 +4,7 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -63,7 +63,7 @@ public class SkilletPlaceListener implements Listener {
         if (!canReplace(targetBlock)) {
             return;
         }
-        if (!ProtectionCompat.canPlace(player, targetBlock, ProtectionCompat.Feature.SKILLET)) {
+        if (!ProtectionChecks.canPlace(player, targetBlock, ProtectionChecks.Feature.SKILLET)) {
             event.setUseItemInHand(Event.Result.DENY);
             event.setUseInteractedBlock(Event.Result.DENY);
             event.setCancelled(true);

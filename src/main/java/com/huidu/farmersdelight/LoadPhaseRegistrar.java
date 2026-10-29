@@ -6,7 +6,7 @@ import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.resource.ResourceInstaller;
 import com.huidu.farmersdelight.tool.ToolRegistry;
 import com.huidu.farmersdelight.util.CommonTagResolver;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 
 /**
  * Everything the plugin registers during the load phase, before CraftEngine starts parsing its packs.
@@ -46,7 +46,7 @@ final class LoadPhaseRegistrar {
         // onEnable, which runs after this method.
         PackSections sections = PackSections.register();
         // Registered in onLoad because WorldGuard locks its FlagRegistry once it enables; no-op without WG.
-        ProtectionCompat.registerFlags();
+        ProtectionChecks.registerFlags();
         return sections;
     }
 }

@@ -9,7 +9,7 @@ import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.PermissionChecker;
 import net.momirealms.craftengine.bukkit.api.BukkitAdaptor;
 import net.momirealms.craftengine.core.block.BlockDefinition;
@@ -199,8 +199,8 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         if (!PermissionChecker.check(player, permission)) {
             return InteractionResult.PASS;
         }
-        if (!ProtectionCompat.canUse(player, block, ProtectionCompat.Feature.SKILLET)
-                || !ProtectionCompat.canBuild(player, block, ProtectionCompat.Feature.SKILLET)) {
+        if (!ProtectionChecks.canUse(player, block, ProtectionChecks.Feature.SKILLET)
+                || !ProtectionChecks.canBuild(player, block, ProtectionChecks.Feature.SKILLET)) {
             return InteractionResult.PASS;
         }
 

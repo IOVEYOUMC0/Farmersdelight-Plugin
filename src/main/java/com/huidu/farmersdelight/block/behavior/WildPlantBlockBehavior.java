@@ -3,7 +3,7 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
@@ -69,7 +69,7 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
 
         // This path places wild plants directly and cancels native interaction.
         // Check protection for the clicked block here and for the destination during spreading.
-        if (!ProtectionCompat.canBuild(player, origin)) {
+        if (!ProtectionChecks.canBuild(player, origin)) {
             return InteractionResult.PASS;
         }
 
@@ -115,7 +115,7 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
             target = randomNeighbor(origin, random);
         }
         // Check the placement destination too; an adjacent claim may have different build permissions.
-        if (canPlaceAt(target) && ProtectionCompat.canBuild(player, target)) {
+        if (canPlaceAt(target) && ProtectionChecks.canBuild(player, target)) {
             CraftEngineBlocks.place(target.getLocation(), state, false);
         }
     }

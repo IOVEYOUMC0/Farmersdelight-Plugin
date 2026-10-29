@@ -1,7 +1,7 @@
 package com.huidu.farmersdelight.item.behavior;
 
 import com.huidu.farmersdelight.util.CustomBlockUtils;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.VanillaAdvancements;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.block.BukkitBlockManager;
@@ -76,7 +76,7 @@ public final class ConditionalBlockPlantingItemBehavior extends ItemBehavior {
         org.bukkit.entity.Player bukkitPlayer = player != null
                 && player.platformPlayer() instanceof org.bukkit.entity.Player platformPlayer
                 ? platformPlayer : null;
-        if (bukkitPlayer != null && !ProtectionCompat.canPlace(bukkitPlayer, target, null)) {
+        if (bukkitPlayer != null && !ProtectionChecks.canPlace(bukkitPlayer, target, null)) {
             return InteractionResult.FAIL;
         }
 

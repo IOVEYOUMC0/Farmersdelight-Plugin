@@ -19,7 +19,7 @@ import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.Text;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.api.util.TooltipUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -80,10 +80,10 @@ public class BlockBreakListener implements Listener {
         ImmutableBlockState state = CustomBlockUtils.getState(block);
         // Deliberate: an operator breaking a FarmersDelight workstation is allowed through even when another
         // plugin cancelled the event, so a mis-configured region flag or claim cannot lock operators out of
-        // their own blocks. ProtectionCompat.canBreak answers true for operators by design.
+        // their own blocks. ProtectionChecks.canBreak answers true for operators by design.
         if (event.isCancelled() && event.getPlayer().isOp()
                 && isProtectedBlock(state)
-                && ProtectionCompat.canBreak(event.getPlayer(), block, featureFor(state))) {
+                && ProtectionChecks.canBreak(event.getPlayer(), block, featureFor(state))) {
             event.setCancelled(false);
         }
         if (event.isCancelled()) {
@@ -95,7 +95,7 @@ public class BlockBreakListener implements Listener {
                 .invalidateBlockedAboveCache(block.getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(block);
         if (isProtectedBlock(state)
-                && !ProtectionCompat.canBreak(event.getPlayer(), block, featureFor(state))) {
+                && !ProtectionChecks.canBreak(event.getPlayer(), block, featureFor(state))) {
             event.setCancelled(true);
             return;
         }
@@ -110,7 +110,7 @@ public class BlockBreakListener implements Listener {
         ImmutableBlockState state = event.blockState();
         if (event.isCancelled() && event.getPlayer().isOp()
                 && isProtectedBlock(state)
-                && ProtectionCompat.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
+                && ProtectionChecks.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
             event.setCancelled(false);
         }
         if (event.isCancelled()) {
@@ -122,7 +122,7 @@ public class BlockBreakListener implements Listener {
         // Resolve the block state once and reuse it across the managed-type checks and cleanup, avoiding
         // the repeated lookups the per-call event.blockState() would otherwise perform.
         if (isProtectedBlock(state)
-                && !ProtectionCompat.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
+                && !ProtectionChecks.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
             event.setCancelled(true);
             return;
         }
@@ -169,18 +169,18 @@ public class BlockBreakListener implements Listener {
                 || FarmersDelightApi.get().isAddonBlockNamespace(namespace);
     }
 
-    private static ProtectionCompat.Feature featureFor(ImmutableBlockState state) {
+    private static ProtectionChecks.Feature featureFor(ImmutableBlockState state) {
         if (CustomBlockUtils.hasBehavior(state, CookingPotBlockBehavior.class)) {
-            return ProtectionCompat.Feature.COOKING_POT;
+            return ProtectionChecks.Feature.COOKING_POT;
         }
         if (CustomBlockUtils.hasBehavior(state, SkilletBlockBehavior.class)) {
-            return ProtectionCompat.Feature.SKILLET;
+            return ProtectionChecks.Feature.SKILLET;
         }
         if (CustomBlockUtils.hasBehavior(state, StoveCookingBlockBehavior.class)) {
-            return ProtectionCompat.Feature.STOVE;
+            return ProtectionChecks.Feature.STOVE;
         }
         if (CustomBlockUtils.hasBehavior(state, CuttingBoardBlockBehavior.class)) {
-            return ProtectionCompat.Feature.CUTTING_BOARD;
+            return ProtectionChecks.Feature.CUTTING_BOARD;
         }
         return null;
     }

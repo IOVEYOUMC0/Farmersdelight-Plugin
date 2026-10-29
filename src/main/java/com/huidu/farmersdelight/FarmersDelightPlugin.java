@@ -73,7 +73,7 @@ import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.compat.CustomItemPresence;
 import com.huidu.farmersdelight.util.compat.KaleidoscopeCompat;
-import com.huidu.farmersdelight.util.compat.ProtectionCompat;
+import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 import com.huidu.farmersdelight.visual.ProxyItemDisplayManager;
 import com.huidu.farmersdelight.visual.ItemDisplayManager;
@@ -344,7 +344,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         // Build the protection facade over all installed land plugins; WorldGuard flags were already
         // registered in onLoad. Non-WG land plugins gate through CraftEngine's AntiGriefLib provider.
-        ProtectionCompat.init(this);
+        ProtectionChecks.init(this);
 
         loadConfigs();
         ToolRegistry.refresh();
@@ -700,7 +700,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         CustomItemPresence.invalidate();
         // A transient AntiGriefLib resolution failure before/during the reload must not disable land checks
         // for the rest of the server run.
-        ProtectionCompat.reset();
+        ProtectionChecks.reset();
         if (craftEngineReadinessCoordinator != null) {
             craftEngineReadinessCoordinator.queueReloadProcessing();
         }
