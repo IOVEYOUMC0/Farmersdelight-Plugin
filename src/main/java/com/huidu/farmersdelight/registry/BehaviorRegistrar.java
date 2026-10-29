@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.registry;
 
+import com.huidu.farmersdelight.api.config.BehaviorArgRecorder;
 import com.huidu.farmersdelight.api.registry.ContentRegistration;
 import com.huidu.farmersdelight.block.behavior.BasketBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.ConnectedRugBlockBehavior;
@@ -30,7 +31,10 @@ import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.item.behavior.ConditionalBlockPlantingItemBehavior;
 import com.huidu.farmersdelight.item.behavior.SkilletItemBehavior;
 import com.huidu.farmersdelight.loot.AwardAdvancementFunction;
+import com.huidu.farmersdelight.util.BehaviorArgDiagnostics;
 import com.huidu.farmersdelight.util.Constants;
+import net.momirealms.craftengine.core.block.BlockDefinition;
+import net.momirealms.craftengine.core.block.behavior.BlockBehavior;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviors;
 import net.momirealms.craftengine.core.item.behavior.ItemBehaviorFactory;
@@ -43,6 +47,7 @@ import net.momirealms.craftengine.core.plugin.context.Condition;
 import net.momirealms.craftengine.core.plugin.context.Context;
 import net.momirealms.craftengine.core.plugin.context.condition.ConditionFactory;
 import net.momirealms.craftengine.core.plugin.context.function.Function;
+import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.context.function.FunctionFactory;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.util.Key;
@@ -133,7 +138,35 @@ public final class BehaviorRegistrar {
     private static void registerBehavior(String key, BlockBehaviorFactory<?> factory) {
         Key keyObj = Key.of(key);
         if (BuiltInRegistries.BLOCK_BEHAVIOR_TYPE.getValue(keyObj) == null) {
-            BlockBehaviors.register(keyObj, factory);
+            BlockBehaviors.register(keyObj, new RecordingFactory<>(keyObj, factory));
+        }
+    }
+
+    /**
+     * Records the options a behaviour factory reads, then reports the pack options it did not read. A typo in a
+     * behaviour option would otherwise fall back to the compiled-in default with no symptom at all.
+     */
+    private static final class RecordingFactory<T extends BlockBehavior> implements BlockBehaviorFactory<T> {
+        private final Key id;
+        private final BlockBehaviorFactory<T> delegate;
+
+        private RecordingFactory(Key id, BlockBehaviorFactory<T> delegate) {
+            this.id = id;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public T create(BlockDefinition block, ConfigSection section) {
+            BehaviorArgRecorder.begin();
+            T behavior;
+            try {
+                behavior = delegate.create(block, section);
+            } catch (RuntimeException | Error failure) {
+                BehaviorArgRecorder.end();
+                throw failure;
+            }
+            BehaviorArgDiagnostics.reportUnread(block, id, section, BehaviorArgRecorder.end());
+            return behavior;
         }
     }
 

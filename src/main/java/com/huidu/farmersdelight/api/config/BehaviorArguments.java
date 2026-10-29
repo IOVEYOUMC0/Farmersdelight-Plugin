@@ -23,6 +23,7 @@ public final class BehaviorArguments {
         if (arguments == null || path == null) {
             return null;
         }
+        BehaviorArgRecorder.record(path);
         if (path.indexOf('.') < 0) {
             return flat(arguments, path);
         }
@@ -37,6 +38,7 @@ public final class BehaviorArguments {
      * rawWithLegacy(arguments, "bone-meal.age-bonus", "bone_meal_age_bonus").
      */
     public static Object rawWithLegacy(Map<String, Object> arguments, String path, String legacyKey) {
+        BehaviorArgRecorder.record(legacyKey);
         Object value = raw(arguments, path);
         return value != null ? value : flat(arguments, legacyKey);
     }
@@ -46,6 +48,7 @@ public final class BehaviorArguments {
         if (arguments == null || path == null) {
             return false;
         }
+        BehaviorArgRecorder.record(path);
         if (path.indexOf('.') < 0) {
             return containsFlat(arguments, path);
         }
@@ -57,6 +60,7 @@ public final class BehaviorArguments {
 
     /** The nested section at path (for example burn), or null when there is no such map. */
     public static Map<String, Object> section(Map<String, Object> arguments, String path) {
+        BehaviorArgRecorder.record(path);
         Object value = path != null && path.indexOf('.') >= 0 ? nested(arguments, path) : flat(arguments, path);
         if (!(value instanceof Map<?, ?> map)) {
             return null;
