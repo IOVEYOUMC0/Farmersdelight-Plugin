@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * thread that owns that storage, whenever something changed: once per player join ("player"), container open
  * ("inventory"), station block entity ("block"), dropped item ("item"), and once per start-up chunk batch
  * ("startup"). Addons can use the key to drop their own caches keyed by a legacy id. Not cancellable, and the
- * counts accumulate through {@link #addRemoved(int)}.
+ * counts accumulate through addRemoved(int).
  */
 @ApiStatus.NonExtendable
 public class FarmersDelightMigrateEvent extends Event {

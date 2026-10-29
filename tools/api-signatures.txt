@@ -512,6 +512,7 @@ member|com.huidu.farmersdelight.api.pack.AddonPackSections|public List<String>cl
 member|com.huidu.farmersdelight.api.pack.AddonPackSections|public LoadingStage loadingStage()
 member|com.huidu.farmersdelight.api.pack.AddonPackSections|public String claimId()
 member|com.huidu.farmersdelight.api.pack.AddonPackSections|public String[] sectionId()
+member|com.huidu.farmersdelight.api.pack.AddonPackSections|public boolean hasPublished()
 member|com.huidu.farmersdelight.api.pack.AddonPackSections|public boolean registered()
 member|com.huidu.farmersdelight.api.pack.AddonPackSections|public static AddonPackSections claim(JavaPlugin plugin, String typeId, String stageName, Map<String, String>roots)
 member|com.huidu.farmersdelight.api.pack.AddonPackSections|public static AddonPackSections claim(PackManager packManager, String typeId, String stageName, Map<String, String>roots)

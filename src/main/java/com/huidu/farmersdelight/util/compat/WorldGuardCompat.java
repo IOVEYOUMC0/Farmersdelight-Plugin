@@ -17,7 +17,6 @@ public final class WorldGuardCompat {
 
     // Per-station protection features live on the ProtectionCompat facade; this class maps each to its
     // WorldGuard StateFlag (feature.flagName()) and defaults every flag to ALLOW (unset = no change).
-    private static volatile Boolean available;
     private static volatile Object useFlag;
     // Registered StateFlag instances resolved once in registerFlags() during onLoad. null when
     // WorldGuard is absent / registration failed -> the query layer treats a null flag as ALLOW.
@@ -299,15 +298,9 @@ public final class WorldGuardCompat {
         I18n.logWarning("plugin.worldguard_query_failed", "error", detail);
     }
 
-    private static boolean isAvailable() {
-        Boolean cached = available;
-        if (cached != null) {
-            return cached;
-        }
-        boolean loaded = Bukkit.getPluginManager().getPlugin(WORLD_GUARD_PLUGIN) != null
-                && Bukkit.getPluginManager().isPluginEnabled(WORLD_GUARD_PLUGIN);
-        available = loaded;
-        return loaded;
+    static boolean isAvailable() {
+        // Plugin-manager lookup is cheap and observes both delayed enable and runtime disable.
+        return Bukkit.getPluginManager().isPluginEnabled(WORLD_GUARD_PLUGIN);
     }
 
     private static Object regionContainer() throws ReflectiveOperationException {

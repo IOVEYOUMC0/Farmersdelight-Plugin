@@ -273,24 +273,37 @@ public class HeatSourceConfig {
         if (required.isEmpty()) {
             return true;
         }
-        String data = block.getBlockData().getAsString();
+        return statesMatch(block.getBlockData().getAsString(), required);
+    }
+
+    /** Compares requested properties without constructing a parsed state map. */
+    static boolean statesMatch(String data, Map<String, String> required) {
+        if (required.isEmpty()) {
+            return true;
+        }
+        if (data == null) {
+            return false;
+        }
         int open = data.indexOf('[');
         if (open < 0 || !data.endsWith("]")) {
             return false;
         }
-        Map<String, String> actual = new HashMap<>();
+        int matched = 0;
         for (String pair : data.substring(open + 1, data.length() - 1).split(",")) {
             int eq = pair.indexOf('=');
-            if (eq > 0) {
-                actual.put(pair.substring(0, eq).trim(), pair.substring(eq + 1).trim());
+            if (eq <= 0) {
+                continue;
             }
-        }
-        for (Map.Entry<String, String> entry : required.entrySet()) {
-            if (!entry.getValue().equalsIgnoreCase(actual.get(entry.getKey()))) {
+            String expected = required.get(pair.substring(0, eq).trim());
+            if (expected == null) {
+                continue;
+            }
+            if (!expected.equalsIgnoreCase(pair.substring(eq + 1).trim())) {
                 return false;
             }
+            matched++;
         }
-        return true;
+        return matched == required.size();
     }
 
     private void loadEntries(ConfigurationSection section) {

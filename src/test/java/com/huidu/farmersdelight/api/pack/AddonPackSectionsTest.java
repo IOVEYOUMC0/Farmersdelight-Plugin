@@ -26,6 +26,15 @@ class AddonPackSectionsTest {
 
     private static final Map<String, String> ROOTS = roots();
 
+    @Test
+    void anEmptyPublicationIsDistinctFromNotYetDispatched() {
+        AddonPackSections parser = AddonPackSections.createForTesting(ROOTS);
+        org.junit.jupiter.api.Assertions.assertFalse(parser.hasPublished());
+        parser.loadAll();
+        assertTrue(parser.hasPublished());
+        assertTrue(parser.sections("cooking_recipes").isEmpty());
+    }
+
     private static Map<String, String> roots() {
         Map<String, String> roots = new LinkedHashMap<>();
         for (PackSection section : PackSection.values()) {

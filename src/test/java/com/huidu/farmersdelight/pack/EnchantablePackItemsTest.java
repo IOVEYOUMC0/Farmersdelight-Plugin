@@ -55,12 +55,40 @@ class EnchantablePackItemsTest {
                     item + " must keep vanilla speed outside the knife-mineable blocks");
             assertTrue(block.contains("damage_per_block: 1"),
                     item + " must consume one durability per broken block like the mod's DiggerItem");
-            assertTrue(block.contains("'#farmersdelight:mineable/knife'"),
-                    item + " must use the knife-mineable block tag");
+            assertTrue(block.contains("blocks: '#minecraft:wool'"),
+                    item + " must declare tag holders as scalar rules, not list members");
             assertTrue(block.contains("correct_for_drops: true"),
                     item + " must be the correct tool for the knife-mineable blocks");
             assertTrue(block.contains("speed: " + entry.getValue()),
                     item + " must mine at the mod's tier speed " + entry.getValue());
+        }
+    }
+
+    @Test
+    void toolRulesDoNotMixTagsWithDirectRegistryHolders() throws IOException {
+        org.bukkit.configuration.file.YamlConfiguration yaml =
+                new org.bukkit.configuration.file.YamlConfiguration();
+        try {
+            yaml.loadFromString(packFile("knives.yml"));
+        } catch (org.bukkit.configuration.InvalidConfigurationException invalid) {
+            throw new AssertionError(invalid);
+        }
+        for (String id : KNIVES) {
+            var tool = yaml.getConfigurationSection("items." + id + ".data.components.minecraft:tool");
+            assertNotNull(tool);
+            List<Map<?, ?>> rules = tool.getMapList("rules");
+            assertEquals(4, rules.size());
+            for (Map<?, ?> rule : rules) {
+                Object holders = rule.get("blocks");
+                if (holders instanceof List<?> list) {
+                    assertTrue(list.stream().allMatch(value -> value instanceof String text
+                                    && text.startsWith("minecraft:") && !text.startsWith("#")),
+                            "Direct holder lists cannot contain #tags or unresolved custom IDs");
+                } else {
+                    assertTrue(holders instanceof String tag && tag.startsWith("#minecraft:"),
+                            "Registry tags must be scalar holder sets");
+                }
+            }
         }
     }
 

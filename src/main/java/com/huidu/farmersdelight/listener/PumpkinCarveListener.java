@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.tool.ToolAttackListener;
+import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import org.bukkit.GameMode;
@@ -52,6 +53,10 @@ public final class PumpkinCarveListener implements Listener {
         if (block.getType() != Material.PUMPKIN) {
             return;
         }
+        // Material first, then the CraftEngine state (the expensive part): only real vanilla pumpkins carve.
+        if (isCustomBlock(block)) {
+            return;
+        }
         Player player = event.getPlayer();
         boolean offHand = event.getHand() == EquipmentSlot.OFF_HAND;
         ItemStack tool = offHand ? player.getInventory().getItemInOffHand()
@@ -59,10 +64,17 @@ public final class PumpkinCarveListener implements Listener {
         if (!plugin.isKnife(tool)) {
             return;
         }
-        if (!ownsRegion(block) || !ProtectionCompat.canUse(player, block, (String) null)) {
+        if (player.getGameMode() == GameMode.SPECTATOR || player.getGameMode() == GameMode.ADVENTURE
+                || !ownsRegion(block) || !ProtectionCompat.canUse(player, block, (String) null)) {
             return;
         }
 
+        event.setCancelled(true);
+        BlockData before = block.getBlockData().clone();
+        var harvest = new org.bukkit.event.player.PlayerHarvestBlockEvent(player, block, event.getHand(),
+                new java.util.ArrayList<>(java.util.List.of(new ItemStack(Material.PUMPKIN_SEEDS, SEED_COUNT))));
+        org.bukkit.Bukkit.getPluginManager().callEvent(harvest);
+        if (harvest.isCancelled() || !before.equals(block.getBlockData())) return;
         BlockFace facing = PumpkinCarveRules.carvedFacing(event.getBlockFace(), player.getFacing());
         BlockData carved = Material.CARVED_PUMPKIN.createBlockData();
         if (carved instanceof Directional directional) {
@@ -75,10 +87,13 @@ public final class PumpkinCarveListener implements Listener {
 
         Location drop = block.getLocation().add(0.5 + facing.getModX() * 0.65, 0.1,
                 0.5 + facing.getModZ() * 0.65);
-        world.dropItem(drop, new ItemStack(Material.PUMPKIN_SEEDS, SEED_COUNT), item -> {
-            item.setPickupDelay(10);
-            item.setVelocity(new Vector(0.05 * facing.getModX(), 0.05, 0.05 * facing.getModZ()));
-        });
+        for (ItemStack seedDrop : harvest.getItemsHarvested()) {
+            if (seedDrop == null || seedDrop.getType().isAir()) continue;
+            world.dropItem(drop, seedDrop.clone(), item -> {
+                item.setPickupDelay(10);
+                item.setVelocity(new Vector(0.05 * facing.getModX(), 0.05, 0.05 * facing.getModZ()));
+            });
+        }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
             ToolAttackListener.consumeDurability(tool, player.getLocation());
@@ -93,5 +108,11 @@ public final class PumpkinCarveListener implements Listener {
 
     private boolean ownsRegion(Block block) {
         return !plugin.scheduler().isFolia() || plugin.scheduler().isOwnedByCurrentRegion(block.getLocation());
+    }
+
+    /** A CraftEngine custom block carried by minecraft:pumpkin must stay that block, not become a carved pumpkin. */
+    private boolean isCustomBlock(Block block) {
+        var state = CustomBlockUtils.getState(block);
+        return state != null && !state.isEmpty();
     }
 }

@@ -937,6 +937,11 @@ public class StoveManager {
     }
 
     public void invalidateBlockedAboveCache(Location location) {
+        // Called for every block break and every block of an explosion; with no stove on the server the lookup
+        // and its key allocation are pure overhead.
+        if (stoves.isEmpty() || location == null || location.getWorld() == null) {
+            return;
+        }
         StoveData stove = stoves.get(ManagerSupport.normalize(location));
         if (stove != null) {
             stove.blockedAboveCheckedTick = Long.MIN_VALUE;

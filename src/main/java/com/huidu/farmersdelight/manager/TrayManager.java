@@ -86,6 +86,11 @@ public class TrayManager {
                 new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
     }
 
+    /**
+     * Re-evaluates the trays above a block whose support changed. Runs for every block break and for every block
+     * of an explosion, so the station above is checked inline first: a scheduled task that would find no station
+     * is the expensive outcome, and a large explosion used to queue one task per broken block.
+     */
     public void syncAroundSupportChange(Location supportLocation) {
         if (supportLocation == null || supportLocation.getWorld() == null) return;
 
@@ -93,12 +98,44 @@ public class TrayManager {
         boolean anySkillets = skilletManager != null && skilletManager.hasTrackedSkillets();
         if (!CookingPotBlockBehavior.hasAnyBlockEntities() && !anySkillets) return;
 
-        Location above1 = supportLocation.clone().add(0, 1, 0);
-        Location above2 = supportLocation.clone().add(0, 2, 0);
+        World world = supportLocation.getWorld();
+        int x = supportLocation.getBlockX();
+        int y = supportLocation.getBlockY();
+        int z = supportLocation.getBlockZ();
+        BlockPos aboveOne = new BlockPos(x, y + 1, z);
+        BlockPos aboveTwo = new BlockPos(x, y + 2, z);
+        // checkAndPlaceTray returns immediately when neither a pot nor a skillet stands there, so this
+        // predicate only skips work that would have been discarded anyway.
+        if (!hasStationAt(world, aboveOne) && !hasStationAt(world, aboveTwo)) {
+            return;
+        }
+
+        Location above1 = new Location(world, x, y + 1, z);
+        Location above2 = new Location(world, x, y + 2, z);
         plugin.scheduler().runLaterAt(above1, () -> {
-            checkAndPlaceTray(above1);
-            checkAndPlaceTray(above2);
+            // A queued support update must not load a chunk that was unloaded in the meantime.
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) return;
+            if (y + 1 >= world.getMinHeight() && y + 1 < world.getMaxHeight()) checkAndPlaceTray(above1);
+            if (y + 2 >= world.getMinHeight() && y + 2 < world.getMaxHeight()) checkAndPlaceTray(above2);
         }, 1L);
+    }
+
+    /** True when a cooking pot or skillet stands at this position; the tray rules only apply there. */
+    private boolean hasStationAt(World world, BlockPos pos) {
+        if (pos.y() < world.getMinHeight() || pos.y() >= world.getMaxHeight()) {
+            return false;
+        }
+        if (!plugin.scheduler().isOwnedByCurrentRegion(new Location(world, pos.x(), pos.y(), pos.z()))
+                || !world.isChunkLoaded(pos.x() >> 4, pos.z() >> 4)) {
+            return false;
+        }
+        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(
+                world.getBlockAt(pos.x(), pos.y(), pos.z()));
+        if (state == null || state.isEmpty()) {
+            return false;
+        }
+        return CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class) != null
+                || CustomBlockUtils.getBehavior(state, SkilletBlockBehavior.class) != null;
     }
 
     public boolean shouldHaveTray(World world, BlockPos potPos) {

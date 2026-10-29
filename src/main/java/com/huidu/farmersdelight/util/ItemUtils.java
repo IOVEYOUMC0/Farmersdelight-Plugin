@@ -65,6 +65,7 @@ public final class ItemUtils {
 
     public static void configureExternalItemSources(List<String> plugins) {
         EXTERNAL_ITEMS.configure(plugins);
+        itemTagIdCache.invalidate();
     }
 
     private static final Map<Key, List<ItemStack>> vanillaTagCache = new ConcurrentHashMap<>();
@@ -75,11 +76,15 @@ public final class ItemUtils {
     // call (all FD/BAC names are <l10n:> DynamicLines), so cache the built base and hand out clones. Cleared
     // on CE/config reload so redefined items rebuild.
     private static final Map<Key, ItemStack> itemBuildCache = new ConcurrentHashMap<>();
-    // A CraftEngine item's declared tags, as the strings the tag comparisons use, keyed by its item id.
-    // Both the set copy and one String per tag were being rebuilt on every membership test; the answer
-    // only changes when CraftEngine reloads, which is exactly when this map is cleared.
-    private static final Map<Key, Set<String>> customItemTagIdCache = new ConcurrentHashMap<>();
+    // Reload detaches in-flight loaders; registry snapshots isolate concurrent tag registrations.
+    private static final GenerationCache<TagIdentity, Set<String>> itemTagIdCache = new GenerationCache<>(8192);
+
+    private record TagIdentity(String id, boolean craftEngine) {
+    }
     private static final List<Material> ITEM_MATERIALS = new ArrayList<>();
+    // Pre-built "minecraft:<material>" ids: getVanillaMaterialItemId ran string concat + toLowerCase on every
+    // call, and it sits in per-slot and per-ingredient loops. Legacy and non-item materials are absent.
+    private static final Map<Material, String> VANILLA_ITEM_IDS;
     // Pre-built reverse index: material -> all vanilla item-tag IDs it belongs to, replacing the O(n) tag scan
     // per call. Published as a whole once built; "map is non-empty" cannot serve as the built flag, because the
     // first computeIfAbsent makes it non-empty while most materials are still missing.
@@ -93,11 +98,14 @@ public final class ItemUtils {
     private static final Pattern TRANSLATION_TAG_PATTERN = Pattern.compile("<(?:l10n|lang|i18n)[:;]([^>]+)>");
 
     static {
+        Map<Material, String> vanillaIds = new EnumMap<>(Material.class);
         for (Material material : Registry.MATERIAL) {
             if (!material.isLegacy() && material.isItem()) {
                 ITEM_MATERIALS.add(material);
+                vanillaIds.put(material, "minecraft:" + material.name().toLowerCase(Locale.ROOT));
             }
         }
+        VANILLA_ITEM_IDS = Collections.unmodifiableMap(vanillaIds);
     }
 
     private ItemUtils() {
@@ -146,9 +154,14 @@ public final class ItemUtils {
             return null;
         }
         Material type = item.getType();
+        String cached = VANILLA_ITEM_IDS.get(type);
+        if (cached != null) {
+            return cached;
+        }
         if (type.isAir() || !type.isItem()) {
             return null;
         }
+        // Only a material the pre-built map skipped (legacy alias) reaches this fallback.
         return "minecraft:" + type.name().toLowerCase(Locale.ROOT);
     }
 
@@ -197,21 +210,6 @@ public final class ItemUtils {
      */
     public static boolean isAnyCustomItemLoaded() {
         return CustomItemPresence.anyLoaded();
-    }
-
-    /** The declared tags of a CraftEngine item as strings, built once per item id. */
-    private static Set<String> customItemTagIds(Key key) {
-        return customItemTagIdCache.computeIfAbsent(key, id -> {
-            Set<Key> tags = getCustomItemTags(id);
-            if (tags.isEmpty()) {
-                return Set.of();
-            }
-        Set<String> ids = new LinkedHashSet<>(tags.size());
-            for (Key tag : tags) {
-                ids.add(tag.toString());
-            }
-            return Set.copyOf(ids);
-        });
     }
 
     public static Set<Key> getCustomItemTags(Key key) {
@@ -350,7 +348,7 @@ public final class ItemUtils {
     public static void clearItemCache() {
         EXTERNAL_ITEMS.clear();
         itemBuildCache.clear();
-        customItemTagIdCache.clear();
+        itemTagIdCache.invalidate();
         vanillaTagCache.clear();
         vanillaItemTagResolveCache.clear();
         MATERIAL_TAG_INDEX = Map.of();
@@ -912,14 +910,10 @@ public final class ItemUtils {
         if (item == null || item.getType().isAir()) {
             return Set.of();
         }
-        LinkedHashSet<String> tags = new LinkedHashSet<>();
         // CE-declared tags (self-identifying, e.g. a knife declaring farmersdelight:tools/knives).
         Item wrapped = BukkitAdaptor.adapt(item);
         Key customKey = wrapped.customId().orElse(null);
         String customId = customKey == null ? null : customKey.toString();
-        if (customKey != null) {
-            tags.addAll(customItemTagIds(customKey));
-        }
         // Registered tags (c:... conventions plus any addon-registered tags) are resolved against
         // the item's authoritative identity. Do not include the base material for custom items: a CE
         // custom apple rendered as cooked beef must not inherit cooked-beef recipe tags.
@@ -930,8 +924,20 @@ public final class ItemUtils {
         if (identity == null) {
             identity = getVanillaMaterialItemId(item);
         }
-        tags.addAll(CommonTagResolver.getTagsForItemId(identity));
-        return Set.copyOf(tags);
+        if (identity == null) {
+            return Set.of();
+        }
+        CommonTagResolver.Snapshot tagsSnapshot = CommonTagResolver.snapshot();
+        TagIdentity key = new TagIdentity(identity, customKey != null);
+        return itemTagIdCache.get(tagsSnapshot.version(), key, ignored -> {
+            Set<String> registered = tagsSnapshot.itemToTags().getOrDefault(key.id(), Set.of());
+            if (customKey == null) return registered;
+            LinkedHashSet<String> tags = new LinkedHashSet<>(registered);
+            for (Key tag : getCustomItemTags(customKey)) {
+                tags.add(tag.toString());
+            }
+            return Set.copyOf(tags);
+        });
     }
 
     public static List<String> getAllItemTagIds(ItemStack item) {

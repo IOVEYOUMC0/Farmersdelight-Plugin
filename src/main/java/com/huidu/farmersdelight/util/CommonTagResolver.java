@@ -37,10 +37,8 @@ public final class CommonTagResolver {
     // FD's own default, loaded from <dataFolder>/common-tags.yml. Immutable snapshot.
     private static volatile Map<String, Set<String>> builtin = Map.of();
 
-    // Effective merged snapshots, published whole on every change.
-    private static volatile Map<String, Set<String>> tagToItems = Map.of();
-    private static volatile Map<String, Set<String>> itemToTags = Map.of();
-    private static volatile boolean loaded = false;
+    // Forward and reverse indexes share one publication and one generation.
+    private static volatile Snapshot snapshot = new Snapshot(0L, Map.of(), Map.of());
     private static Set<String> reportedProblems = Set.of();
 
     private CommonTagResolver() {
@@ -95,12 +93,12 @@ public final class CommonTagResolver {
 
     /** True if the given tag key is registered in this central registry. */
     public static boolean isCommonTag(String tagKey) {
-        return loaded && tagToItems.containsKey(normalize(tagKey));
+        return snapshot.tagToItems().containsKey(normalize(tagKey));
     }
 
     /** Concrete item ids the given tag expands to (empty when unregistered). */
     public static Set<String> getMembers(String tagKey) {
-        return tagToItems.getOrDefault(normalize(tagKey), Set.of());
+        return snapshot.tagToItems().getOrDefault(normalize(tagKey), Set.of());
     }
 
     public static Set<String> getMembers(Key tagKey) {
@@ -110,12 +108,12 @@ public final class CommonTagResolver {
     /** Tags owned by the given concrete item id (matching any id form an item reports). */
     public static Set<String> getTagsForItemId(String itemId) {
         return itemId == null ? Set.of()
-                : itemToTags.getOrDefault(itemId.trim().toLowerCase(Locale.ROOT), Set.of());
+                : snapshot.itemToTags().getOrDefault(itemId.trim().toLowerCase(Locale.ROOT), Set.of());
     }
 
     /** Immutable snapshot of every registered tag and its concrete members, for datapack export. */
     public static Map<String, Set<String>> tagSnapshot() {
-        return tagToItems;
+        return snapshot.tagToItems();
     }
 
     public static synchronized Map<String, Set<String>> externalTagSnapshot() {
@@ -154,10 +152,21 @@ public final class CommonTagResolver {
         for (Map.Entry<String, Set<String>> entry : mergedItemToTags.entrySet()) {
             frozenItemToTags.put(entry.getKey(), Set.copyOf(entry.getValue()));
         }
-        tagToItems = Map.copyOf(frozenTagToItems);
-        itemToTags = Map.copyOf(frozenItemToTags);
-        loaded = true;
+        snapshot = new Snapshot(snapshot.version() + 1L,
+                Map.copyOf(frozenTagToItems), Map.copyOf(frozenItemToTags));
         reportProblems(problems);
+    }
+
+    /** Monotonic rebuild counter; readers cache resolved tag sets against this value. */
+    public static long version() {
+        return snapshot.version();
+    }
+
+    static Snapshot snapshot() {
+        return snapshot;
+    }
+
+    record Snapshot(long version, Map<String, Set<String>> tagToItems, Map<String, Set<String>> itemToTags) {
     }
 
     private static Map<String, Set<String>> loadFile(JavaPlugin plugin) {

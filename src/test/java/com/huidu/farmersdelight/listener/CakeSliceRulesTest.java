@@ -14,6 +14,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CakeSliceRulesTest {
 
     @Test
+    void aLightableCandleCakeDoesNotRequireCakeBlockData() {
+        for (Material material : Material.values()) {
+            if (CakeSliceRules.candleFor(material) == null) continue;
+            org.bukkit.block.data.Lightable data = (org.bukkit.block.data.Lightable)
+                    java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+                            new Class<?>[]{org.bukkit.block.data.Lightable.class}, (proxy, method, args) -> {
+                                if (method.getName().equals("getMaterial")) return material;
+                                throw new AssertionError(method.getName());
+                            });
+            assertEquals(0, CakeSliceRules.bites(data), material.toString());
+            assertEquals(1, CakeSliceRules.nextBites(CakeSliceRules.bites(data), true));
+        }
+    }
+
+    @Test
     void candleCakesReturnTheirCandle() {
         assertEquals(Material.CANDLE, CakeSliceRules.candleFor(Material.CANDLE_CAKE));
         assertEquals(Material.WHITE_CANDLE, CakeSliceRules.candleFor(Material.WHITE_CANDLE_CAKE));
@@ -48,16 +63,6 @@ class CakeSliceRulesTest {
     void biteCountsOutsideTheVanillaRangeAreRejected() {
         assertThrows(IllegalArgumentException.class, () -> CakeSliceRules.nextBites(-1, false));
         assertThrows(IllegalArgumentException.class, () -> CakeSliceRules.nextBites(7, false));
-    }
-
-    @Test
-    void brokenPastriesYieldTheirRemainingSlices() {
-        assertEquals(7, CakeSliceRules.remainingSlices(0, true));
-        assertEquals(1, CakeSliceRules.remainingSlices(6, true));
-        assertEquals(4, CakeSliceRules.remainingSlices(0, false));
-        assertEquals(1, CakeSliceRules.remainingSlices(3, false));
-        assertThrows(IllegalArgumentException.class, () -> CakeSliceRules.remainingSlices(7, true));
-        assertThrows(IllegalArgumentException.class, () -> CakeSliceRules.remainingSlices(4, false));
     }
 
     @Test

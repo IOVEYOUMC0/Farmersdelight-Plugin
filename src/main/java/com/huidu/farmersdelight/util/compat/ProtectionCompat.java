@@ -95,7 +95,7 @@ public final class ProtectionCompat {
 
     // Addon flag-aware overloads (flagName registered via registerCustomFlag).
     public static boolean canBuild(Player player, Block block, String flagName) {
-        return block == null || canBuild(player, block.getLocation(), flagName);
+        return block == null || player == null || player.isOp() || canBuild(player, block.getLocation(), flagName);
     }
 
     public static boolean canBuild(Player player, Location location, String flagName) {
@@ -116,7 +116,7 @@ public final class ProtectionCompat {
     }
 
     public static boolean canBreak(Player player, Block block, String flagName) {
-        return block == null || canBreak(player, block.getLocation(), flagName);
+        return block == null || player == null || player.isOp() || canBreak(player, block.getLocation(), flagName);
     }
 
     public static boolean canBreak(Player player, Location location, String flagName) {
@@ -136,7 +136,7 @@ public final class ProtectionCompat {
     }
 
     public static boolean canUse(Player player, Block block, String flagName) {
-        return block == null || canUse(player, block.getLocation(), flagName);
+        return block == null || player == null || player.isOp() || canUse(player, block.getLocation(), flagName);
     }
 
     public static boolean canUse(Player player, Location location, String flagName) {

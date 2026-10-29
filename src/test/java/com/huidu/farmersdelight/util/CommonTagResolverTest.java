@@ -18,6 +18,40 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CommonTagResolverTest {
 
     @Test
+    void versionBumpsOnEveryRebuildSoDerivedCachesCanInvalidate() {
+        long before = CommonTagResolver.version();
+        String source = "test-version-source";
+        try {
+            CommonTagResolver.registerSource(source, Map.of("c:test/version", List.of("minecraft:stick")));
+            long registered = CommonTagResolver.version();
+            assertTrue(registered > before, "registerSource must invalidate derived tag caches");
+            CommonTagResolver.unregisterSource(source);
+            assertTrue(CommonTagResolver.version() > registered,
+                    "unregisterSource must invalidate derived tag caches too");
+        } finally {
+            CommonTagResolver.unregisterSource(source);
+        }
+    }
+
+    @Test
+    void aCapturedGenerationKeepsBothIndexesConsistentAcrossRebuilds() {
+        String source = "test-captured-tags";
+        try {
+            CommonTagResolver.registerSource(source, Map.of("test:snapshot", List.of("minecraft:stick")));
+            CommonTagResolver.Snapshot old = CommonTagResolver.snapshot();
+            CommonTagResolver.registerSource(source, Map.of("test:snapshot", List.of("minecraft:flint")));
+            CommonTagResolver.Snapshot next = CommonTagResolver.snapshot();
+            assertTrue(next.version() > old.version());
+            assertEquals(Set.of("minecraft:stick"), old.tagToItems().get("test:snapshot"));
+            assertTrue(old.itemToTags().get("minecraft:stick").contains("test:snapshot"));
+            assertEquals(Set.of("minecraft:flint"), next.tagToItems().get("test:snapshot"));
+            assertTrue(next.itemToTags().get("minecraft:flint").contains("test:snapshot"));
+        } finally {
+            CommonTagResolver.unregisterSource(source);
+        }
+    }
+
+    @Test
     void mergesSourcesAndBuildsReverseIndex() {
         String source = "test-common-tags";
         String secondSource = "test-common-tags-2";

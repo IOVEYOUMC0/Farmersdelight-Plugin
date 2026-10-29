@@ -253,24 +253,15 @@ final class CraftEngineReadinessCoordinator {
             I18n.reload();
             I18n.logDetail("startup", "plugin.craftengine_reload");
             plugin.refreshAfterCraftEngineReload();
-            if (!contentWarmupCompleted.get()) {
-                loadRecipesThenPublish("plugin.refreshing_recipes_after_ce",
-                        () -> refreshAdvancementsWhenReady(false),
-                        () -> {
-                            warmUpWhenReady("reload");
-                            indexLoadedChunkContentWhenReady();
-                            ToolRegistry.refresh();
-                            reportContentSummaryWhenReady();
-                        });
-                return;
-            }
-            // Outside the first-warm-up guard on purpose: refreshAfterCraftEngineReload just emptied the item,
-            // sound and GUI caches this fills.
-            warmUpWhenReady("reload");
-            indexLoadedChunkContentWhenReady();
-            ToolRegistry.refresh();
-            // Report the content counts once the readiness pass has loaded everything.
-            reportContentSummaryWhenReady();
+            // Warm caches must follow publication of the newly claimed CE recipe sections on every reload.
+            loadRecipesThenPublish("plugin.refreshing_recipes_after_ce",
+                    () -> refreshAdvancementsWhenReady(false),
+                    () -> {
+                        warmUpWhenReady("reload");
+                        indexLoadedChunkContentWhenReady();
+                        ToolRegistry.refresh();
+                        reportContentSummaryWhenReady();
+                    });
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE,
                     "Error during CraftEngine reload processing in " + plugin.getClass().getSimpleName(), e);

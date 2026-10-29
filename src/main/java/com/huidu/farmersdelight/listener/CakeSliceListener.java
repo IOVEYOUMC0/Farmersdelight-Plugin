@@ -6,7 +6,6 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.SoundUtils;
 import com.huidu.farmersdelight.util.compat.ProtectionCompat;
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -32,9 +31,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Slices vanilla cakes and candle cakes with a knife, and drops the remaining slices when a cake is broken with
- * one. CraftEngine pies implement the same rules in their own block config; this listener covers the vanilla
- * blocks, which have no plugin-side block definition to attach behavior to.
+ * Slices vanilla cakes and candle cakes with a knife. Break loot stays in the CE loot source to avoid duplicate
+ * drops; CE pies implement their own right-click slicing in the content pack.
  */
 public final class CakeSliceListener implements Listener {
 
@@ -61,7 +59,13 @@ public final class CakeSliceListener implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
-        if (!CakeSliceRules.target(block.getType(), isCustomBlock(block))) {
+        Material type = block.getType();
+        // Material first: this listener sees every right-click in the world, and the CraftEngine state
+        // lookup behind isCustomBlock is the expensive part. Only cake clicks pay for it.
+        if (type != Material.CAKE && CakeSliceRules.candleFor(type) == null) {
+            return;
+        }
+        if (!CakeSliceRules.target(type, isCustomBlock(block))) {
             return;
         }
         Player player = event.getPlayer();
@@ -71,25 +75,28 @@ public final class CakeSliceListener implements Listener {
         if (!plugin.isKnife(tool)) {
             return;
         }
-        if (!ownsRegion(block) || !ProtectionCompat.canUse(player, block, (String) null)) {
+        if (player.getGameMode() == org.bukkit.GameMode.SPECTATOR
+                || player.getGameMode() == org.bukkit.GameMode.ADVENTURE
+                || !ownsRegion(block) || !ProtectionCompat.canUse(player, block, (String) null)) {
             return;
         }
         CakeSliceRules.Click click = new CakeSliceRules.Click(block.getWorld().getUID(), block.getX(), block.getY(),
                 block.getZ(), Bukkit.getCurrentTick(), offHand);
         if (CakeSliceRules.duplicateHand(LAST_CLICK.put(player.getUniqueId(), click), click)) {
+            event.setCancelled(true);
             return;
         }
-        if (!(block.getBlockData() instanceof Cake cake)) {
-            return;
-        }
-
-        Material candle = CakeSliceRules.candleFor(block.getType());
-        int next = CakeSliceRules.nextBites(cake.getBites(), candle != null);
+        var before = block.getBlockData().clone();
+        Material candle = CakeSliceRules.candleFor(type);
+        int bites = CakeSliceRules.bites(before);
+        if (bites < 0) return;
+        int next = CakeSliceRules.nextBites(bites, candle != null);
+        // Once this knife click is claimed, a rejected harvest must not fall through to vanilla eating.
+        event.setCancelled(true);
         List<ItemStack> drops = new ArrayList<>(2);
         ItemStack slice = ItemUtils.createItem(CAKE_SLICE_ID);
-        if (slice != null && !slice.getType().isAir()) {
-            drops.add(slice);
-        }
+        if (slice == null || slice.getType().isAir()) return;
+        drops.add(slice);
         if (candle != null) {
             drops.add(new ItemStack(candle));
         }
@@ -97,6 +104,7 @@ public final class CakeSliceListener implements Listener {
             return;
         }
 
+        if (!ownsRegion(block) || !before.equals(block.getBlockData())) return;
         if (next < 0) {
             block.setType(Material.AIR, false);
         } else if (candle != null) {
@@ -105,6 +113,7 @@ public final class CakeSliceListener implements Listener {
             plain.setBites(Math.min(next, CakeSliceRules.MAX_CAKE_BITES));
             block.setBlockData(plain, false);
         } else {
+            Cake cake = (Cake) before;
             cake.setBites(next);
             block.setBlockData(cake, false);
         }
@@ -118,38 +127,6 @@ public final class CakeSliceListener implements Listener {
         SoundUtils.play(block.getWorld(), block.getLocation().add(0.5, 0.5, 0.5),
                 SLICE_SOUND, Sound.BLOCK_WOOD_BREAK, 0.8f, 0.8f);
         event.setCancelled(true);
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBlockBreak(BlockBreakEvent event) {
-        Player player = event.getPlayer();
-        if (player.getGameMode() == GameMode.CREATIVE) {
-            return;
-        }
-        Block block = event.getBlock();
-        if (!CakeSliceRules.target(block.getType(), isCustomBlock(block))) {
-            return;
-        }
-        if (!plugin.isKnife(player.getInventory().getItemInMainHand())) {
-            return;
-        }
-        if (!ownsRegion(block) || !ProtectionCompat.canBreak(player, block, (String) null)) {
-            return;
-        }
-        if (!(block.getBlockData() instanceof Cake cake)) {
-            return;
-        }
-        List<ItemStack> drops = new ArrayList<>(2);
-        ItemStack slice = ItemUtils.createItem(CAKE_SLICE_ID);
-        if (slice != null && !slice.getType().isAir()) {
-            slice.setAmount(CakeSliceRules.remainingSlices(cake.getBites(), true));
-            drops.add(slice);
-        }
-        Material candle = CakeSliceRules.candleFor(block.getType());
-        if (candle != null) {
-            drops.add(new ItemStack(candle));
-        }
-        dropSliceItems(block, drops);
     }
 
     @EventHandler

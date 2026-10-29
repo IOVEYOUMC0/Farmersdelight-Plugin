@@ -16,10 +16,6 @@ final class CakeSliceRules {
 
     /** Last bite count of a vanilla cake; slicing it removes the block. */
     static final int MAX_CAKE_BITES = 6;
-    /** Slices a full cake yields when broken with a knife. */
-    static final int CAKE_SLICES = 7;
-    /** Slices a full pie yields when broken with a knife. */
-    static final int PIE_SLICES = 4;
 
     private static final Map<Material, Material> CANDLES = candles();
 
@@ -33,6 +29,12 @@ final class CakeSliceRules {
     /** Whether this block is a cake a knife can slice; a CustomBlock state means the block is not a vanilla cake. */
     static boolean target(Material material, boolean customBlock) {
         return !customBlock && (material == Material.CAKE || CANDLES.containsKey(material));
+    }
+
+    /** Candle cakes expose Lightable rather than Cake and always start with all seven slices. */
+    static int bites(org.bukkit.block.data.BlockData data) {
+        if (candleFor(data.getMaterial()) != null) return 0;
+        return data instanceof org.bukkit.block.data.type.Cake cake ? cake.getBites() : -1;
     }
 
     /** The candle a candle-cake returns when first sliced, or null for a plain cake. */
@@ -52,15 +54,6 @@ final class CakeSliceRules {
             return 1;
         }
         return bites >= MAX_CAKE_BITES ? -1 : bites + 1;
-    }
-
-    /** Slices a broken pastry yields for its remaining bites; cakes have seven, pies four. */
-    static int remainingSlices(int bites, boolean cake) {
-        int total = cake ? CAKE_SLICES : PIE_SLICES;
-        if (bites < 0 || bites >= total) {
-            throw new IllegalArgumentException("bites must be in 0.." + (total - 1) + ": " + bites);
-        }
-        return total - bites;
     }
 
     /** True when this click is the other hand of the interaction just handled for the same block. */

@@ -250,6 +250,11 @@ public final class AddonPackSections extends AbstractConfigParser {
         return registered;
     }
 
+    /** True after CE publishes a complete pass, including an intentionally empty one. */
+    public boolean hasPublished() {
+        return !sections.isEmpty();
+    }
+
     /** The claimed ids, in claim order. */
     public List<String> claimedIds() {
         return List.of(ids);

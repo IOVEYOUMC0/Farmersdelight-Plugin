@@ -437,7 +437,11 @@ public final class HandCookedSkewerHooks implements Listener {
         String entryId = logEntryPoint(player, action, reportedHand, event.useInteractedBlock() == Event.Result.DENY, clickedBlock);
 
         boolean rightClickBlock = action == Action.RIGHT_CLICK_BLOCK;
-        boolean blockHasInteraction = rightClickBlock && clickedBlock != null
+        // A sneaking right-click is accepted whatever the block does (see SkewerBlockClickPolicy.decide), so the
+        // CraftEngine interactable probe -- which wraps the held item and walks the block's interaction rules --
+        // is skipped for it. The probe is the expensive part of this handler, and it runs for every right-click
+        // in the world.
+        boolean blockHasInteraction = rightClickBlock && clickedBlock != null && !player.isSneaking()
                 && CraftEngineAdapter.hasBlockInteraction(event);
         SkewerBlockClickPolicy.Decision decision = decideClick(action, blockHasInteraction, player.isSneaking());
         if (!SkewerBlockClickPolicy.accepted(decision)) {
