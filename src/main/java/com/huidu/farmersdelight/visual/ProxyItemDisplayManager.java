@@ -834,6 +834,11 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             if (plugin.scheduler().isFolia()) {
                 UUID playerId = player.getUniqueId();
                 desiredViewers.add(playerId);
+                // CE's handler only works the diff: a viewer that already has this display needs no task.
+                // Later item/state changes arrive through queueSync, and stale viewers are removed below.
+                if (display.viewers.contains(playerId)) {
+                    continue;
+                }
                 // Chunk candidates belong to this region; the player's distance check belongs to its entity.
                 Runnable retired = () -> {
                     display.cullable.removeViewer(playerId);
