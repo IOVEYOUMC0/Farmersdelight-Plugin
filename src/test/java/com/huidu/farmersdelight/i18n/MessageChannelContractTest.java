@@ -54,13 +54,13 @@ class MessageChannelContractTest {
         }
         assertTrue(plugin.contains("private void logReloadEvent(String key, Object... args) {"),
                 "the reporter that decides between receipt and console has to exist");
-        assertTrue(plugin.contains("if (reloadDrivenByCommand) { I18n.logDetail(\"reload\", key, args); }"),
+        assertTrue(plugin.contains("if (reloadPassTimings.drivenByCommand()) { I18n.logDetail(\"reload\", key, args); }"),
                 "a command-started pass reports on the detail channel, which is off by default");
         assertTrue(plugin.contains("I18n.logInfo(key, args);"),
                 "a pass started elsewhere keeps its visible console line");
-        assertTrue(plugin.contains("reloadDrivenByCommand = true;"),
+        assertTrue(plugin.contains("reloadPassTimings.begin(true);"),
                 "beginReloadPass marks the pass the command started");
-        assertTrue(plugin.contains("public void endReloadPass() { reloadDrivenByCommand = false; }"),
+        assertTrue(plugin.contains("public void endReloadPass() { reloadPassTimings.end(); }"),
                 "the flag has to be cleared when the pass is over");
 
         String command = flat(RELOAD_COMMAND);

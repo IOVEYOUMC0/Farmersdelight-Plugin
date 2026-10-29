@@ -23,6 +23,7 @@ import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
+import com.huidu.farmersdelight.command.ReloadPassTimings;
 import com.huidu.farmersdelight.command.ReloadTiming;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.ConfigLookup;
@@ -808,7 +809,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void reloadCommonBody(boolean reloadLanguages, long reloadStart) {
-        resetReloadTimings();
+        reloadPassTimings.reset();
         long phase = System.nanoTime();
         configBootstrap.ensureConfigDefaults();
         reloadConfig();
@@ -867,12 +868,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         }
         long listenersNanos = System.nanoTime() - phase;
 
-        reloadConfigNanos.set(configNanos);
-        reloadToolsNanos.set(toolsNanos);
-        reloadManagersNanos.set(managersNanos);
-        reloadListenersNanos.set(listenersNanos);
+        reloadPassTimings.recordPhases(configNanos, toolsNanos, managersNanos, listenersNanos);
         // The addon pass is a separate tick and has not run yet; it overwrites this when it lands.
-        reloadAddonsNanos.set(0L);
+        reloadPassTimings.recordAddons(0L);
 
         // A full reload runs synchronously inside one tick, so on a large server it is the single biggest
         // server-thread stall the plugin causes. The split says which phase to attack; it is off unless the
@@ -950,7 +948,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             long addonStart = System.nanoTime();
             fireReloadEvent(reason);
             long addonNanos = System.nanoTime() - addonStart;
-            reloadAddonsNanos.set(addonNanos);
+            reloadPassTimings.recordAddons(addonNanos);
             // Timed separately because this work is invisible in the reloadCommon breakdown: on a server with
             // several addons it can exceed everything FarmersDelight does itself.
             I18n.logDetail("reload", "plugin.reload_addons", "ms", addonNanos / 1_000_000L);
@@ -976,27 +974,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     /** Guards the steps derived from CraftEngine's registries (pet food, stove/skillet recipe caches). */
     private final CeDerivedReloadGate ceDerivedReloadGate = new CeDerivedReloadGate();
 
-    private final AtomicLong reloadConfigNanos =
-            new AtomicLong();
-    private final AtomicLong reloadToolsNanos =
-            new AtomicLong();
-    private final AtomicLong reloadManagersNanos =
-            new AtomicLong();
-    private final AtomicLong reloadListenersNanos =
-            new AtomicLong();
-    /** True while the running pass was started by the reload command, which reports to its own sender. */
-    private volatile boolean reloadDrivenByCommand;
-
-    private final AtomicLong reloadAddonsNanos =
-            new AtomicLong();
-
-    private void resetReloadTimings() {
-        reloadConfigNanos.set(0L);
-        reloadToolsNanos.set(0L);
-        reloadManagersNanos.set(0L);
-        reloadListenersNanos.set(0L);
-        reloadAddonsNanos.set(0L);
-    }
+    private final ReloadPassTimings reloadPassTimings = new ReloadPassTimings();
 
     /** Reports reload time and phase costs; addon costs may arrive on the following tick. */
     public String reloadTimingSummary() {
@@ -1010,20 +988,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     public void beginReloadPass() {
         // The command answers its own sender with the styled receipt, so the console lines this pass would
         // otherwise print are the same event a second time; anything else has no other visible line.
-        reloadDrivenByCommand = true;
         synchronized (reloadTimingLock) {
             ReloadTiming.resetTargeted();
-            reloadConfigNanos.set(0L);
-            reloadToolsNanos.set(0L);
-            reloadManagersNanos.set(0L);
-            reloadListenersNanos.set(0L);
-            reloadAddonsNanos.set(0L);
+            reloadPassTimings.begin(true);
         }
     }
 
     /** The pass is over: the next one is not command-driven until a command starts it again. */
     public void endReloadPass() {
-        reloadDrivenByCommand = false;
+        reloadPassTimings.end();
     }
 
     /**
@@ -1032,7 +1005,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * pass started elsewhere (the public reload hook, the recipe editor) is only visible through it.
      */
     private void logReloadEvent(String key, Object... args) {
-        if (reloadDrivenByCommand) {
+        if (reloadPassTimings.drivenByCommand()) {
             I18n.logDetail("reload", key, args);
         } else {
             I18n.logInfo(key, args);
@@ -1041,21 +1014,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     /** The phase figures of the running pass, in the order the report prints them. */
     public long[] reloadPhaseNanos() {
-        return new long[]{
-                reloadConfigNanos.get(),
-                reloadToolsNanos.get(),
-                reloadManagersNanos.get(),
-                reloadListenersNanos.get(),
-                reloadAddonsNanos.get(),
-        };
+        return reloadPassTimings.phaseNanos();
     }
 
     /**
      * Total milliseconds the last reload's own pass occupied; the addon pass is reported separately.
      */
     public long reloadTotalMillis() {
-        return ReloadTiming.totalMillis(reloadConfigNanos.get() + reloadToolsNanos.get()
-                + reloadManagersNanos.get() + reloadListenersNanos.get());
+        return reloadPassTimings.totalMillis();
     }
 
     /** Problems the last reload found: config type mismatches plus recipe parse/reconcile issues. */
