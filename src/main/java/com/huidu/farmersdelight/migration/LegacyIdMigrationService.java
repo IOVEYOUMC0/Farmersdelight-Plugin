@@ -141,13 +141,6 @@ public final class LegacyIdMigrationService {
         return true;
     }
 
-    /** Migrates the stored contents behind one of the plugin's block entities. Must run on the owning thread. */
-    public int migrateBlockHolder(@Nullable InventoryHolder holder) {
-        if (holder == null) {
-            return 0;
-        }
-        return migrateInventory(holder.getInventory(), "block", true);
-    }
 
     /**
      * The replacement for a stack, or null when it is not legacy (so callers can skip the write). Runs no

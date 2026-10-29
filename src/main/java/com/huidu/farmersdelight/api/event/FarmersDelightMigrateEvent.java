@@ -9,10 +9,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Reports that the legacy-id migration rewrote at least one stored stack. Fired once per storage pass, on the
- * thread that owns that storage, whenever something changed: once per player join ("player"), container open
- * ("inventory"), station block entity ("block"), dropped item ("item"), and once per start-up chunk batch
- * ("startup"). Addons can use the key to drop their own caches keyed by a legacy id. Not cancellable, and the
- * counts accumulate through addRemoved(int).
+ * thread that owns that storage, whenever something changed: once per player join ("player"), container or
+ * plugin-GUI open ("inventory"), dropped item ("item"), and once per start-up chunk batch ("startup"). A
+ * station's stored contents migrate through the GUI-open pass, which is why there is no block key. Addons can
+ * use the key to drop their own caches keyed by a legacy id. Not cancellable, and the counts accumulate
+ * through addRemoved(int).
  */
 @ApiStatus.NonExtendable
 public class FarmersDelightMigrateEvent extends Event {
