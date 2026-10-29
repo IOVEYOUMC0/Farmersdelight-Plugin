@@ -24,6 +24,7 @@ import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
 import com.huidu.farmersdelight.command.ReloadPassTimings;
+import com.huidu.farmersdelight.shutdown.ShutdownSteps;
 import com.huidu.farmersdelight.command.ReloadTiming;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.ConfigLookup;
@@ -459,11 +460,11 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // One deadline for every best-effort persistence step below: per-step timeouts would add their SUM, so the
         // tail shares a budget and a spent budget skips the rest. Structural teardown (listeners, tasks, caches) is
         // in-memory and not budgeted; budgeted steps report through the same language keys as runDisableStep.
-        disableBudget = ShutdownBudget.ofMillis(
+        shutdownSteps.beginBudget(ShutdownBudget.ofMillis(
                         getConfigInt(DEFAULT_SHUTDOWN_WAIT_MILLIS, "performance.shutdown-wait-millis"), getLogger())
                 .withMessages(
                         I18n.formatConsole("plugin.disable_step_failed"),
-                        I18n.formatConsole("plugin.disable_budget_exhausted"));
+                        I18n.formatConsole("plugin.disable_budget_exhausted")));
 
         // Order inside ListenerRegistry#stop: event delivery is detached before any listener state is torn
         // down, then the listeners' own tasks stop, then the world/chunk handlers detach.
@@ -509,7 +510,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             // quit-time buff save never runs; persist every online player's buff state before the
             // effect listener stop below wipes the live maps and unregisters the buffs. On a normal
             // stop players were already kicked (and saved on quit), making this a no-op re-write.
-            buffSystem.saveOnlinePlayerBuffs(disableBudget);
+            buffSystem.saveOnlinePlayerBuffs(disableBudget());
         });
 
         runDisableStep("plugin.disable_step_close_cooking_pot_guis", CookingPotGui::cleanupAll);
@@ -571,7 +572,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         runDisableStep("plugin.disable_step_shutdown_scheduler", () -> {
             if (scheduler != null) {
                 // Drains within whatever is left of the shared budget instead of its own fixed wait.
-                scheduler.shutdown(disableBudget);
+                scheduler.shutdown(disableBudget());
                 scheduler = null;
             }
         });
@@ -613,33 +614,20 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     void runDisableStep(String stepKey, Runnable action, Object... stepArgs) {
-        try {
-            action.run();
-        } catch (Throwable throwable) {
-            getLogger().log(Level.WARNING, disableStepFailure(stepKey, stepArgs), throwable);
-        }
+        shutdownSteps.run(stepKey, action, stepArgs);
     }
 
-    // One sentence for every shutdown step failure: the outer text and the step name both come from the
-    // language layer, so the line reads as a sentence in either locale and names the step that failed.
-    private String disableStepFailure(String stepKey, Object... stepArgs) {
-        return I18n.formatConsole("plugin.disable_step_failed",
-                "step", I18n.formatConsole(stepKey, stepArgs));
-    }
-
-    // For steps that only persist best-effort state: skipped (with one warning) once the shared
-    // shutdown budget is spent, so a stuck write cannot hold the server open.
     private void runBudgetedDisableStep(String stepKey, Runnable action) {
-        ShutdownBudget budget = disableBudget;
-        if (budget == null) {
-            runDisableStep(stepKey, action);
-            return;
-        }
-        budget.step(I18n.formatConsole(stepKey), action);
+        shutdownSteps.runBudgeted(stepKey, action);
     }
 
     private static final int DEFAULT_SHUTDOWN_WAIT_MILLIS = 5000;
-    private ShutdownBudget disableBudget;
+    private final ShutdownSteps shutdownSteps = new ShutdownSteps(getLogger());
+
+    /** The shared deadline of the running disable, for the teardown steps that measure themselves against it. */
+    private ShutdownBudget disableBudget() {
+        return shutdownSteps.budget();
+    }
 
     private void cleanupPlacementCache() {
         BlockPlaceListener.cleanup();
@@ -653,7 +641,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * Persists the state that needs a live scheduler while the plugin is still enabled.
      */
     public void flushBeforeRuntimeDisable() {
-        buffSystem.flushBeforeRuntimeDisable(disableBudget);
+        buffSystem.flushBeforeRuntimeDisable(disableBudget());
     }
 
     // Every station manager owns its own state, so each flush is isolated: a manager that cannot write (a
