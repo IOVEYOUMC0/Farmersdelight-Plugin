@@ -34,7 +34,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
@@ -578,12 +580,18 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         // cannot change mid-pass and the memo is exactly equivalent to per-display fresh calls. On Folia
         // each display is handed to its own region instead, and carries a memo private to that task.
         Map<ChunkKey, Collection<Player>> memo = plugin.scheduler().isFolia() ? null : new HashMap<>();
+        // On Folia each display runs on its own region; the pass gathers what every region decided for a
+        // player, so the fan-out is one entity task per player instead of one per display and player.
+        SyncPass pass = plugin.scheduler().isFolia() ? new SyncPass() : null;
         for (int i = 0; i < budget; i++) {
             ProxyDisplay display = snapshot.get((start + i) % size);
-            scheduleSyncDisplay(display, memo);
+            scheduleSyncDisplay(display, memo, pass);
             processed++;
         }
         syncCursor = (start + Math.max(1, processed)) % size;
+        if (pass != null) {
+            pass.done();
+        }
     }
 
     private void markDisplaySnapshotDirty() {
@@ -604,13 +612,13 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         return updated;
     }
 
-    private void scheduleSyncDisplay(ProxyDisplay display, Map<ChunkKey, Collection<Player>> memo) {
+    private void scheduleSyncDisplay(ProxyDisplay display, Map<ChunkKey, Collection<Player>> memo, SyncPass pass) {
         if (display == null) {
             return;
         }
 
         if (!plugin.scheduler().isFolia()) {
-            syncDisplay(display, memo);
+            syncDisplay(display, memo, null);
             return;
         }
         Location loc = display.location();
@@ -619,8 +627,24 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             destroyForAllViewers(display);
             return;
         }
+        if (pass != null) {
+            pass.expect();
+            try {
+                plugin.scheduler().runAt(world, loc.getBlockX() >> 4, loc.getBlockZ() >> 4, () -> {
+                    try {
+                        syncDisplay(display, new HashMap<>(), pass);
+                    } finally {
+                        pass.done();
+                    }
+                });
+            } catch (RuntimeException failure) {
+                pass.done();
+                throw failure;
+            }
+            return;
+        }
         plugin.scheduler().runAt(world, loc.getBlockX() >> 4, loc.getBlockZ() >> 4,
-                () -> syncDisplay(display, new HashMap<>()));
+                () -> syncDisplay(display, new HashMap<>(), null));
     }
 
     private void queueSync(ProxyDisplay display) {
@@ -650,7 +674,7 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             ProxyDisplay display = it.next();
             it.remove();
             if (!folia) {
-                syncDisplay(display, memo);
+                syncDisplay(display, memo, null);
                 continue;
             }
             Location loc = display.location();
@@ -674,7 +698,7 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             plugin.scheduler().runAt(key.world(), key.x(), key.z(), () -> {
                 Map<ChunkKey, Collection<Player>> regionMemo = new HashMap<>();
                 for (ProxyDisplay display : group) {
-                    syncDisplay(display, regionMemo);
+                    syncDisplay(display, regionMemo, null);
                 }
             });
         }
@@ -776,6 +800,54 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         }
     }
 
+    /**
+     * One sync pass: each region task records what it decided for a player, and the last task to finish flushes
+     * one entity task per player. CraftEngine's furniture handler works per player for the same reason: the
+     * client-facing work is per player, so fanning out per display multiplies tasks by viewers.
+     */
+    private final class SyncPass {
+        private final Map<UUID, List<ProxyDisplay>> pending = new ConcurrentHashMap<>();
+        private final Map<UUID, Player> viewers = new ConcurrentHashMap<>();
+        private final AtomicInteger outstanding = new AtomicInteger(1);
+
+        void expect() {
+            outstanding.incrementAndGet();
+        }
+
+        void queue(Player player, ProxyDisplay display) {
+            viewers.putIfAbsent(player.getUniqueId(), player);
+            pending.computeIfAbsent(player.getUniqueId(), key -> new CopyOnWriteArrayList<>()).add(display);
+        }
+
+        void done() {
+            if (outstanding.decrementAndGet() == 0) {
+                flush();
+            }
+        }
+
+        private void flush() {
+            for (Map.Entry<UUID, List<ProxyDisplay>> entry : pending.entrySet()) {
+                Player player = viewers.get(entry.getKey());
+                if (player == null) continue;
+                List<ProxyDisplay> displays = entry.getValue();
+                Runnable retired = () -> {
+                    for (ProxyDisplay display : displays) {
+                        display.cullable.removeViewer(entry.getKey());
+                        removeVisibleDisplay(entry.getKey(), display.entityId);
+                    }
+                };
+                try {
+                    plugin.scheduler().runForEntity(player, () -> {
+                        for (ProxyDisplay display : displays) {
+                            syncDisplayForPlayer(display, player);
+                        }
+                    }, retired);
+                } catch (RuntimeException failure) {
+                    retired.run();
+                }
+            }
+        }
+    }
     private boolean isPlayerTrackingDisplayChunk(Player player, ProxyDisplay display) {
         Location location = display.location();
         World world = location.getWorld();
@@ -795,7 +867,7 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         return world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk().contains(player);
     }
 
-    private void syncDisplay(ProxyDisplay display, Map<ChunkKey, Collection<Player>> memo) {
+    private void syncDisplay(ProxyDisplay display, Map<ChunkKey, Collection<Player>> memo, SyncPass pass) {
         if (displays.get(display.entityId) != display) {
             return;
         }
@@ -819,10 +891,10 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
                 ? world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk()
                 : memo.computeIfAbsent(new ChunkKey(world, chunkX, chunkZ),
                         key -> key.world().getChunkAt(key.x(), key.z()).getPlayersSeeingChunk());
-        syncDisplay(display, players);
+        syncDisplay(display, players, pass);
     }
 
-    private void syncDisplay(ProxyDisplay display, Collection<Player> players) {
+    private void syncDisplay(ProxyDisplay display, Collection<Player> players, SyncPass pass) {
         if (players.isEmpty() && display.viewers.isEmpty()) {
             return;
         }
@@ -837,6 +909,11 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
                 // CE's handler only works the diff: a viewer that already has this display needs no task.
                 // Later item/state changes arrive through queueSync, and stale viewers are removed below.
                 if (display.viewers.contains(playerId)) {
+                    continue;
+                }
+                if (pass != null) {
+                    // Deferred: the pass flushes one entity task per player for the whole batch.
+                    pass.queue(player, display);
                     continue;
                 }
                 // Chunk candidates belong to this region; the player's distance check belongs to its entity.
