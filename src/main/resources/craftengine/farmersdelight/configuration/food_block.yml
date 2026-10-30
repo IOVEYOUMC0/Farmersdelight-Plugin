@@ -11,7 +11,7 @@ templates:
           default: north
       appearances:
         count_0_east:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -20,7 +20,7 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_0_north:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -28,7 +28,7 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_0_south:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -37,7 +37,7 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_0_west:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -46,7 +46,7 @@ templates:
             translation: 0,0,0
             yaw: 270
         count_1_east:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -55,7 +55,7 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_1_north:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -63,7 +63,7 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_1_south:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -72,7 +72,7 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_1_west:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -81,7 +81,7 @@ templates:
             translation: 0,0,0
             yaw: 270
         count_2_east:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -90,7 +90,7 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_2_north:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -98,7 +98,7 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_2_south:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -107,7 +107,7 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_2_west:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -116,7 +116,7 @@ templates:
             translation: 0,0,0
             yaw: 270
         count_3_east:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -125,7 +125,7 @@ templates:
             translation: 0,0,0
             yaw: 90
         count_3_north:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -133,7 +133,7 @@ templates:
             scale: 1.0
             translation: 0,0,0
         count_3_south:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display
@@ -142,7 +142,7 @@ templates:
             translation: 0,0,0
             yaw: 180
         count_3_west:
-          state: soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]
+          state: soul_campfire[facing=south,lit=false,signal_fire=true,waterlogged=false]
           transparent: true
           entity-renderer:
             type: item_display

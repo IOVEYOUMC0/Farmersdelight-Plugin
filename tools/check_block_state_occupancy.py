@@ -76,8 +76,8 @@ class Findings:
     """One run's results: per-owner pins plus the separate remap hints."""
 
     def __init__(self) -> None:
-        # (rel path, owner, state, line, whether the appearance writes a model for the state)
-        self.pins: list[tuple[str, str, str, int, bool]] = []
+        # (rel path, owner, state, line, the override this appearance writes for the state, or None)
+        self.pins: list[tuple[str, str, str, int, str | None]] = []
         self.remaps: list[tuple[str, str, str, int]] = []  # (rel path, source state, target, line)
         self.template_refs: dict[str, set[str]] = {}       # owner -> template ids it uses
         self.owners = 0
@@ -97,20 +97,40 @@ def strings(node: yaml.Node) -> list[str]:
 
 
 MODEL_KEYS = ("model", "generation", "textures", "blueprint", "path")
+EMPTY_OVERRIDE = "<empty>"
 
 
-def binds_model(appearance: yaml.MappingNode) -> bool:
-    """Whether this appearance writes a model for its state, i.e. takes the vanilla appearance over.
+def flatten(node: yaml.Node) -> list[str]:
+    """Every scalar under a node, in document order, so a nested override compares by its actual contents."""
+    if isinstance(node, yaml.ScalarNode):
+        return [node.value]
+    if isinstance(node, yaml.SequenceNode):
+        return [value for item in node.value for value in flatten(item)]
+    if isinstance(node, yaml.MappingNode):
+        return [value for _, item in node.value for value in flatten(item)]
+    return []
 
-    The keys sit beside `state` in the appearance mapping. An appearance with only `entity-renderer` and
-    physical flags binds nothing: CraftEngine draws that content with a display entity and leaves
-    `assets/minecraft/blockstates/<vanilla block>.json` alone, so several blocks may share the state without
-    any of them changing how the vanilla block looks.
+
+def override_of(appearance: yaml.MappingNode) -> str | None:
+    """The variant this appearance writes into the vanilla blockstate file, or None when it writes nothing.
+
+    The keys sit beside `state` in the appearance mapping. A plain appearance with only `entity-renderer` and
+    physical flags writes nothing: CraftEngine draws that content with a display entity and leaves
+    `assets/minecraft/blockstates/<vanilla block>.json` alone. `transparent: true` is the exception - CraftEngine
+    records an empty model for it - so it counts as an override here, one written by every transparent appearance.
+
+    Two owners may share a state when they write the same override (CraftEngine only reports a conflict when the
+    variants differ, and identical ones collapse into a single variant), which is exactly what a family of
+    display-entity blocks on one state does.
     """
-    for key_node, _ in appearance.value:
-        if scalar(key_node) in MODEL_KEYS:
-            return True
-    return False
+    for key_node, value_node in appearance.value:
+        key = scalar(key_node)
+        if key in MODEL_KEYS:
+            return f"{key}=" + "|".join(flatten(value_node))
+    for key_node, value_node in appearance.value:
+        if scalar(key_node) == "transparent" and scalar(value_node) == "true":
+            return EMPTY_OVERRIDE
+    return None
 
 
 def collect_pins(node: yaml.Node, rel: str, owner: str, findings: Findings) -> None:
@@ -134,7 +154,7 @@ def collect_pins(node: yaml.Node, rel: str, owner: str, findings: Findings) -> N
                 for reference in strings(value_node):
                     findings.template_refs.setdefault(owner, set()).add(reference)
         if pinned:
-            findings.pins.append((rel, owner, pinned, pinned_line, binds_model(node)))
+            findings.pins.append((rel, owner, pinned, pinned_line, override_of(node)))
         for _, value_node in node.value:
             collect_pins(value_node, rel, owner, findings)
     elif isinstance(node, yaml.SequenceNode):
@@ -194,9 +214,9 @@ def main() -> int:
         if reason is not None:
             skipped.append((path.relative_to(ROOT).as_posix(), reason))
 
-    by_state: dict[str, list[tuple[str, str, int, bool]]] = {}
-    for rel, owner, state, line, bound in findings.pins:
-        by_state.setdefault(state, []).append((owner, rel, line, bound))
+    by_state: dict[str, list[tuple[str, str, int, str | None]]] = {}
+    for rel, owner, state, line, override in findings.pins:
+        by_state.setdefault(state, []).append((owner, rel, line, override))
 
     conflicts = []
     single_owner = []
@@ -204,8 +224,8 @@ def main() -> int:
         owners = sorted({owner for owner, _, _, _ in pins})
         if len(owners) > 1:
             _, first_rel, first_line, _ = min(pins, key=lambda pin: (pin[1], pin[2]))
-            binds = any(bound for *_, bound in pins)
-            conflicts.append((first_rel, first_line, state, owners, len(pins), binds))
+            overrides = {override for *_, override in pins if override is not None}
+            conflicts.append((first_rel, first_line, state, owners, len(pins), overrides))
         elif len(pins) > 1:
             _, first_rel, first_line, _ = pins[0]
             single_owner.append((first_rel, first_line, state, owners[0], len(pins)))
@@ -213,14 +233,17 @@ def main() -> int:
     deliberate = []
     problems = []
     for conflict in conflicts:
-        state, owners, binds = conflict[2], conflict[3], conflict[5]
+        state, owners, overrides = conflict[2], conflict[3], conflict[5]
         known = KNOWN_SHARES.get(state)
         ids = {owner.split(":", 1)[1] for owner in owners}
         if known is not None and ids == known[0]:
             deliberate.append((conflict, known[1]))
-        elif not binds:
-            deliberate.append((conflict, "no owner writes a model for this state, so every one of them is "
-                                        "drawn by a display entity and the vanilla block keeps its appearance"))
+        elif len(overrides) <= 1:
+            detail = ("no owner writes an override for this state, so every one of them is drawn by a display "
+                      "entity and the vanilla block keeps its appearance" if not overrides
+                      else f"every owner writes the same override ({next(iter(overrides))}), so the states "
+                           "collapse into one variant instead of fighting")
+            deliberate.append((conflict, detail))
         else:
             problems.append(conflict)
 
