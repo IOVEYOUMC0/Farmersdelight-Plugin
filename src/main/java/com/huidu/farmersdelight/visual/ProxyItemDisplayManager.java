@@ -583,14 +583,18 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         // On Folia each display runs on its own region; the pass gathers what every region decided for a
         // player, so the fan-out is one entity task per player instead of one per display and player.
         SyncPass pass = plugin.scheduler().isFolia() ? new SyncPass() : null;
-        for (int i = 0; i < budget; i++) {
-            ProxyDisplay display = snapshot.get((start + i) % size);
-            scheduleSyncDisplay(display, memo, pass);
-            processed++;
-        }
-        syncCursor = (start + Math.max(1, processed)) % size;
-        if (pass != null) {
-            pass.done();
+        try {
+            for (int i = 0; i < budget; i++) {
+                ProxyDisplay display = snapshot.get((start + i) % size);
+                scheduleSyncDisplay(display, memo, pass);
+                processed++;
+            }
+        } finally {
+            syncCursor = (start + Math.max(1, processed)) % size;
+            // Releasing the pass in a finally means a failing display cannot keep the batch from ever flushing.
+            if (pass != null) {
+                pass.release();
+            }
         }
     }
 
@@ -629,8 +633,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         }
         if (pass != null) {
             pass.expect();
+            boolean accepted;
             try {
-                plugin.scheduler().runAt(world, loc.getBlockX() >> 4, loc.getBlockZ() >> 4, () -> {
+                accepted = plugin.scheduler().tryRunAt(world, loc.getBlockX() >> 4, loc.getBlockZ() >> 4, () -> {
                     try {
                         syncDisplay(display, new HashMap<>(), pass);
                     } finally {
@@ -640,6 +645,11 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             } catch (RuntimeException failure) {
                 pass.done();
                 throw failure;
+            }
+            if (!accepted) {
+                // The scheduler refused the task: it will never run, so its unit has to report here or the
+                // batch waits for a task that does not exist.
+                pass.done();
             }
             return;
         }
@@ -807,11 +817,13 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
      */
     private final class SyncPass {
         private final Map<UUID, List<ProxyDisplay>> pending = new ConcurrentHashMap<>();
+        /** Views this player is already registered on; their CE tracker is re-checked on the player's thread. */
+        private final Map<UUID, List<ProxyDisplay>> verify = new ConcurrentHashMap<>();
         private final Map<UUID, Player> viewers = new ConcurrentHashMap<>();
-        private final AtomicInteger outstanding = new AtomicInteger(1);
+        private final DisplaySyncBatch batch = new DisplaySyncBatch();
 
         void expect() {
-            outstanding.incrementAndGet();
+            batch.expect();
         }
 
         void queue(Player player, ProxyDisplay display) {
@@ -819,8 +831,20 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             pending.computeIfAbsent(player.getUniqueId(), key -> new CopyOnWriteArrayList<>()).add(display);
         }
 
+        void queueVerify(Player player, ProxyDisplay display) {
+            viewers.putIfAbsent(player.getUniqueId(), player);
+            verify.computeIfAbsent(player.getUniqueId(), key -> new CopyOnWriteArrayList<>()).add(display);
+        }
+
         void done() {
-            if (outstanding.decrementAndGet() == 0) {
+            if (batch.done()) {
+                flush();
+            }
+        }
+
+        /** The pass will hand out no further work. */
+        void release() {
+            if (batch.release()) {
                 flush();
             }
         }
@@ -836,10 +860,16 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
                         removeVisibleDisplay(entry.getKey(), display.entityId);
                     }
                 };
+                List<ProxyDisplay> toVerify = verify.getOrDefault(entry.getKey(), List.of());
                 try {
                     plugin.scheduler().runForEntity(player, () -> {
                         for (ProxyDisplay display : displays) {
                             syncDisplayForPlayer(display, player);
+                        }
+                        for (ProxyDisplay display : toVerify) {
+                            if (display.cullable.needsReattach(entry.getKey(), Config.enableEntityCulling())) {
+                                syncDisplayForPlayer(display, player);
+                            }
                         }
                     }, retired);
                 } catch (RuntimeException failure) {
@@ -906,9 +936,13 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
             if (plugin.scheduler().isFolia()) {
                 UUID playerId = player.getUniqueId();
                 desiredViewers.add(playerId);
-                // CE's handler only works the diff: a viewer that already has this display needs no task.
-                // Later item/state changes arrive through queueSync, and stale viewers are removed below.
                 if (display.viewers.contains(playerId)) {
+                    // Already shown, so nothing has to be spawned here - but a delayed CraftEngine respawn packet
+                    // can clear its tracker without telling FD, and that has to be noticed on the player's own
+                    // thread. The pass collects one verification per viewer instead of a task per display.
+                    if (pass != null) {
+                        pass.queueVerify(player, display);
+                    }
                     continue;
                 }
                 if (pass != null) {

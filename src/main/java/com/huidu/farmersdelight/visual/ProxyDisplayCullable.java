@@ -89,6 +89,18 @@ final class ProxyDisplayCullable {
         }
     }
 
+    /**
+     * True when this viewer is registered but CraftEngine no longer tracks the entity, which happens when a
+     * delayed respawn packet clears the tracker after FD already registered it. The caller has to reattach.
+     * Reads only the viewer record and CE's per-player map, so it is safe from the player's own thread.
+     */
+    boolean needsReattach(UUID playerId, boolean nativeCulling) {
+        if (!nativeCulling) {
+            return false;
+        }
+        Viewer viewer = viewers.get(playerId);
+        return viewer != null && viewer.nativeCulling && viewer.player.getTrackedEntity(entityId) == null;
+    }
     synchronized void removeViewer(UUID playerId) {
         Viewer viewer = viewers.remove(playerId);
         if (viewer == null) {

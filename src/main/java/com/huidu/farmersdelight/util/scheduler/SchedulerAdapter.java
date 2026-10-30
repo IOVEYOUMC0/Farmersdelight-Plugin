@@ -75,11 +75,19 @@ public final class SchedulerAdapter implements RegionDispatcher {
 
     @Override
     public void runAt(World world, int chunkX, int chunkZ, Runnable task) {
+        tryRunAt(world, chunkX, chunkZ, task);
+    }
+
+    /**
+     * Runs the task on the owning region and reports whether the scheduler accepted it. A refused task never
+     * runs, and neither does its retired callback, so a caller that counts outstanding work has to know.
+     */
+    public boolean tryRunAt(World world, int chunkX, int chunkZ, Runnable task) {
         if (!folia || world == null) {
             run(task);
-            return;
+            return true;
         }
-        FoliaTasks.regionExecute(plugin, world, chunkX, chunkZ, task);
+        return FoliaTasks.regionExecute(plugin, world, chunkX, chunkZ, task);
     }
 
     @Override
@@ -268,11 +276,13 @@ public final class SchedulerAdapter implements RegionDispatcher {
             }
         }
 
-        private static void regionExecute(FarmersDelightPlugin plugin, World world, int chunkX, int chunkZ, Runnable task) {
+        private static boolean regionExecute(FarmersDelightPlugin plugin, World world, int chunkX, int chunkZ, Runnable task) {
             try {
                 Bukkit.getRegionScheduler().execute(plugin, world, chunkX, chunkZ, task);
+                return true;
             } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
                 refused(plugin, failure);
+                return false;
             }
         }
 
