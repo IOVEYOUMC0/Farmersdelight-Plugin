@@ -76,7 +76,8 @@ class Findings:
     """One run's results: per-owner pins plus the separate remap hints."""
 
     def __init__(self) -> None:
-        self.pins: list[tuple[str, str, str, int]] = []   # (rel path, owner, state, line)
+        # (rel path, owner, state, line, whether the appearance writes a model for the state)
+        self.pins: list[tuple[str, str, str, int, bool]] = []
         self.remaps: list[tuple[str, str, str, int]] = []  # (rel path, source state, target, line)
         self.template_refs: dict[str, set[str]] = {}       # owner -> template ids it uses
         self.owners = 0
@@ -95,24 +96,46 @@ def strings(node: yaml.Node) -> list[str]:
     return []
 
 
+MODEL_KEYS = ("model", "generation", "textures", "blueprint", "path")
+
+
+def binds_model(appearance: yaml.MappingNode) -> bool:
+    """Whether this appearance writes a model for its state, i.e. takes the vanilla appearance over.
+
+    The keys sit beside `state` in the appearance mapping. An appearance with only `entity-renderer` and
+    physical flags binds nothing: CraftEngine draws that content with a display entity and leaves
+    `assets/minecraft/blockstates/<vanilla block>.json` alone, so several blocks may share the state without
+    any of them changing how the vanilla block looks.
+    """
+    for key_node, _ in appearance.value:
+        if scalar(key_node) in MODEL_KEYS:
+            return True
+    return False
+
+
 def collect_pins(node: yaml.Node, rel: str, owner: str, findings: Findings) -> None:
     """Collect every explicit `state: <scalar>` under one block definition, plus its `template:` references.
 
     `state:` sometimes holds the mapping form `state: {state: <scalar>, entity_renderer: ...}`, so the walk
     descends into non-scalar values instead of stopping at them. `auto_state` is never matched: the key must
     be exactly `state`. The `template:` references are collected so a state pinned by a shared template can
-    name the blocks that inherit it.
+    name the blocks that inherit it. A pin also records whether its appearance binds a model, which is what
+    decides whether sharing the state can change a vanilla block's appearance.
     """
     if isinstance(node, yaml.MappingNode):
+        pinned = None
+        pinned_line = 0
         for key_node, value_node in node.value:
             key = scalar(key_node)
             if key == "state":
                 pinned = scalar(value_node)
-                if pinned:
-                    findings.pins.append((rel, owner, pinned, value_node.start_mark.line + 1))
+                pinned_line = value_node.start_mark.line + 1
             elif key == "template":
                 for reference in strings(value_node):
                     findings.template_refs.setdefault(owner, set()).add(reference)
+        if pinned:
+            findings.pins.append((rel, owner, pinned, pinned_line, binds_model(node)))
+        for _, value_node in node.value:
             collect_pins(value_node, rel, owner, findings)
     elif isinstance(node, yaml.SequenceNode):
         for item in node.value:
@@ -171,33 +194,37 @@ def main() -> int:
         if reason is not None:
             skipped.append((path.relative_to(ROOT).as_posix(), reason))
 
-    by_state: dict[str, list[tuple[str, str, int]]] = {}
-    for rel, owner, state, line in findings.pins:
-        by_state.setdefault(state, []).append((owner, rel, line))
+    by_state: dict[str, list[tuple[str, str, int, bool]]] = {}
+    for rel, owner, state, line, bound in findings.pins:
+        by_state.setdefault(state, []).append((owner, rel, line, bound))
 
     conflicts = []
     single_owner = []
     for state, pins in sorted(by_state.items()):
-        owners = sorted({owner for owner, _, _ in pins})
+        owners = sorted({owner for owner, _, _, _ in pins})
         if len(owners) > 1:
-            _, first_rel, first_line = min(pins, key=lambda pin: (pin[1], pin[2]))
-            conflicts.append((first_rel, first_line, state, owners, len(pins)))
+            _, first_rel, first_line, _ = min(pins, key=lambda pin: (pin[1], pin[2]))
+            binds = any(bound for *_, bound in pins)
+            conflicts.append((first_rel, first_line, state, owners, len(pins), binds))
         elif len(pins) > 1:
-            _, first_rel, first_line = pins[0]
+            _, first_rel, first_line, _ = pins[0]
             single_owner.append((first_rel, first_line, state, owners[0], len(pins)))
 
     deliberate = []
     problems = []
     for conflict in conflicts:
-        state, owners = conflict[2], conflict[3]
+        state, owners, binds = conflict[2], conflict[3], conflict[5]
         known = KNOWN_SHARES.get(state)
         ids = {owner.split(":", 1)[1] for owner in owners}
         if known is not None and ids == known[0]:
             deliberate.append((conflict, known[1]))
+        elif not binds:
+            deliberate.append((conflict, "no owner writes a model for this state, so every one of them is "
+                                        "drawn by a display entity and the vanilla block keeps its appearance"))
         else:
             problems.append(conflict)
 
-    template_ids = {owner.split(":", 1)[1] for _, owner, _, _ in findings.pins
+    template_ids = {owner.split(":", 1)[1] for _, owner, _, _, _ in findings.pins
                     if owner.startswith("templates:")}
 
     def label(owner: str) -> str:
@@ -220,13 +247,13 @@ def main() -> int:
 
     if problems and not args.quiet:
         print(f"\nstates pinned by more than one owner ({len(problems)}):")
-        for rel, line, state, owners, pins in problems:
+        for rel, line, state, owners, pins, _ in problems:
             print(f"  {rel}:{line}: {state} pinned by {', '.join(label(owner) for owner in owners)}"
                   f" ({pins} pin(s))")
 
     if deliberate and not args.quiet:
         print(f"\ndeliberate shares, listed in KNOWN_SHARES ({len(deliberate)}):")
-        for (rel, line, state, owners, pins), reason in deliberate:
+        for (rel, line, state, owners, pins, _), reason in deliberate:
             print(f"  {rel}:{line}: {state} pinned by {', '.join(label(owner) for owner in owners)}"
                   f" ({pins} pin(s)): {reason}")
 

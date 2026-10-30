@@ -179,20 +179,52 @@ class BlockStateOccupancySelfTest(CheckSelfTest):
     args = ()
     path = "src/main/resources/craftengine/farmersdelight/configuration/blocks.yml"
 
-    def test_two_blocks_pinning_one_vanilla_state_fail(self):
+    def test_two_blocks_writing_a_model_for_one_vanilla_state_fail(self):
         self.assert_red_then_green(
             {},
             self.path,
             "blocks:\n"
             "  first:\n"
             "    state: minecraft:bamboo_button[face=floor]\n"
+            "    model:\n"
+            "      path: test:first\n"
             "  second:\n"
-            "    state: minecraft:bamboo_button[face=floor]\n",
+            "    state: minecraft:bamboo_button[face=floor]\n"
+            "    model:\n"
+            "      path: test:second\n",
             "blocks:\n"
             "  first:\n"
             "    state: minecraft:bamboo_button[face=floor]\n"
+            "    model:\n"
+            "      path: test:first\n"
             "  second:\n"
-            "    state: minecraft:bamboo_button[face=ceiling]\n",
+            "    state: minecraft:bamboo_button[face=ceiling]\n"
+            "    model:\n"
+            "      path: test:second\n",
+            "bamboo_button")
+
+    def test_two_blocks_sharing_a_state_without_models_pass(self):
+        self.assert_red_then_green(
+            {},
+            self.path,
+            "blocks:\n"
+            "  first:\n"
+            "    state: minecraft:bamboo_button[face=floor]\n"
+            "    model:\n"
+            "      path: test:first\n"
+            "  second:\n"
+            "    state: minecraft:bamboo_button[face=floor]\n"
+            "    model:\n"
+            "      path: test:second\n",
+            "blocks:\n"
+            "  first:\n"
+            "    state: minecraft:bamboo_button[face=floor]\n"
+            "    entity-renderer:\n"
+            "      item: test:first\n"
+            "  second:\n"
+            "    state: minecraft:bamboo_button[face=floor]\n"
+            "    entity-renderer:\n"
+            "      item: test:second\n",
             "bamboo_button")
 
 

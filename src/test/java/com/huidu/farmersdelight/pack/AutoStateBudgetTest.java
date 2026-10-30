@@ -10,6 +10,7 @@ import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -69,18 +70,12 @@ class AutoStateBudgetTest {
 
     /** The food family's own pins, keyed by owner. */
     private static final Map<String, String> FAMILY_STATES = Map.of(
-            "farmersdelight:gleaming_salad_block",
-            "campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]",
-            "farmersdelight:honey_glazed_ham_block",
-            "campfire[facing=south,lit=false,signal_fire=false,waterlogged=true]",
-            "farmersdelight:rice_roll_medley_block",
-            "campfire[facing=east,lit=false,signal_fire=false,waterlogged=false]",
-            "farmersdelight:roast_chicken_block",
-            "campfire[facing=east,lit=false,signal_fire=false,waterlogged=true]",
-            "farmersdelight:shepherds_pie_block",
-            "campfire[facing=west,lit=false,signal_fire=false,waterlogged=false]",
-            "farmersdelight:stuffed_pumpkin_block",
-            "campfire[facing=west,lit=false,signal_fire=false,waterlogged=true]",
+            "farmersdelight:gleaming_salad_block", "campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]",
+            "farmersdelight:honey_glazed_ham_block", "campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]",
+            "farmersdelight:rice_roll_medley_block", "campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]",
+            "farmersdelight:roast_chicken_block", "campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]",
+            "farmersdelight:shepherds_pie_block", "campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]",
+            "farmersdelight:stuffed_pumpkin_block", "campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]",
             "farmersdelight:sliceable_pie_states",
             "soul_campfire[facing=south,lit=false,signal_fire=false,waterlogged=false]");
 
@@ -118,9 +113,11 @@ class AutoStateBudgetTest {
                     owner + " pins exactly its own campfire state");
             pinned.add(FAMILY_STATES.get(owner));
         }
-        assertEquals(FAMILY_STATES.size(), new HashSet<>(pinned).size(), "every owner has its own pin: " + pinned);
+        Set<String> campfirePins = pinned.stream().filter(state -> state.startsWith("campfire[")).collect(Collectors.toSet());
+        assertEquals(Set.of("campfire[facing=east,lit=false,signal_fire=true,waterlogged=false]"), campfirePins,
+                "the entity-rendered food family shares one carrier: " + campfirePins);
 
-        List<String> normalisedMine = pinned.stream().map(AutoStateBudgetTest::normalise).toList();
+        List<String> normalisedMine = pinned.stream().distinct().map(AutoStateBudgetTest::normalise).toList();
         List<String> normalisedTheirs = OTHER_PACK_PINS.stream().map(AutoStateBudgetTest::normalise).toList();
         for (String state : normalisedMine) {
             assertTrue(!normalisedTheirs.contains(state),
