@@ -1,0 +1,4 @@
+# Keys an addon reads but its config.yml deliberately does not define, one `addon: key` per line.
+# Each entry is a documented legacy fallback; the check fails on a new miss and on a stale entry.
+BrewinAndChewin: coaster
+BrewinAndChewin: keg-gui

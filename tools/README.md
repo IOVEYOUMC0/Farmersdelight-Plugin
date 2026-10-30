@@ -1,6 +1,6 @@
 # Repository contract checks
 
-Twelve checks that enforce the machine-checkable half of this project's maintenance contracts. They all run in
+Thirteen checks that enforce the machine-checkable half of this project's maintenance contracts. They all run in
 CI (the `lint` job in `.github/workflows/ci.yml`) on every push and pull request, and all of them block.
 
 | Check | Guards |
@@ -16,9 +16,10 @@ CI (the `lint` job in `.github/workflows/ci.yml`) on every push and pull request
 | `check_block_state_occupancy.py` | No vanilla block state is pinned by **two different** custom blocks under `src/main/resources/craftengine/**` — two blocks on one state are indistinguishable in game. One block reusing a state across its own faces is normal and is listed separately; `auto_state` is ignored; `block-state-mappings` is reported as a hint. |
 | `check_pack_client_keys.py --quiet` | Every client-bound translation key the pack references is defined in every shipped pack locale, so no tooltip falls back to the raw key. |
 | `check_behavior_keys.py --quiet` | Every block/item behaviour option key the code reads is listed in `tools/behavior-keys.txt`, and the manifest lists nothing the code stopped reading. `--update` rewrites it after an intentional change. When a wiki checkout is reachable it also reports keys the wiki never mentions, as a warning: the wiki is a separate repository. |
+| `check_addon_config_keys.py --quiet` | Every `config.yml` key the addon checkouts beside this repository read is defined in that addon's shipped file. Legacy fallbacks are listed in `tools/addon-config-allow.txt`; a new miss and a stale entry both fail. Skips itself when no addon checkout is present. |
 | `check_verification_evidence.py --quiet` | Every round manifest it is pointed at keeps the round shape: a real date, a non-empty `scope` and `limitations`, artifacts with `sha256` and `bytes`, and runs with `environment`/`java`/`craft_engine` plus `PASS`/`SKIP`/`FAIL` checks. It adds no facts of its own, so a round without a manifest is not checked. |
 
-All twelve are read-only and exit non-zero on a real problem, so no separate assertion is needed. They need
+All thirteen are read-only and exit non-zero on a real problem, so no separate assertion is needed. They need
 PyYAML (`python -m pip install pyyaml`).
 
 ```bash

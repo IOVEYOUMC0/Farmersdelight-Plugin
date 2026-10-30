@@ -30,6 +30,7 @@ CHECKS = (
     ("check_block_state_occupancy.py", ["--quiet"]),
     ("check_pack_client_keys.py", ["--quiet"]),
     ("check_behavior_keys.py", ["--quiet"]),
+    ("check_addon_config_keys.py", ["--quiet"]),
     ("check_verification_evidence.py", ["--quiet"]),
 )
 
