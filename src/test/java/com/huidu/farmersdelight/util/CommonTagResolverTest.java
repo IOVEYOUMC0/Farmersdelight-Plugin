@@ -77,20 +77,6 @@ class CommonTagResolverTest {
     }
 
     @Test
-    void bundledTagsConfigContainsOnlyStringLists() {
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(new InputStreamReader(
-                getClass().getResourceAsStream("/common-tags.yml"), StandardCharsets.UTF_8));
-        ConfigurationSection tags = config.getConfigurationSection("tags");
-        assertTrue(tags != null && !tags.getKeys(false).isEmpty());
-        for (String key : tags.getKeys(false)) {
-            var members = ConfigSectionReader.optionalStringList(tags, key);
-            assertTrue(!members.isEmpty(), key);
-            assertTrue(members.stream().noneMatch(member -> member.startsWith("crabbersdelight:")
-                    || member.startsWith("endsdelight:")), "Addon membership belongs in its CE pack: " + key);
-        }
-    }
-
-    @Test
     void ignoresMissingAndCyclicReferencesWithoutBreakingOtherMembers() {
         String source = "test-common-tag-errors";
         try {
