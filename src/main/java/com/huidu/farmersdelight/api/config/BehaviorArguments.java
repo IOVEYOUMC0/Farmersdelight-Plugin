@@ -60,7 +60,7 @@ public final class BehaviorArguments {
 
     /** The nested section at path (for example burn), or null when there is no such map. */
     public static Map<String, Object> section(Map<String, Object> arguments, String path) {
-        BehaviorArgRecorder.record(path);
+        BehaviorArgRecorder.recordSection(path);
         Object value = path != null && path.indexOf('.') >= 0 ? nested(arguments, path) : flat(arguments, path);
         if (!(value instanceof Map<?, ?> map)) {
             return null;

@@ -30,9 +30,11 @@ WORKSPACE = REPO.parent
 ALLOW = TOOLS / "addon-config-allow.txt"
 ADDONS = ("CrabbersDelight", "BarbequesDelight", "BrewinAndChewin", "EndsDelight", "FDAddonTemplate")
 
-# Reads bound to the plugin's own config.yml.
-READ = re.compile(r'getConfig\(\)\s*\.\s*get(?:Boolean|Int|Long|Double|String|StringList|ConfigurationSection)'
+# Reads bound to the plugin's own config.yml. A section read takes the whole sub-tree (the caller parses what is
+# under it), so only the leaf getters require an exact path.
+READ = re.compile(r'getConfig\(\)\s*\.\s*get(?:Boolean|Int|Long|Double|String|StringList)'
                   r'\(\s*"([^"]+)"')
+SECTION = re.compile(r'getConfig\(\)\s*\.\s*getConfigurationSection\(\s*"([^"]+)"')
 # ConfigSectionReader.x(<section>, "key") is judged only when the section is the plugin config itself; a local
 # YamlConfiguration loaded from another file (bottle_messages.yml, a recipe file) is not a config.yml question.
 SECTION_READ = re.compile(r'ConfigSectionReader\.\w+\(\s*(?:(?:plugin\.)?getConfig\(\))\s*,\s*"([^"]+)"')
@@ -63,26 +65,30 @@ def yaml_keys(text: str) -> set[str]:
     return keys
 
 
-def reachable(key: str, defined: set[str]) -> bool:
-    parts = key.split(".")
-    return any(".".join(parts[:i]) in defined for i in range(len(parts), 0, -1))
-
-
-def scan() -> dict[str, set[str]]:
+def scan(addons_root: Path) -> dict[str, set[str]]:
     misses: dict[str, set[str]] = {}
     for addon in ADDONS:
-        base = WORKSPACE / addon
+        base = addons_root / addon
         if not base.is_dir():
             continue
         config = base / "src" / "main" / "resources" / "config.yml"
         defined = yaml_keys(config.read_text(encoding="utf-8")) if config.is_file() else set()
         for path in (base / "src/main/java").rglob("*.java"):
             text = path.read_text(encoding="utf-8", errors="replace")
-            for pattern in (READ, SECTION_READ):
-                for match in pattern.finditer(text):
-                    key = match.group(1)
-                    if not reachable(key, defined):
-                        misses.setdefault(addon, set()).add(key)
+            sections = {match.group(1) for match in SECTION.finditer(text)}
+            for match in READ.finditer(text):
+                key = match.group(1)
+                # A leaf read has to name a path the file defines exactly; a parent that exists is not enough,
+                # because the reader would fall back to its default and the operator's value would be ignored.
+                if key not in defined:
+                    misses.setdefault(addon, set()).add(key)
+            for match in SECTION_READ.finditer(text):
+                key = match.group(1)
+                if key not in defined:
+                    misses.setdefault(addon, set()).add(key)
+            for key in sections:
+                if not any(known == key or known.startswith(key + ".") for known in defined):
+                    misses.setdefault(addon, set()).add(key)
     return misses
 
 
@@ -101,11 +107,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--update", action="store_true", help="rewrite the allow list from the current state")
+    parser.add_argument("--addons", type=Path, default=None,
+                        help="directory holding the addon checkouts; defaults to the folder above this module")
     args = parser.parse_args()
 
-    misses = scan()
+    addons_root = args.addons if args.addons is not None else WORKSPACE
+    misses = scan(addons_root)
     found = {(addon, key) for addon, keys in misses.items() for key in keys}
-    present = [addon for addon in ADDONS if (WORKSPACE / addon).is_dir()]
+    present = [addon for addon in ADDONS if (addons_root / addon).is_dir()]
 
     if args.update:
         lines = [HEADER.rstrip("\n")] + [f"{addon}: {key}" for addon, key in sorted(found)]

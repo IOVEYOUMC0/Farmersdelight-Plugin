@@ -32,21 +32,48 @@ public final class BehaviorArgRecorder {
         return recorded == null ? Set.of() : Collections.unmodifiableSet(recorded);
     }
 
-    /** Records one read. Meaningless outside begin()/end(), where it simply does nothing. */
+    /**
+     * Records one read in every spelling the reader accepts, so a pack written in the other spelling does not
+     * look unread. Meaningless outside begin()/end(), where it simply does nothing.
+     */
     public static void record(String path) {
         Set<String> recorded = ACTIVE.get();
         if (recorded == null || path == null || path.isEmpty()) {
             return;
         }
-        recorded.add(topLevel(path));
-        if (path.indexOf('.') >= 0) {
-            recorded.add(topLevel(path.replace('.', '-')));
-        }
+        recorded.add(path);
+        recorded.add(alternate(path));
+        // The flat spelling of a nested option is a real key form of its own (burn.enabled -> burn-enabled).
+        recorded.add(path.replace('.', '-'));
+        recorded.add(alternate(path.replace('.', '-')));
     }
 
-    /** The section a dotted path lives in, or the key itself when it has no dots. */
-    static String topLevel(String path) {
-        int dot = path.indexOf('.');
-        return dot < 0 ? path : path.substring(0, dot);
+    /** The same key in the other spelling, mirroring the lookup's own alias rule. */
+    static String alternate(String key) {
+        StringBuilder result = new StringBuilder(key.length());
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
+            result.append(c == '-' ? '_' : c == '_' ? '-' : c);
+        }
+        return result.toString();
+    }
+
+    /**
+     * Records that a factory asked for the whole section at this path. Its children are then parsed by that
+     * factory, so a child the recorder never saw named does not mean the pack's child is ignored.
+     */
+    public static void recordSection(String path) {
+        Set<String> recorded = ACTIVE.get();
+        if (recorded == null || path == null || path.isEmpty()) {
+            return;
+        }
+        recorded.add(sectionMarker(path));
+        recorded.add(alternate(path));
+        recorded.add(alternate(path) + ".*");
+    }
+
+    /** The marker a section read leaves behind for the diagnostics. */
+    public static String sectionMarker(String path) {
+        return path + ".*";
     }
 }

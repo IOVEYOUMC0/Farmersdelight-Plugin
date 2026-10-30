@@ -228,6 +228,62 @@ class BlockStateOccupancySelfTest(CheckSelfTest):
             "bamboo_button")
 
 
+class AddonConfigKeysSelfTest(CheckSelfTest):
+    """The addon checker has to judge the leaf path, not merely that some parent exists."""
+
+    script = "check_addon_config_keys.py"
+    args = ("--quiet",)
+    path = "CrabbersDelight/src/main/java/com/example/Reads.java"
+    config = "CrabbersDelight/src/main/resources/config.yml"
+
+    def run_addon_check(self, tree):
+        return run_check(tree, self.script, *self.args, "--addons", str(tree))
+
+    def test_a_leaf_below_a_defined_parent_still_fails(self):
+        tree = build_tree({self.config: "keg:\n  tank:\n    capacity-mb: 1000\n"})
+        try:
+            write(tree, self.path,
+                  "package com.example;\n"
+                  "public final class Reads {\n"
+                  "    static int read(org.bukkit.plugin.java.JavaPlugin plugin) {\n"
+                  "        return plugin.getConfig().getInt(\"keg.tank.capacity-mbb\", 1000);\n"
+                  "    }\n"
+                  "}\n")
+            failed = self.run_addon_check(tree)
+            self.assertNotEqual(0, failed.returncode,
+                                "a misspelled leaf under an existing parent must fail:\n"
+                                + failed.stdout + failed.stderr)
+            self.assertIn("capacity-mbb", failed.stdout + failed.stderr)
+
+            write(tree, self.path,
+                  "package com.example;\n"
+                  "public final class Reads {\n"
+                  "    static int read(org.bukkit.plugin.java.JavaPlugin plugin) {\n"
+                  "        return plugin.getConfig().getInt(\"keg.tank.capacity-mb\", 1000);\n"
+                  "    }\n"
+                  "}\n")
+            passed = self.run_addon_check(tree)
+            self.assertEqual(0, passed.returncode,
+                             "the defined leaf must pass:\n" + passed.stdout + passed.stderr)
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+    def test_a_section_read_accepts_the_children_it_parses(self):
+        tree = build_tree({self.config: "keg:\n  tank:\n    capacity-mb: 1000\n"})
+        try:
+            write(tree, self.path,
+                  "package com.example;\n"
+                  "public final class Reads {\n"
+                  "    static Object read(org.bukkit.plugin.java.JavaPlugin plugin) {\n"
+                  "        return plugin.getConfig().getConfigurationSection(\"keg\");\n"
+                  "    }\n"
+                  "}\n")
+            passed = self.run_addon_check(tree)
+            self.assertEqual(0, passed.returncode,
+                             "a section read parses its children itself:\n" + passed.stdout + passed.stderr)
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
 class VerificationEvidenceSelfTest(CheckSelfTest):
 
     script = "check_verification_evidence.py"

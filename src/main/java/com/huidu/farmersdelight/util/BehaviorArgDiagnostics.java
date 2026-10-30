@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.util;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.PluginAccess;
+import com.huidu.farmersdelight.api.config.BehaviorArgRecorder;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
@@ -58,8 +59,28 @@ public final class BehaviorArgDiagnostics {
             return;
         }
         List<String> unread = new ArrayList<>(2);
-        for (String option : declared.keySet()) {
+        for (Map.Entry<String, Object> entry : declared.entrySet()) {
+            String option = entry.getKey();
             if (option == null || option.isEmpty() || "type".equals(option)) {
+                continue;
+            }
+            if (read.contains(BehaviorArgRecorder.sectionMarker(option))) {
+                // The factory asked for this section as a whole, so it parses the children itself and a child it
+                // did not name may still be read by that parser: nothing can be judged here.
+                continue;
+            }
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> nested && !nested.isEmpty()) {
+                for (Object child : nested.keySet()) {
+                    if (!(child instanceof String name) || name.isEmpty()) {
+                        continue;
+                    }
+                    String childPath = option + "." + name;
+                    if (read.contains(childPath)) {
+                        continue;
+                    }
+                    unread.add(childPath);
+                }
                 continue;
             }
             if (!read.contains(option)) {
