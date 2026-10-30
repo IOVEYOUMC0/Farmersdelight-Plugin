@@ -326,6 +326,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             I18n.logWarning("plugin.debug_tools_build");
         }
 
+        prepareRuntime();
+        wireContent();
+        wireInteraction();
+        finishStartup();
+    }
+
+    /** Config, language and the two CraftEngine-facing coordinators, before anything reads content. */
+    private void prepareRuntime() {
         // onLoad already ensured the files exist; re-running the install pass here would only repeat its
         // per-file existence and readability checks before migrateConfigKeys() merges the same files.
         configBootstrap.migrateConfigKeys();
@@ -349,7 +357,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         loadConfigs();
         ToolRegistry.refresh();
         logStartupSummary();
+    }
 
+    /** Recipe managers and discovery, which run against CraftEngine content as soon as it exists. */
+    private void wireContent() {
         knifeDropHandler = new KnifeDropHandler(this);
         getServer().getPluginManager().registerEvents(knifeDropHandler, this);
 
@@ -385,7 +396,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 });
             }
         }, 6000L, 6000L);
+    }
 
+    /** Listeners, tick manager and the block managers that own per-chunk state. */
+    private void wireInteraction() {
         listeners.registerInteractionHandlers();
 
         tickManager = new TickManager(this);
@@ -405,7 +419,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         buffSystem.start(listeners::registerVisualAndWorldHandlers);
 
         listeners.registerDamageTypeDatapack();
+    }
 
+    /** Readiness hand-off, commands, optional bridges and the metrics task. */
+    private void finishStartup() {
         // Every call below reads CraftEngine content, which is normally still loading while FarmersDelight
         // enables (FD is declared to load before CraftEngine finishes its packs). The coordinator runs them
         // now when CraftEngine is already up, and otherwise retries until its content exists — so the
