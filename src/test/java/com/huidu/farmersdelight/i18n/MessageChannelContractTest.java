@@ -111,7 +111,9 @@ class MessageChannelContractTest {
         String plugin = flat(PLUGIN);
         assertFalse(plugin.contains("Backstab enchantment disabled: another enchantment plugin is present"),
                 "the backstab warning is a language entry now");
-        assertEquals(2, count(plugin, "I18n.logWarning(\"plugin.backstab_disabled_conflict\", \"conflict\", conflict)"),
+        String assembly = flat(PLUGIN.getParent().resolve("PluginConfigAssembly.java"));
+        assertEquals(2, count(plugin + assembly, "I18n.logWarning(\"plugin.backstab_disabled_conflict\", \"conflict\", "
+                        + "conflict)"),
                 "both backstab call sites report through the same key");
 
         String updater = flat(MAIN.resolve("api/config/ConfigFileUpdater.java"));

@@ -154,39 +154,39 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     // Owns every event listener and the reload/stop hooks their state needs; see ListenerRegistry.
     private final ListenerRegistry listeners = new ListenerRegistry(this);
     // Buff switch, bossbar manager and the online-player buff flush live in their own class.
-    private final BuffSystem buffSystem = new BuffSystem(this);
+    final BuffSystem buffSystem = new BuffSystem(this);
     // Owns the load-phase registrations that must complete before CraftEngine parses its packs.
     private final LoadPhaseRegistrar loadPhaseRegistrar = new LoadPhaseRegistrar(this);
     private final ConfigBootstrap configBootstrap = new ConfigBootstrap(this);
-    private final PluginConfigFiles configFiles = new PluginConfigFiles(this, configBootstrap);
+    final PluginConfigFiles configFiles = new PluginConfigFiles(this, configBootstrap);
 
     // Lazy-loaded, may be accessed concurrently by multiple region threads (awarding XP when collecting cooking pot results); uses volatile + double-checked locking,
     // consistent with RecipeEditorView.store.
     private volatile AuraSkillsHook auraSkillsHook;
 
     // volatile: reassigned on reload and read by region threads.
-    private volatile HeatSourceConfig heatSourceConfig;
-    private GuiConfig cookingPotGuiConfig;
-    private Map<String, GuiConfig> customCookingPotGuiConfigs = Map.of();
-    private YamlConfiguration guiConfig;
-    private volatile YamlConfiguration dropsConfig;
-    private volatile StrawDropConfig strawDropConfig;
-    private volatile PetFoodConfig petFoodConfig;
-    private volatile ContainerReturnConfig containerReturnConfig;
-    private volatile EnchantmentSettings enchantmentSettings = EnchantmentSettings.defaults();
-    private volatile boolean backstabEnchantmentEnabled;
-    private volatile CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
-    private volatile CuttingBoardDisplayConfig skilletDisplayConfig;
-    private volatile CuttingBoardDisplayConfig stoveDisplayConfig;
-    private volatile CookingPotExperienceRewardConfig cookingPotExperienceRewardConfig;
+    volatile HeatSourceConfig heatSourceConfig;
+    GuiConfig cookingPotGuiConfig;
+    Map<String, GuiConfig> customCookingPotGuiConfigs = Map.of();
+    YamlConfiguration guiConfig;
+    volatile YamlConfiguration dropsConfig;
+    volatile StrawDropConfig strawDropConfig;
+    volatile PetFoodConfig petFoodConfig;
+    volatile ContainerReturnConfig containerReturnConfig;
+    volatile EnchantmentSettings enchantmentSettings = EnchantmentSettings.defaults();
+    volatile boolean backstabEnchantmentEnabled;
+    volatile CuttingBoardDisplayConfig cuttingBoardDisplayConfig;
+    volatile CuttingBoardDisplayConfig skilletDisplayConfig;
+    volatile CuttingBoardDisplayConfig stoveDisplayConfig;
+    volatile CookingPotExperienceRewardConfig cookingPotExperienceRewardConfig;
     // Advancement runtime state (config switch, UAA manager, addon tabs) lives in its own class; this field only
     // carries it so the advancement lifecycle block does not grow inside the plugin class.
-    private final AdvancementSystem advancementSystem = new AdvancementSystem(this);
+    final AdvancementSystem advancementSystem = new AdvancementSystem(this);
     private RecipeDiscoveryManager recipeDiscoveryManager;
-    private volatile StationSettings stationSettings;
+    volatile StationSettings stationSettings;
     private final List<CuttingBoardInteractionHandler> cuttingBoardInteractionHandlers = new CopyOnWriteArrayList<>();
-    private volatile KnifeSettings knifeSettings = new KnifeSettings(Set.of(), Set.of());
-    private volatile DebugSettings debugSettings = new DebugSettings(false, Set.of());
+    volatile KnifeSettings knifeSettings = new KnifeSettings(Set.of(), Set.of());
+    volatile DebugSettings debugSettings = new DebugSettings(false, Set.of());
 
     private final PrimaryWorldResolver primaryWorldResolver = new PrimaryWorldResolver(this);
 
@@ -956,6 +956,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /** Phase timings of the last reload, so the command can report them the way CraftEngine does. */
+    private final PluginConfigAssembly configAssembly = new PluginConfigAssembly(this);
+
     private final Object reloadTimingLock = new Object();
     private volatile RecipeRegistrationDriver recipeRegistrations;
 
@@ -1091,103 +1093,24 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         listeners.refreshDamageTypeDatapack();
     }
 
-    private void loadDebugFlags() {
-        DebugSettings settings = DebugSettings.load(getConfig());
-        debugSettings = settings;
+    private void loadConfigs() {
+        configAssembly.apply();
     }
 
-    private void loadConfigs() {
-        YamlConfiguration worldDataConfig = configFiles.loadWorldData();
-        YamlConfiguration loadedDropsConfig = configFiles.loadDrops();
-        dropsConfig = loadedDropsConfig;
-        advancementSystem.setEnabled(getConfig().getBoolean("advancements.enabled", true));
-        // Missing buff.enabled preserves the enabled default.
-        buffSystem.setEnabled(getConfigBoolean(true, "buff.enabled"));
-        EnchantmentSettings loadedEnchantments = EnchantmentSettings.load(
-                getConfig().getConfigurationSection("enchantments"));
-        enchantmentSettings = loadedEnchantments;
-        // Keep the knife/skillet enchant filter running whatever else is installed: its CraftEngine knives are
-        // nether_brick underneath and only this filter can enchant them. Only the custom backstab enchant stands
-        // down when a dedicated enchantment plugin is present;
-        // enchantments.compatibility.auto-disable-on-conflict: false forces it back on.
-        boolean backstab = resolveBackstabbingCompatibility(loadedEnchantments);
-        if (backstab && loadedEnchantments.autoDisableOnConflict()) {
-            String conflict = detectEnchantmentConflict();
-            if (conflict != null) {
-                I18n.logWarning("plugin.backstab_disabled_conflict", "conflict", conflict);
-                backstab = false;
-            }
-        }
-        backstabEnchantmentEnabled = backstab;
-        // Re-read on every reload so a debug switch edited in config.yml takes effect; the enable path
-        // has already read it once, earlier, for the startup lines that precede this method.
-        loadDebugFlags();
-        knifeSettings = KnifeSettings.load(getConfig());
+    void loadDebugFlags() {
+        configAssembly.loadDebugFlags();
+    }
 
-        ConfigurationSection heatSourceSection = getConfig().getConfigurationSection("heat-sources");
-        // Build the complete configuration locally before publishing it through the volatile field.
-        // Region-thread heat checks must not observe partially populated settings during reload.
-        HeatSourceConfig newHeatSourceConfig = new HeatSourceConfig();
-        HeatSourceConfig.setLogger(getLogger());
-        newHeatSourceConfig.loadDefaults();
-        if (heatSourceSection != null) {
-            newHeatSourceConfig.loadFromConfig(heatSourceSection);
-        }
-        // The table above is rebuilt from scratch, which would drop every addon registration. Replay
-        // them before publishing, so an addon that registered in onEnable survives /fd reload.
-        FarmersDelightApi.get().replayAddonHeatSources(newHeatSourceConfig);
-        heatSourceConfig = newHeatSourceConfig;
+    private Map<String, GuiConfig> loadCustomCookingPotGuiConfigs(YamlConfiguration config) {
+        return configAssembly.loadCustomCookingPotGuiConfigs(config);
+    }
 
-        // Same assign-once publication: the cut sound is resolved on region threads.
-        cuttingBoardSounds = CuttingBoardSounds.from(
-                getConfig().getConfigurationSection("cutting-board.sounds"));
+    private CuttingBoardDisplayConfig createSkilletDisplayConfig() {
+        return configAssembly.createSkilletDisplayConfig();
+    }
 
-        guiConfig = configFiles.loadGui();
-        ConfigurationSection cookingPotSection = guiConfig.getConfigurationSection("cooking-pot-gui");
-        cookingPotGuiConfig = cookingPotSection != null
-                ? GuiConfig.fromConfig(cookingPotSection)
-                : GuiConfig.createDefault();
-        customCookingPotGuiConfigs = loadCustomCookingPotGuiConfigs(guiConfig);
-        RecipeEditorView.reloadGui(guiConfig);
-
-        // Build each immutable configuration before publishing it through its volatile field.
-        // Region-thread event handlers can then read a complete snapshot during reload.
-        ConfigurationSection strawDropSection = loadedDropsConfig.getConfigurationSection("straw");
-        StrawDropConfig newStrawDropConfig = new StrawDropConfig();
-        // No code-side defaults: the bundled drops.yml carries them and the section is a registry section,
-        // so a rule the operator deleted has to stay deleted.
-        newStrawDropConfig.loadFromConfig(strawDropSection);
-        strawDropConfig = newStrawDropConfig;
-
-        petFoodConfig = configFiles.loadPetFood(getConfig().getConfigurationSection("pet-foods"));
-
-        ConfigurationSection containerReturnSection = getFirstConfigSection("container-returns", "cooking-pot.container-returns");
-        ContainerReturnConfig newContainerReturnConfig = new ContainerReturnConfig();
-        // Same rule as the straw drops above: bundled defaults only, no code-side re-adding.
-        newContainerReturnConfig.loadFromConfig(containerReturnSection);
-        containerReturnConfig = newContainerReturnConfig;
-
-        CuttingBoardDisplayConfig newCuttingBoardDisplayConfig = new CuttingBoardDisplayConfig();
-        newCuttingBoardDisplayConfig.loadFromConfig(getConfig().getConfigurationSection("cutting-board"));
-        newCuttingBoardDisplayConfig.loadOverridesFromFile(configFiles.loadDisplayOverrides());
-        cuttingBoardDisplayConfig = newCuttingBoardDisplayConfig;
-        CuttingBoardDisplayConfig newSkilletDisplayConfig = createSkilletDisplayConfig();
-        newSkilletDisplayConfig.loadFromConfig(getFirstConfigSection("skillet.display", "display-visuals.skillet"));
-        skilletDisplayConfig = newSkilletDisplayConfig;
-        CuttingBoardDisplayConfig newStoveDisplayConfig = createStoveDisplayConfig();
-        newStoveDisplayConfig.loadFromConfig(getFirstConfigSection("stove.display", "display-visuals.stove"));
-        stoveDisplayConfig = newStoveDisplayConfig;
-
-        stationSettings = StationSettings.load(this, newSkilletDisplayConfig, newStoveDisplayConfig);
-
-        cookingPotExperienceRewardConfig = new CookingPotExperienceRewardConfig();
-        cookingPotExperienceRewardConfig.loadFromConfig(
-                getFirstConfigSection("experience-reward", "cooking-pot.experience-reward"));
-        ItemUtils.configureExternalItemSources(getConfig().getStringList("external-item-sources"));
-        KaleidoscopeCompat.refresh(this);
-        WorldDataConfig.reload(this, worldDataConfig);
-        // Load the c: common-tag mapping before recipes load; it feeds recipe tag matching/indexing.
-        CommonTagResolver.reload(this);
+    private CuttingBoardDisplayConfig createStoveDisplayConfig() {
+        return configAssembly.createStoveDisplayConfig();
     }
 
     public ConfigurationSection getFirstConfigSection(String... paths) {
@@ -1504,7 +1427,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return Collections.unmodifiableList(cuttingBoardInteractionHandlers);
     }
 
-    private volatile CuttingBoardSounds cuttingBoardSounds = CuttingBoardSounds.defaults();
+    volatile CuttingBoardSounds cuttingBoardSounds = CuttingBoardSounds.defaults();
 
     public CuttingBoardSounds getCuttingBoardSounds() {
         return cuttingBoardSounds;
@@ -1546,25 +1469,6 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return guiConfig.getConfigurationSection("recipe-book-gui");
     }
 
-    private Map<String, GuiConfig> loadCustomCookingPotGuiConfigs(YamlConfiguration config) {
-        ConfigurationSection section = config.getConfigurationSection("cooking-pot-guis");
-        if (section == null) {
-            return Map.of();
-        }
-        Map<String, GuiConfig> configs = new HashMap<>();
-        for (String id : section.getKeys(false)) {
-            ConfigurationSection guiSection = section.getConfigurationSection(id);
-            if (guiSection == null) {
-                continue;
-            }
-            try {
-                configs.put(id, GuiConfig.fromConfig(guiSection));
-            } catch (Exception e) {
-                I18n.logWarning("plugin.custom_cooking_pot_gui_load_failed", "id", id, "error", e.getMessage());
-            }
-        }
-        return Collections.unmodifiableMap(configs);
-    }
 
     public StrawDropConfig getStrawDropConfig() {
         if (strawDropConfig == null) {
@@ -1679,27 +1583,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return stationSettings.stoveDisplayScale();
     }
 
-    private CuttingBoardDisplayConfig createSkilletDisplayConfig() {
-        return new CuttingBoardDisplayConfig(new CuttingBoardDisplayConfig.DisplayOverride(
-                null,
-                CuttingBoardDisplayConfig.DisplayStyle.AUTO,
-                new Vector3f(0.0F, 0.1F, 0.0F),
-                null,
-                null,
-                new Vector3f(0.5F, 0.5F, 0.5F)
-        ), 0.15F);
-    }
 
-    private CuttingBoardDisplayConfig createStoveDisplayConfig() {
-        return new CuttingBoardDisplayConfig(new CuttingBoardDisplayConfig.DisplayOverride(
-                null,
-                CuttingBoardDisplayConfig.DisplayStyle.AUTO,
-                new Vector3f(0.0F, 0.0F, 0.0F),
-                null,
-                null,
-                new Vector3f(0.375F, 0.375F, 0.375F)
-        ), 0.0F);
-    }
 
     private void logStartupSummary() {
         logConfigSummary(I18n.formatConsole("plugin.startup_config"));
@@ -1758,7 +1642,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return primaryWorldResolver.resolve();
     }
 
-    private boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
+    boolean resolveBackstabbingCompatibility(EnchantmentSettings settings) {
         return settings.isBackstabbingConfigured();
     }
 
@@ -1769,7 +1653,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * and farmersdelight: namespaces (catches registry-based enchant plugins and custom-enchant datapacks).
      * Startup plugin-enable order is not guaranteed, so the handler-list side is only reliable once every
      */
-    private String detectEnchantmentConflict() {
+    String detectEnchantmentConflict() {
         for (RegisteredListener listener : PrepareItemEnchantEvent.getHandlerList().getRegisteredListeners()) {
             Plugin other = listener.getPlugin();
             // CraftEngine is the required host, not a competing enchantment system: it hooks this event to manage
