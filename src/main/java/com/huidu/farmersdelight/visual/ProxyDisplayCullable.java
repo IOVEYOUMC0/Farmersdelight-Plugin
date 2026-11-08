@@ -106,9 +106,20 @@ final class ProxyDisplayCullable {
         if (viewer == null) {
             return;
         }
-        // Removal from CE's registry alone does not remove a retained entity from the client.
-        unregister(viewer);
-        removeClientEntity(viewer);
+        // Removal from CE's registry alone does not remove a retained entity from the client. Both calls reach
+        // into CraftEngine, whose class loader is already closed when the plugin is disabled first (a normal
+        // /stop disables CraftEngine before this plugin): a LinkageError there used to abort the whole cleanup
+        // step, leaving every remaining display registered.
+        try {
+            unregister(viewer);
+        } catch (RuntimeException | LinkageError ignored) {
+            // The tracker entry dies with CraftEngine's registry; nothing else to release here.
+        }
+        try {
+            removeClientEntity(viewer);
+        } catch (RuntimeException | LinkageError ignored) {
+            // The client entry is dropped with the entity ids below either way.
+        }
     }
 
     private void unregister(Viewer viewer) {

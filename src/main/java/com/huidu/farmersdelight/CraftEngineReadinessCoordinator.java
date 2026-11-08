@@ -65,11 +65,27 @@ final class CraftEngineReadinessCoordinator {
 
     boolean isReady() {
         try {
+            // A CraftEngine that is shutting down still answers "custom items are loaded" for a moment after
+            // it already unregistered them, which made a shutdown-era pass resolve every CE item to null and
+            // report the whole recipe file as broken.
+            if (isCraftEngineGone()) {
+                return false;
+            }
             var craftEngine = plugin.getCraftEngine();
             return craftEngine != null && !craftEngine.isEnabling() && !craftEngine.isReloading()
                     && ItemUtils.isAnyCustomItemLoaded();
         } catch (Exception ignored) {
             return false;
+        }
+    }
+
+    /** True when CraftEngine is disabled (or its plugin is gone) and nothing CE-derived can be read. */
+    static boolean isCraftEngineGone() {
+        try {
+            return Bukkit.getPluginManager().getPlugin("CraftEngine") == null
+                    || !Bukkit.getPluginManager().isPluginEnabled("CraftEngine");
+        } catch (RuntimeException | LinkageError ignored) {
+            return true;
         }
     }
 
@@ -237,6 +253,11 @@ final class CraftEngineReadinessCoordinator {
         if (!active || generation != reloadGeneration.get()) {
             return;
         }
+        if (isCraftEngineGone() || plugin.getServer().isStopping()) {
+            // The reload event can arrive while CraftEngine is being disabled: there is nothing to read and no
+            // point retrying, so the pass is dropped instead of queued.
+            return;
+        }
         try {
             pendingReloadTask = null;
             // A CraftEngine reload means its content may have changed: parses cached against the previous
@@ -271,7 +292,7 @@ final class CraftEngineReadinessCoordinator {
      * Re-checks readiness on a widening delay, then runs the pending readiness work once it is true.
      */
     private void scheduleReadinessRetry() {
-        if (!active) {
+        if (!active || isCraftEngineGone() || plugin.getServer().isStopping()) {
             return;
         }
         if (readinessAttempt >= READINESS_RETRY_ATTEMPTS) {
