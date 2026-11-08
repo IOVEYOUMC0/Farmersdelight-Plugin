@@ -223,9 +223,11 @@ class FarmersDelightBootstrapTest {
     @Test
     void tagIdCannotWriteOutsideItsManagedNamespace() throws Exception {
         Files.writeString(directory.resolve("common-tags.yml"), "tags:\n  'c:../../escape': [minecraft:carrot]\n");
-        assertThrows(IllegalArgumentException.class,
-                () -> FarmersDelightBootstrap.prepare(directory, "26.2", new Discovery().registrar()));
+        // The tag pack is abandoned (the id is rejected before anything is written) but the boot continues: one
+        // unreadable pack must not take the enchantment and damage-type packs down with it.
+        assertDoesNotThrow(() -> FarmersDelightBootstrap.prepare(directory, "26.2", new Discovery().registrar()));
         assertFalse(Files.exists(directory.resolve("datapacks/escape.json")));
+        assertTrue(Files.exists(directory.resolve("datapacks")), "the other managed packs are still prepared");
     }
 
     static final class Discovery {

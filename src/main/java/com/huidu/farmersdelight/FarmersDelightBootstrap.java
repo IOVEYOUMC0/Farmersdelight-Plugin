@@ -45,39 +45,60 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
         boolean enchantsEnabled = config.getBoolean("enchantments.install-datapack", true)
                 && config.getBoolean("enchantments.enabled", true);
         boolean damageEnabled = config.getBoolean("damage-type.install-datapack", true);
+        // Each pack is prepared on its own: a broken file in one of them used to abort this whole method, so
+        // the other two packs were never written for that boot (and the failure surfaced as one ERROR line).
         if (tagsEnabled) {
-            YamlConfiguration tags = DatapackSupport.startupConfiguration(directory.resolve("common-tags.yml"),
-                    FarmersDelightBootstrap.class.getResourceAsStream("/common-tags.yml"));
-            Map<String, Set<String>> raw = readTags(tags.getConfigurationSection("tags"));
-            Path cache = directory.resolve("datapacks/tag-sources.yml");
-            if (Files.isRegularFile(cache)) {
-                YamlConfiguration external = DatapackSupport.startupConfiguration(cache, null);
-                readTags(external.getConfigurationSection("tags")).forEach((tag, members) ->
-                        raw.computeIfAbsent(tag, key -> new HashSet<>()).addAll(members));
-            }
-            Set<String> problems = new HashSet<>();
-            FarmersDelightDatapacks.writeTags(DatapackSupport.managedPack(directory, FarmersDelightDatapacks.TAG_PACK),
-                    CommonTagDefinitions.expand(raw, problems), version);
-            if (!problems.isEmpty()) {
-                // Runtime also reports these through the configured language once I18n is ready.
-                System.getLogger(FarmersDelightBootstrap.class.getName()).log(System.Logger.Level.WARNING,
-                        "Invalid common tag references: " + problems);
+            try {
+                YamlConfiguration tags = DatapackSupport.startupConfiguration(directory.resolve("common-tags.yml"),
+                        FarmersDelightBootstrap.class.getResourceAsStream("/common-tags.yml"));
+                Map<String, Set<String>> raw = readTags(tags.getConfigurationSection("tags"));
+                Path cache = directory.resolve("datapacks/tag-sources.yml");
+                if (Files.isRegularFile(cache)) {
+                    YamlConfiguration external = DatapackSupport.startupConfiguration(cache, null);
+                    readTags(external.getConfigurationSection("tags")).forEach((tag, members) ->
+                            raw.computeIfAbsent(tag, key -> new HashSet<>()).addAll(members));
+                }
+                Set<String> problems = new HashSet<>();
+                FarmersDelightDatapacks.writeTags(
+                        DatapackSupport.managedPack(directory, FarmersDelightDatapacks.TAG_PACK),
+                        CommonTagDefinitions.expand(raw, problems), version);
+                if (!problems.isEmpty()) {
+                    // Runtime also reports these through the configured language once I18n is ready.
+                    System.getLogger(FarmersDelightBootstrap.class.getName()).log(System.Logger.Level.WARNING,
+                            "Invalid common tag references: " + problems);
+                }
+            } catch (Exception tagFailure) {
+                reportPackFailure("tags", tagFailure);
             }
         }
         if (enchantsEnabled) {
-            FarmersDelightDatapacks.prepareEnchantments(
-                    DatapackSupport.managedPack(directory, FarmersDelightDatapacks.ENCHANT_PACK),
-                    EnchantmentSettings.load(config.getConfigurationSection("enchantments")), version);
+            try {
+                FarmersDelightDatapacks.prepareEnchantments(
+                        DatapackSupport.managedPack(directory, FarmersDelightDatapacks.ENCHANT_PACK),
+                        EnchantmentSettings.load(config.getConfigurationSection("enchantments")), version);
+            } catch (Exception enchantFailure) {
+                reportPackFailure("enchantments", enchantFailure);
+            }
         }
         if (damageEnabled) {
-            DamageTypePack.prepare(directory.resolve("damage-types.yml"),
-                    FarmersDelightBootstrap.class.getResourceAsStream("/damage-types.yml"),
-                    DatapackSupport.managedPack(directory, FarmersDelightDatapacks.DAMAGE_PACK),
-                    "FarmersDelight damage types", version);
+            try {
+                DamageTypePack.prepare(directory.resolve("damage-types.yml"),
+                        FarmersDelightBootstrap.class.getResourceAsStream("/damage-types.yml"),
+                        DatapackSupport.managedPack(directory, FarmersDelightDatapacks.DAMAGE_PACK),
+                        "FarmersDelight damage types", version);
+            } catch (Exception damageFailure) {
+                reportPackFailure("damage types", damageFailure);
+            }
         }
         DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.TAG_PACK, tagsEnabled);
         DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.ENCHANT_PACK, enchantsEnabled);
         DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.DAMAGE_PACK, damageEnabled);
+    }
+
+    private static void reportPackFailure(String pack, Exception failure) {
+        System.getLogger(FarmersDelightBootstrap.class.getName()).log(System.Logger.Level.ERROR,
+                "Could not prepare the FarmersDelight " + pack + " datapack; the other packs are unaffected: "
+                        + failure.getMessage(), failure);
     }
 
     private static Map<String, Set<String>> readTags(ConfigurationSection section) {

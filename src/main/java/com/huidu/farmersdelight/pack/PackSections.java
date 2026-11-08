@@ -45,11 +45,12 @@ public final class PackSections {
         Map<String, String> roots = roots();
         AddonPackSections claimed = AddonPackSections.claim(packManager, "farmersdelight:pack_sections",
                 "farmersdelight pack sections", roots);
-        if (!claimed.registered()) {
+        boolean sharedRegistered = claimed.registered();
+        if (!sharedRegistered) {
             I18n.logWarning("plugin.pack_sections_conflict", "ids", String.join(", ", roots.keySet()));
-            return null;
+        } else {
+            I18n.logDetail("startup", "plugin.pack_sections_registered", "ids", String.join(", ", roots.keySet()));
         }
-        I18n.logDetail("startup", "plugin.pack_sections_registered", "ids", String.join(", ", roots.keySet()));
 
         // The advanced tag groups are claimed separately: one claim's ids are registered as a unit, so putting
         // this one in the batch above would let a pack or plugin that already owns the id take the recipes down
@@ -62,6 +63,12 @@ public final class PackSections {
             I18n.logDetail("startup", "plugin.pack_sections_registered",
                     "ids", String.join(", ", separateRoots().keySet()));
         }
+        if (!sharedRegistered && !tagGroups.registered()) {
+            // Nothing could be claimed at all: the callers treat null as "no pack sections this run".
+            return null;
+        }
+        // A lost shared claim no longer abandons the separate one: returning null here dropped the advanced tag
+        // groups too, although their claim is deliberately independent.
         return new PackSections(claimed, tagGroups);
     }
 

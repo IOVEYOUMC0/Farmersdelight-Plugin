@@ -40,6 +40,8 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
 
     private boolean dirty;
     private boolean saving;
+    /** The stored recipe has more results than the grid shows, so saving would drop some: refuse to save. */
+    private boolean oversized;
     private Inventory saveInventory;
 
     private final String recipeId;
@@ -90,10 +92,13 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
             resultChances[i] = entry.getChance();
         }
         if (recipeResults.size() > resultItems.length) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.too_many_results",
+            // Saving would rewrite the recipe with only the results the grid can show, permanently dropping the
+            // rest, so the editor refuses to save at all until the layout holds them.
+            this.oversized = true;
+            player.sendMessage(Component.translatable("gui.editor.feedback.too_many_results_readonly",
                     Component.text(recipeResults.size()),
                     Component.text(resultItems.length))
-                    .color(NamedTextColor.YELLOW));
+                    .color(NamedTextColor.RED));
         }
         this.priority = recipe.getPriority();
         if (recipe.getSound() != null && !recipe.getSound().isBlank()) {
@@ -342,6 +347,11 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
 
     private void save() {
         if (saving) return;
+        if (oversized) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.recipe_oversized_readonly")
+                    .color(NamedTextColor.RED));
+            return;
+        }
         if (input == null) {
             player.sendMessage(Component.translatable("gui.editor.feedback.no_input")
                     .color(NamedTextColor.RED));

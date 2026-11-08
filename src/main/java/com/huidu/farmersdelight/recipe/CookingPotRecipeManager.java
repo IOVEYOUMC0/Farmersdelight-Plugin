@@ -452,7 +452,10 @@ public class CookingPotRecipeManager {
         if (result == null) {
             throw new IllegalArgumentException("Invalid result item: " + resultValue);
         }
-        if (!(resultValue instanceof Map)) {
+        // A nested mapping is a ConfigurationSection, never a java.util.Map: `result: {item: x, count: 4}` has
+        // already been parsed with its count by parseItemValue, and overwriting it with result-count (default 1)
+        // used to drop the count the editor wrote.
+        if (!(resultValue instanceof Map) && !(resultValue instanceof ConfigurationSection)) {
             result.setAmount(Math.max(1, ConfigSectionReader.optionalInt(section, "result-count", 1)));
         }
 

@@ -217,13 +217,20 @@ public class RecipeViewGuiConfig {
 
         public List<Integer> getSlotsByType(String type) {
             List<Integer> slots = new ArrayList<>();
+            // Only cells the inventory has: a layout row longer than nine columns, or more rows than `rows`, would
+            // otherwise produce slots past the end of the inventory, which the renderer hands straight to setItem.
+            int capacity = getSize();
             for (int row = 0; row < layout.size(); row++) {
                 String line = layout.get(row);
-                for (int col = 0; col < line.length(); col++) {
+                for (int col = 0; col < line.length() && col < 9; col++) {
+                    int slot = row * 9 + col;
+                    if (slot >= capacity) {
+                        break;
+                    }
                     char c = line.charAt(col);
                     String slotType = legend.get(c);
                     if (type.equals(slotType)) {
-                        slots.add(row * 9 + col);
+                        slots.add(slot);
                     }
                 }
             }

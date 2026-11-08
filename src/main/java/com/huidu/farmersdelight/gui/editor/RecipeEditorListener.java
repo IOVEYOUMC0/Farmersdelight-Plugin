@@ -14,6 +14,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.InventoryHolder;
@@ -117,6 +118,34 @@ public final class RecipeEditorListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         CHAT_PROMPTS.remove(event.getPlayer().getUniqueId());
         EditorDrafts.clear(event.getPlayer().getUniqueId());
+        // The editors carry their fabricated template on the real cursor, so quitting (or being kicked) with one
+        // open would leave that copy where vanilla hands a carried stack back: a second, real item. The close
+        // event covers the normal path; this covers leaving the server while the screen is still open.
+        discardTemplateCursor(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onDeath(PlayerDeathEvent event) {
+        // A death drops the inventory, carried stack included: a template must not become loot.
+        discardTemplateCursor(event.getEntity());
+    }
+
+    /** True while one of the recipe editor screens owns the player's open inventory. */
+    private static boolean isEditing(Player player) {
+        if (player == null) {
+            return false;
+        }
+        InventoryHolder holder = PerformanceProbe.holder(player.getOpenInventory().getTopInventory());
+        return holder instanceof RecipeEditorView || holder instanceof CookingPotEditorGui
+                || holder instanceof CuttingBoardEditorGui || holder instanceof ChoiceBuilderGui
+                || holder instanceof TagPickerGui;
+    }
+
+    /** Drops a leftover template copy from the cursor; while editing, a cursor item is a fabricated copy. */
+    private static void discardTemplateCursor(Player player) {
+        if (isEditing(player)) {
+            player.setItemOnCursor(null);
+        }
     }
 
     // The addon recipe editor view used to be handled by the core's recipe-book listener; it moved here with
@@ -172,10 +201,7 @@ public final class RecipeEditorListener implements Listener {
     public void onEditorViewDrop(PlayerDropItemEvent event) {
         // Every editor screen keeps a fabricated template copy on the cursor: pressing Q drops that copy
         // without going through InventoryClickEvent, so without this guard the template becomes a real item.
-        InventoryHolder holder = PerformanceProbe.holder(event.getPlayer().getOpenInventory().getTopInventory());
-        if (holder instanceof RecipeEditorView || holder instanceof CookingPotEditorGui
-                || holder instanceof CuttingBoardEditorGui || holder instanceof ChoiceBuilderGui
-                || holder instanceof TagPickerGui) {
+        if (isEditing(event.getPlayer())) {
             event.setCancelled(true);
             event.getPlayer().setItemOnCursor(null);
         }

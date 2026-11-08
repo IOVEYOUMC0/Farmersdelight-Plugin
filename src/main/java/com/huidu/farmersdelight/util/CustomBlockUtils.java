@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.util;
 
+import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
@@ -178,13 +179,28 @@ public final class CustomBlockUtils {
         if (posKey == null) return;
         CEWorld ceWorld = getCEWorld(world);
         if (ceWorld != null) {
-            ceWorld.blockEntityChanged(posKey.toBlockPos());
+            try {
+                ceWorld.blockEntityChanged(posKey.toBlockPos());
+            } catch (RuntimeException | LinkageError failure) {
+                // A settlement (store result, then consume) runs this push between its two halves; letting a
+                // CraftEngine failure escape would leave the result stored and the ingredients unconsumed, so the
+                // next tick would produce a second result from the same ingredients. The world copy catches up on
+                // the next push instead.
+                I18n.logDetail("block", "block.block_entity_sync_failed", "error", String.valueOf(failure));
+            }
         }
     }
 
     public static void markBlockEntityDirty(BlockEntity blockEntity) {
-        if (blockEntity != null && blockEntity.world != null) {
+        if (blockEntity == null || blockEntity.world == null) {
+            return;
+        }
+        try {
             blockEntity.world.blockEntityChanged(blockEntity.pos);
+        } catch (RuntimeException | LinkageError failure) {
+            // Same reason as the (World, BlockPosKey) overload: this push can sit between the two halves of a
+            // settlement, and a CraftEngine failure escaping here would let the same ingredients produce twice.
+            I18n.logDetail("block", "block.block_entity_sync_failed", "error", String.valueOf(failure));
         }
     }
 

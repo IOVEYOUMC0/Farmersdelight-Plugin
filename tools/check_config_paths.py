@@ -5,8 +5,9 @@ of them is set. So a typo'd or renamed path does not fail loudly — the feature
 the operator's edited value is ignored. That is the "config reachability" defect class.
 
 What it checks:
-  * every string literal passed to the plugin's `getConfig*` / `getFirstConfigSection` helpers, and to
-    `ConfigSectionReader`;
+  * every string literal passed to the plugin's `getConfig*` / `getFirstConfigSection` helpers (a
+    `ConfigSectionReader` path is relative to an operator-authored section such as a gui.yml item or a CE
+    recipe entry, so its keys are not ones this repository ships and they stay out of scope);
   * resolved against the union of the bundled default files that ships in src/main/resources
     (config.yml, gui.yml, drops.yml, world-data.yml, display-overrides.yml).
 
@@ -44,6 +45,10 @@ BUNDLED = ["config.yml", "gui.yml", "drops.yml", "world-data.yml", "display-over
 JAVA_ROOTS = ["src/main/java", "src/debugTools/java"]
 
 # Helpers whose literal arguments are config paths.
+# ConfigSectionReader is deliberately not listed: it reads paths relative to a section the caller hands in, and
+# most of those sections are operator-authored content (gui.yml items, CE recipe files, stove offsets), not keys
+# this repository ships, so a flat "is this key in config.yml" test would report them all as unreachable. The
+# addon-side check reads the same shape and has the same limit.
 HELPERS = (
     "getConfigBoolean", "getConfigInt", "getConfigDouble", "getConfigStringList",
     "getFirstConfigSection",

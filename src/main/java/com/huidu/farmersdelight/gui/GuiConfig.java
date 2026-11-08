@@ -75,11 +75,18 @@ public class GuiConfig implements GuiLayout {
         int output = -1;
         int recipe = -1;
 
+        // Cells the inventory actually has: a row wider than nine columns would map two columns onto one slot, and
+        // a layout with more rows than `rows` would address slots past the end of the inventory, which the GUI then
+        // passes to setItem.
+        int capacity = rows * 9;
         for (int row = 0; row < layout.size(); row++) {
             String line = layout.get(row);
-            for (int col = 0; col < line.length(); col++) {
-                char c = line.charAt(col);
+            for (int col = 0; col < line.length() && col < 9; col++) {
                 int slot = row * 9 + col;
+                if (slot >= capacity) {
+                    break;
+                }
+                char c = line.charAt(col);
                 String type = legend.get(c);
 
                 if (type != null) {

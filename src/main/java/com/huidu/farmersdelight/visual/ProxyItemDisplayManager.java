@@ -850,24 +850,29 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         }
 
         private void flush() {
-            for (Map.Entry<UUID, List<ProxyDisplay>> entry : pending.entrySet()) {
-                Player player = viewers.get(entry.getKey());
+            // Both sides: a player who already watches a display only lands in `verify`, so walking `pending`
+            // alone skipped the reattach check for exactly the players it exists for (a delayed CraftEngine
+            // respawn packet clears the tracker and the entity stays invisible until something re-syncs it).
+            Set<UUID> recipients = new HashSet<>(pending.keySet());
+            recipients.addAll(verify.keySet());
+            for (UUID recipientId : recipients) {
+                Player player = viewers.get(recipientId);
                 if (player == null) continue;
-                List<ProxyDisplay> displays = entry.getValue();
+                List<ProxyDisplay> displays = pending.getOrDefault(recipientId, List.of());
                 Runnable retired = () -> {
                     for (ProxyDisplay display : displays) {
-                        display.cullable.removeViewer(entry.getKey());
-                        removeVisibleDisplay(entry.getKey(), display.entityId);
+                        display.cullable.removeViewer(recipientId);
+                        removeVisibleDisplay(recipientId, display.entityId);
                     }
                 };
-                List<ProxyDisplay> toVerify = verify.getOrDefault(entry.getKey(), List.of());
+                List<ProxyDisplay> toVerify = verify.getOrDefault(recipientId, List.of());
                 try {
                     plugin.scheduler().runForEntity(player, () -> {
                         for (ProxyDisplay display : displays) {
                             syncDisplayForPlayer(display, player);
                         }
                         for (ProxyDisplay display : toVerify) {
-                            if (display.cullable.needsReattach(entry.getKey(), Config.enableEntityCulling())) {
+                            if (display.cullable.needsReattach(recipientId, Config.enableEntityCulling())) {
                                 syncDisplayForPlayer(display, player);
                             }
                         }
@@ -904,7 +909,9 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
         Location loc = display.location();
         World world = loc.getWorld();
         if (world == null) {
-            destroyForAllViewers(display);
+            // Tearing the viewers down but keeping the entry registered left the display in every later pass
+            // (cleanupWorld skips null worlds), so the record itself is dropped.
+            destroyDisplay(display.entityId);
             return;
         }
         int chunkX = loc.getBlockX() >> 4;

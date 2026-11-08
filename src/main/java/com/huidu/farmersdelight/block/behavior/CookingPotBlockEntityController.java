@@ -261,7 +261,10 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         if (entity == null) return false;
 
         loadDataIntoEntity(entity, data);
-        if (entity.hasStoredContents()) {
+        // The tick manager only unregisters a pot once it has no contents AND no progress, as an empty pot can
+        // still be mid-cook. Registering on contents alone left a pot reloaded with progress but no ingredients
+        // out of the tick loop, freezing its progress bar until the block was interacted with.
+        if (entity.hasStoredContents() || entity.getCookingProgress() > 0) {
             if (plugin != null && plugin.getTickManager() != null) {
                 plugin.getTickManager().markActive(world, posKey, TickManager.BlockType.COOKING_POT);
             }

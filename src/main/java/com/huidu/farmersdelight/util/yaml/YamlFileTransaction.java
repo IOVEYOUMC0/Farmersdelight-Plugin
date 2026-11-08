@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.util.yaml;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -260,7 +261,9 @@ public final class YamlFileTransaction {
             Files.writeString(temp, content, StandardCharsets.UTF_8);
             try {
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException atomicUnsupported) {
+            } catch (AtomicMoveNotSupportedException atomicUnsupported) {
+                // Only a filesystem without atomic moves may take the non-atomic path; a disk-full or permission
+                // failure has to surface instead of silently losing the move's all-or-nothing guarantee.
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException | RuntimeException failure) {

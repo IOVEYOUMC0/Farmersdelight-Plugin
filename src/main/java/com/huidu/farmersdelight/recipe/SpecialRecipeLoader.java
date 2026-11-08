@@ -43,6 +43,11 @@ public final class SpecialRecipeLoader {
     public static void load(FarmersDelightPlugin plugin, SpecialRecipeRegistry registry) {
         Map<String, SpecialRecipeInfo> fileEntries = new LinkedHashMap<>();
         YamlConfiguration config = loadConfig(plugin);
+        if (config == null) {
+            // Unreadable (or half-written) file: withdrawing the vanished set here would delete every card this
+            // loader published, so the previous set is kept until the file parses again.
+            return;
+        }
         if (config != null) {
             parseInto(fileEntries, config, FILE_NAME);
             if (config.getConfigurationSection(ROOT_KEY) == null) {

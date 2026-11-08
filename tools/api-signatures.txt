@@ -76,6 +76,7 @@ member|com.huidu.farmersdelight.api.PluginAccess|public static FarmersDelightPlu
 member|com.huidu.farmersdelight.api.PluginAccess|public static boolean isAvailable()
 member|com.huidu.farmersdelight.api.advancement.AdvancementAvailability|public String logName()
 member|com.huidu.farmersdelight.api.advancement.AdvancementTree|public AdvancementTree advancement(String id, String parentId, ItemStack icon, String title, String description, String frame, float x, float y)
+member|com.huidu.farmersdelight.api.advancement.AdvancementTree|public AdvancementTree experience(String advancementId, int experience)
 member|com.huidu.farmersdelight.api.advancement.AdvancementTree|public AdvancementTree multiTask(String id, String parentId, ItemStack icon, String title, String description, String frame, float x, float y, List<String>criteria)
 member|com.huidu.farmersdelight.api.advancement.AdvancementTree|public AdvancementTree requires(String advancementId, String... craftEngineIds)
 member|com.huidu.farmersdelight.api.advancement.AdvancementTree|public AdvancementTree requiresCriterion(String advancementId, String criterion, String... craftEngineIds)
@@ -193,6 +194,11 @@ member|com.huidu.farmersdelight.api.buff.CustomBuff|public default int remaining
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public default void restoreState(Player player)
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public default void saveState(Player player)
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public void remove(Player player)
+member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static Set<String>end()
+member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static String sectionMarker(String path)
+member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static void begin()
+member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static void record(String path)
+member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static void recordSection(String path)
 member|com.huidu.farmersdelight.api.config.BehaviorArguments|public static Boolean bool(Map<String, Object>arguments, String path, Boolean fallback)
 member|com.huidu.farmersdelight.api.config.BehaviorArguments|public static Float decimal(Map<String, Object>arguments, String path, Float fallback)
 member|com.huidu.farmersdelight.api.config.BehaviorArguments|public static Integer integer(Map<String, Object>arguments, String path, Integer fallback)
@@ -854,6 +860,7 @@ type|com.huidu.farmersdelight.api.block.StoveSnapshot|public record StoveSnapsho
 type|com.huidu.farmersdelight.api.buff.BuffBossbar|public final class BuffBossbar
 type|com.huidu.farmersdelight.api.buff.CustomBuffRegistry|public final class CustomBuffRegistry
 type|com.huidu.farmersdelight.api.buff.CustomBuff|public interface CustomBuff
+type|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public final class BehaviorArgRecorder
 type|com.huidu.farmersdelight.api.config.BehaviorArguments|public final class BehaviorArguments
 type|com.huidu.farmersdelight.api.config.ConfigFileUpdater|public final class ConfigFileUpdater
 type|com.huidu.farmersdelight.api.config.ConfigKeyRename|public record ConfigKeyRename(String oldPath, String newPath)

@@ -45,9 +45,10 @@ public final class ToolRegistry {
 
     private ToolRegistry() {}
 
-    public static void register() {
-        if (registered) return;
-        registered = true;
+    public static synchronized void register() {
+        if (registered) {
+            return;
+        }
 
         ItemSettingsModifierType<ItemSettingsModifier> type = new ItemSettingsModifierType<>(
                 Key.of("farmersdelight", "sword"),
@@ -72,6 +73,10 @@ public final class ToolRegistry {
         ((WritableRegistry<ItemSettingsModifierType<? extends ItemSettingsModifier>>)
                 BuiltInRegistries.ITEM_SETTINGS_TYPE)
                 .register(ResourceKey.create(Registries.ITEM_SETTINGS_TYPE.location(), durableType.id()), durableType);
+        // Only now: a failure above (registry not ready, key already taken) used to leave the flag set, and the
+        // two settings types were then never registered again for the rest of the run, silently dropping every
+        // farmersdelight:sword/durable entry to "no durability, not enchantable".
+        registered = true;
     }
 
     public static void refresh() {

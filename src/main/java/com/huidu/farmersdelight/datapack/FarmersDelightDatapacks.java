@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.datapack;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.huidu.farmersdelight.api.enchant.EnchantmentDefinition;
 import com.huidu.farmersdelight.api.util.DatapackSupport;
@@ -69,12 +70,25 @@ public final class FarmersDelightDatapacks {
             Path file = root.resolve("data/minecraft/tags/enchantment/" + distributionTag + ".json");
             Set<String> ids = new LinkedHashSet<>();
             if (Files.isRegularFile(file)) {
-                JsonArray values = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8))
-                        .getAsJsonObject().getAsJsonArray("values");
-                for (var value : values) {
-                    String id = value.getAsString();
-                    if (!id.equals(previousId) && Files.isRegularFile(enchantmentFile(root, NamespacedId.parse(id)))) {
-                        ids.add(id);
+                // Read one entry at a time and skip what cannot be understood: a tag entry may be an object
+                // ({"id": ..., "required": false}) or a "#tag" reference, and letting one of those throw aborted
+                // the whole datapack pass - the enchantment, damage-type and tag packs then all went missing.
+                JsonElement parsedFile = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+                JsonArray values = parsedFile.isJsonObject()
+                        ? parsedFile.getAsJsonObject().getAsJsonArray("values") : null;
+                if (values != null) {
+                    for (JsonElement value : values) {
+                        String id = tagEntryId(value);
+                        if (id == null || id.equals(previousId)) {
+                            continue;
+                        }
+                        try {
+                            if (Files.isRegularFile(enchantmentFile(root, NamespacedId.parse(id)))) {
+                                ids.add(id);
+                            }
+                        } catch (IllegalArgumentException unusable) {
+                            // A "#tag" reference or a malformed id: this pack only lists enchantment ids.
+                        }
                     }
                 }
             }
@@ -83,6 +97,23 @@ public final class FarmersDelightDatapacks {
         }
         writeIfChanged(previousIdFile, currentId);
         writeIfChanged(root.resolve("pack.mcmeta"), DatapackSupport.renderPackMetadata(PACK_DESCRIPTION, version));
+    }
+
+    /** The id a tag entry names: the string itself, or the {@code id} field of an object entry. */
+    private static String tagEntryId(JsonElement value) {
+        if (value == null) {
+            return null;
+        }
+        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+            return value.getAsString();
+        }
+        if (value.isJsonObject()) {
+            JsonElement id = value.getAsJsonObject().get("id");
+            if (id != null && id.isJsonPrimitive() && id.getAsJsonPrimitive().isString()) {
+                return id.getAsString();
+            }
+        }
+        return null;
     }
 
     public static String renderDefinition(EnchantmentSettings.Backstabbing backstabbing) {

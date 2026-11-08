@@ -16,6 +16,17 @@ public final class ToolEnchantableComponent {
         void set(Object value);
     }
 
+    /**
+     * Applies one candidate value and reports whether the component is really present afterwards.
+     *
+     * <p>CraftEngine's {@code setComponentInternal} returns without writing when it cannot resolve the component
+     * type, and it throws nothing, so "the call returned" is not "the item is enchantable".
+     */
+    public interface VerifyingWriter extends ComponentWriter {
+
+        boolean applied();
+    }
+
     private static final AtomicBoolean WARNED = new AtomicBoolean();
 
     private ToolEnchantableComponent() {
@@ -26,20 +37,26 @@ public final class ToolEnchantableComponent {
      * is, warn runs (at most once per process, so a server full of tools logs a single line).
      */
     public static boolean write(int enchantability, ComponentWriter writer, Runnable warn) {
-        try {
-            writer.set(Map.of("value", enchantability));
+        boolean verified = writer instanceof VerifyingWriter;
+        if (attempt(Map.of("value", enchantability), writer, verified)) {
             return true;
-        } catch (RuntimeException | LinkageError mapRejected) {
-            try {
-                writer.set(enchantability);
-                return true;
-            } catch (RuntimeException | LinkageError integerRejected) {
-                if (WARNED.compareAndSet(false, true) && warn != null) {
-                    warn.run();
-                }
-                return false;
-            }
         }
+        if (attempt(enchantability, writer, verified)) {
+            return true;
+        }
+        if (WARNED.compareAndSet(false, true) && warn != null) {
+            warn.run();
+        }
+        return false;
+    }
+
+    private static boolean attempt(Object value, ComponentWriter writer, boolean verified) {
+        try {
+            writer.set(value);
+        } catch (RuntimeException | LinkageError rejected) {
+            return false;
+        }
+        return !verified || ((VerifyingWriter) writer).applied();
     }
 
     /** Forgets the one-shot warning; tests only. */

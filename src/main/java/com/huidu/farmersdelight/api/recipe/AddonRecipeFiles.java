@@ -201,7 +201,15 @@ public final class AddonRecipeFiles {
             if (root == null && yaml.isSet(rootKey)) {
                 throw new InvalidConfigurationException(rootKey + " must be a section");
             }
-            return root == null ? yaml.createSection(rootKey) : root;
+            if (root == null) {
+                // The file is readable but no longer defines the root section: a renamed key or a cleared
+                // file. Returning an empty section would unregister every recipe this source published, so
+                // the previous set is retained and the operator is told why nothing changed.
+                plugin.getLogger().warning("Recipe file " + file + " has no " + rootKey
+                        + " section; keeping the recipes registered by this source");
+                return null;
+            }
+            return root;
         } catch (IOException | InvalidConfigurationException failure) {
             plugin.getLogger().log(Level.WARNING, "Cannot load recipe file; retaining the registered set: " + file, failure);
             return null;

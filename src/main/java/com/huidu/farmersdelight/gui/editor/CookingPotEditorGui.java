@@ -45,6 +45,10 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
 
     private boolean dirty;
     private boolean saving;
+    /** The file declared `container: none`; keep it instead of inferring the result's crafting remainder back. */
+    private boolean containerOptOut;
+    /** The stored recipe has more entries than the grid shows, so saving would drop some: refuse to save. */
+    private boolean oversized;
     private Inventory saveInventory;
 
     private final String recipeId;
@@ -97,12 +101,19 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
             ingredients[i] = recipeIngredients.get(i);
         }
         if (recipeIngredients.size() > ingredients.length) {
-            player.sendMessage(Component.translatable("gui.editor.feedback.too_many_ingredients",
+            // Saving would rewrite the recipe with only the entries the grid can show, permanently dropping the
+            // rest, so the editor refuses to save at all until the layout holds them.
+            this.oversized = true;
+            player.sendMessage(Component.translatable("gui.editor.feedback.too_many_ingredients_readonly",
                     Component.text(recipeIngredients.size()),
                     Component.text(ingredients.length))
-                    .color(NamedTextColor.YELLOW));
+                    .color(NamedTextColor.RED));
         }
         this.container = recipe.getContainer() == null ? null : recipe.getContainer().clone();
+        // A file that says `container: none` for a result that declares a crafting remainder must keep saying so:
+        // saving used to infer that remainder right back and silently change how the dish is cooked out.
+        this.containerOptOut = this.container == null && recipe.getResult() != null
+                && ItemUtils.craftingRemainderOf(recipe.getResult(), recipeId) != null;
         this.result = recipe.getResult() == null ? null : recipe.getResult().clone();
         this.resultCount = result == null ? 1 : Math.max(1, result.getAmount());
         this.cookTime = recipe.getCookTime();
@@ -269,6 +280,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
             case "container":
                 if (hasCursorItem) {
                     container = cleanCopy(cursor);
+            containerOptOut = false;
                     clearCursor();
                 } else {
                     if (container != null) {
@@ -413,6 +425,11 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
 
     private void save() {
         if (saving) return;
+        if (oversized) {
+            player.sendMessage(Component.translatable("gui.editor.feedback.recipe_oversized_readonly")
+                    .color(NamedTextColor.RED));
+            return;
+        }
         List<RecipeIngredient> ingredientList = new ArrayList<>();
         for (RecipeIngredient ingredient : ingredients) {
             if (ingredient != null) {
@@ -435,7 +452,7 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
         // Auto-add the container the result declares (a soup's bowl, a drink's bottle) so a recipe written in
         // the editor is saved exactly like a hand-written one; the file's "container: none" removes it again.
         ItemStack savedContainer = container == null || container.getType().isAir() ? null : container;
-        if (savedContainer == null) {
+        if (savedContainer == null && !containerOptOut) {
             ItemStack inferred = ItemUtils.craftingRemainderOf(savedResult, recipeId);
             if (inferred != null && !inferred.getType().isAir()) {
                 savedContainer = inferred;

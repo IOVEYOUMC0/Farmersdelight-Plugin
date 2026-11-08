@@ -42,7 +42,22 @@ public final class ToolDataProcessor implements ItemProcessor {
             // Integer first (the component's codec is a plain int range), record form as the fallback, and a
             // one-shot WARN naming the item when neither is accepted: a silent zero is what hid this defect.
             ToolEnchantableComponent.write(enchantability,
-                    value -> item.setJavaComponent(DataComponentKeys.ENCHANTABLE, value),
+                    new ToolEnchantableComponent.VerifyingWriter() {
+                        @Override
+                        public void set(Object value) {
+                            item.setJavaComponent(DataComponentKeys.ENCHANTABLE, value);
+                        }
+
+                        @Override
+                        public boolean applied() {
+                            // CraftEngine can drop the write without throwing, so read the component back.
+                            try {
+                                return item.getComponentAsJava(DataComponentKeys.ENCHANTABLE) != null;
+                            } catch (RuntimeException | LinkageError unreadable) {
+                                return false;
+                            }
+                        }
+                    },
                     () -> WARN_ONCE.accept(item.toString()));
         }
         return item;

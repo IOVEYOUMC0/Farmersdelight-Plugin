@@ -319,10 +319,17 @@ public final class ConfigBootstrap {
             }
             int added = ConfigFileUpdater.copyMissingKeys(bundled, existing, registrySections);
             if (added > 0) {
-                backupQuietly(configPath);
-                ConfigFileUpdater.tidy(existing);
-                ConfigFileUpdater.writeStringAtomically(configPath, existing.saveToString(), true);
-                ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.added(fileName, added));
+                try {
+                    backupQuietly(configPath);
+                    ConfigFileUpdater.tidy(existing);
+                    ConfigFileUpdater.writeStringAtomically(configPath, existing.saveToString(), true);
+                    ConfigUpdateNotices.log(plugin, ConfigUpdateNotices.added(fileName, added));
+                } catch (RuntimeException writeFailure) {
+                    // The file could not be updated, but what it already held parsed fine: returning an empty
+                    // configuration here silently switched the whole file's features off for this run.
+                    I18n.logWarning("plugin.config_merge_failed", "file", fileName,
+                            "error", String.valueOf(writeFailure.getMessage()));
+                }
                 rememberReloadRead(configPath, existing);
             }
             return existing;
@@ -362,10 +369,10 @@ public final class ConfigBootstrap {
     static void copyLegacyDrops(ConfigurationSection legacy, Path dropsPath)
             throws IOException, InvalidConfigurationException {
         YamlConfiguration drops = ConfigFileUpdater.readYamlFile(dropsPath);
-        for (String section : DROPS_REGISTRY_SECTIONS) {
-            drops.set(section, null);
-        }
-        ConfigFileUpdater.copySection(legacy, drops);
+        // Merged, not replaced: clearing the registry sections first deleted entries the operator had written
+        // straight into drops.yml once the very same migration was re-run (a rolled-back config.yml, or a save
+        // that had failed while the old section was still in memory).
+        ConfigFileUpdater.copyMissingKeys(legacy, drops, List.of());
         ConfigFileUpdater.tidy(drops);
         ConfigFileUpdater.writeStringAtomically(dropsPath, drops.saveToString(), true);
     }
@@ -393,8 +400,9 @@ public final class ConfigBootstrap {
     static void copyLegacyWorldData(ConfigurationSection legacy, Path worldDataPath)
             throws IOException, InvalidConfigurationException {
         YamlConfiguration worldData = ConfigFileUpdater.readYamlFile(worldDataPath);
-        worldData.set("trades", null);
-        ConfigFileUpdater.copySection(legacy, worldData);
+        // Merged, not replaced (see copyLegacyDrops): a re-run migration must never drop operator entries that
+        // were written into world-data.yml directly.
+        ConfigFileUpdater.copyMissingKeys(legacy, worldData, List.of());
         ConfigFileUpdater.tidy(worldData);
         ConfigFileUpdater.writeStringAtomically(worldDataPath, worldData.saveToString(), true);
     }
@@ -413,13 +421,17 @@ public final class ConfigBootstrap {
             backupQuietly(mainConfigPath);
             backupQuietly(overridesPath);
             YamlConfiguration overrides = ConfigFileUpdater.readYamlFile(overridesPath);
-            overrides.set("items", null);
-            overrides.set("tags", null);
+            // Merged, not replaced (see copyLegacyDrops): a re-run migration must not delete the entries the
+            // operator wrote into display-overrides.yml directly.
             if (items != null) {
-                ConfigFileUpdater.copySection(items, overrides.createSection("items"));
+                ConfigurationSection target = overrides.isConfigurationSection("items")
+                        ? overrides.getConfigurationSection("items") : overrides.createSection("items");
+                ConfigFileUpdater.copyMissingKeys(items, target, List.of());
             }
             if (tags != null) {
-                ConfigFileUpdater.copySection(tags, overrides.createSection("tags"));
+                ConfigurationSection target = overrides.isConfigurationSection("tags")
+                        ? overrides.getConfigurationSection("tags") : overrides.createSection("tags");
+                ConfigFileUpdater.copyMissingKeys(tags, target, List.of());
             }
             ConfigFileUpdater.tidy(overrides);
             ConfigFileUpdater.writeStringAtomically(overridesPath, overrides.saveToString(), true);

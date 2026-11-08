@@ -79,10 +79,12 @@ public final class LegacyIdMigrationHooks implements Listener {
             // own it. The next open tries again.
             return;
         }
-        if (!migratedOpens.firstOpen(inventory)) {
-            return;
-        }
         MigrationDispatch.inlineIfOwned(active.dispatch(), owner, () -> {
+            // Recorded inside the dispatched task: the dispatch can be refused (plugin disabled, region gone),
+            // and claiming the container before it ran left that inventory unmigrated for the rest of its life.
+            if (!migratedOpens.firstOpen(inventory)) {
+                return;
+            }
             active.migrateInventory(inventory);
             active.logSummary();
         });

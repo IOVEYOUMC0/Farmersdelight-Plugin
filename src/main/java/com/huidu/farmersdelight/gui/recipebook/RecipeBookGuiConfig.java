@@ -71,12 +71,20 @@ public final class RecipeBookGuiConfig {
             this.legend = legend;
             this.items = items;
             Map<String, List<Integer>> byRole = new HashMap<>();
+            // Only cells the inventory actually has are kept: a row longer than nine columns would otherwise map
+            // two columns onto one slot, and a layout with more rows than `rows` would address slots past the end.
+            // Both made the drawn page and the click handler disagree (or threw out of a setItem).
+            int capacity = rows * 9;
             for (int row = 0; row < layout.size(); row++) {
                 String line = layout.get(row);
-                for (int col = 0; col < line.length(); col++) {
+                for (int col = 0; col < line.length() && col < 9; col++) {
+                    int slot = row * 9 + col;
+                    if (slot >= capacity) {
+                        break;
+                    }
                     String role = legend.get(line.charAt(col));
                     if (role != null) {
-                        byRole.computeIfAbsent(role, key -> new ArrayList<>()).add(row * 9 + col);
+                        byRole.computeIfAbsent(role, key -> new ArrayList<>()).add(slot);
                     }
                 }
             }

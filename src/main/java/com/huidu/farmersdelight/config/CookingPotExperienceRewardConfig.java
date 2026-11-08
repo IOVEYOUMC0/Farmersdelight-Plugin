@@ -23,10 +23,16 @@ public final class CookingPotExperienceRewardConfig {
         }
 
         mode = RewardMode.from(section.getString("mode", "vanilla"));
+        // Aliases are alternatives, not a list: reading all three added the same rewards once per alias a
+        // server still carried, so a leveler was paid twice. The first section that exists wins, like every
+        // other aliased read in this plugin.
         List<AuraSkillsReward> rewards = new ArrayList<>();
-        loadAuraSkillsRewards(section, rewards, "auraskills");
-        loadAuraSkillsRewards(section, rewards, "aura-skills");
-        loadAuraSkillsRewards(section, rewards, "auraskills-xp");
+        for (String alias : new String[]{"auraskills", "aura-skills", "auraskills-xp"}) {
+            if (section.isConfigurationSection(alias) || section.isList(alias)) {
+                loadAuraSkillsRewards(section, rewards, alias);
+                break;
+            }
+        }
         auraSkillsRewards = List.copyOf(rewards);
         List<LevelerReward> levelers = new ArrayList<>();
         for (Map<?, ?> entry : section.getMapList("levelers")) {

@@ -220,7 +220,15 @@ public final class ContentRegistration {
                     + kind.label());
         }
         WITHDRAWN.remove(key);
-        bridge.register(kind, id, factory);
+        try {
+            bridge.register(kind, id, factory);
+        } catch (RuntimeException | LinkageError failure) {
+            // CraftEngine refused the registration (frozen type table, reload in progress): drop the record
+            // again, otherwise isRegistered()/unregister() would report an entry that does not exist and the
+            // same id could never be retried.
+            ENTRIES.remove(entryKey(kind, key));
+            throw failure;
+        }
         if (bridge.contentLoaded()) {
             I18n.logWarning("plugin.content_registration_late", "id", key, "kind", kind.label());
         }

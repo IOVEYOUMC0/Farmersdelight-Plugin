@@ -682,7 +682,9 @@ public final class RecipeDiscoveryManager {
                 }
             }
             try {
-                ConfigFileUpdater.writeStringAtomically(file.toPath(), yaml, false);
+                // replace=true: this file is rewritten on every flush, and the "create only" mode would throw
+            // "Target already exists" from the second save on, leaving discovery data in memory only.
+            ConfigFileUpdater.writeStringAtomically(file.toPath(), yaml, true);
             } catch (IOException e) {
                 // Failed write: keep state dirty so the next flush retries. The file still holds the last
                 // successful flush, which is exactly why `unlocked` must keep its entries (pendingEvictions).
