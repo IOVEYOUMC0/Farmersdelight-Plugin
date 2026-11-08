@@ -5,6 +5,7 @@ import com.fren_gor.ultimateAdvancementAPI.UltimateAdvancementAPI;
 import com.fren_gor.ultimateAdvancementAPI.advancement.Advancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.BaseAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.RootAdvancement;
+import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementDisplay;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementFrameType;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.MultiTasksAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.TaskAdvancement;
@@ -136,7 +137,13 @@ public final class AddonAdvancementTab {
         String background = rootDef.background() == null
                 ? "minecraft:textures/block/stone.png"
                 : rootDef.background();
-        RootAdvancement root = new RootAdvancement(tab, rootDef.id(), display(rootDef), background);
+        int rootExperience = rootDef.experience();
+        RootAdvancement root = new RootAdvancement(tab, rootDef.id(), display(rootDef), background) {
+            @Override
+            public void giveReward(@NotNull Player player) {
+                awardExperience(player, rootExperience);
+            }
+        };
         byId.put(rootDef.id(), root);
         rootId = rootDef.id();
         autoAwardRoot = rootDef.requiredIds().isEmpty();
@@ -159,6 +166,11 @@ public final class AddonAdvancementTab {
                         public boolean isVisible(@NotNull TeamProgression progression) {
                             return !def.hidden() || isGranted(progression);
                         }
+
+                        @Override
+                        public void giveReward(@NotNull Player player) {
+                            awardExperience(player, def.experience());
+                        }
                     };
             byId.put(def.id(), built);
             all.add(built);
@@ -171,6 +183,17 @@ public final class AddonAdvancementTab {
         // baseline the next build compares against.
         GATED_OFF_BY_TAB.put(tabName, AdvancementGate.logChanges(tabName, GATED_OFF_BY_TAB.get(tabName),
                 currentGatedOff));
+    }
+
+    /**
+     * Gives the completion experience through the upstream {@code giveReward} hook, on the player's own thread: the
+     * recipient can differ from the thread that completed the advancement (unredeemed replays pick an online member).
+     */
+    private void awardExperience(Player player, int experience) {
+        if (experience <= 0 || player == null) {
+            return;
+        }
+        plugin.scheduler().runForEntity(player, () -> player.giveExp(experience));
     }
 
     private static String unresolvedIds(Map<String, AdvancementDef> defsById) {
@@ -192,6 +215,11 @@ public final class AddonAdvancementTab {
             public boolean isVisible(@NotNull TeamProgression progression) {
                 return !def.hidden() || isGranted(progression);
             }
+
+            @Override
+            public void giveReward(@NotNull Player player) {
+                awardExperience(player, def.experience());
+            }
         };
         Map<String, TaskAdvancement> taskMap = new HashMap<>();
         List<TaskAdvancement> tasks = new ArrayList<>();
@@ -205,11 +233,11 @@ public final class AddonAdvancementTab {
         return multi;
     }
 
-    private LocalizedAdvancementDisplay display(AdvancementDef def) {
+    private AdvancementDisplay display(AdvancementDef def) {
         ItemStack icon = def.icon() != null && !def.icon().getType().isAir()
                 ? def.icon()
                 : new ItemStack(Material.BOOK);
-        return new LocalizedAdvancementDisplay(icon, def.title(), def.description(),
+        return AdvancementDisplaySupport.create(plugin, tabName, icon, def.title(), def.description(),
                 frameOf(def.frame()), def.showToast(), def.announceChat(), def.x(), def.y());
     }
 

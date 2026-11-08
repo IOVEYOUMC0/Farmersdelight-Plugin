@@ -284,6 +284,7 @@ console:
     gate_structure_invalid: "[{tab}] 进度门控产生了不连通的树；改为构建完整的未门控进度页。"
     gate_unknown_id: "[{tab}] advancements.{list} 中的配置项「{id}」在本进度页中没有对应的进度。"
     layout_unsupported: "UltimateAdvancementAPI {version} 未提供进度布局接口；进度树将使用本插件自带的坐标注册。安装随附的 UltimateAdvancementAPI 构建可获得自动布局。"
+    display_fallback: "UltimateAdvancementAPI {version} 不支持组件式进度显示；进度名称回退为随附资源包里的英文文本，达成公告使用该构建自带的英文消息。安装随附的 UltimateAdvancementAPI 构建可恢复客户端语言与名称自带的颜色。"
     api_version: "检测到 UltimateAdvancementAPI {version}；进度布局：{layout}。"
   heat_source:
     invalid_vanilla_block: "热源配置中的原版方块 ID 无效：{id}"
@@ -352,6 +353,8 @@ console:
     nested_overrides_flat: "方块 {block} 同时写了 '{nested}'（{nested_value}）和 '{flat}'（{flat_value}），以子段的值为准。请删掉其中一个。"
   block_set:
     unknown_tag: "方块列表条目 {tag} 指向服务器不认识的方块标签，因此不会匹配任何方块。请检查拼写；若本意是 CraftEngine 方块标签，请去掉 minecraft: 命名空间。"
+  block:
+    block_entity_sync_failed: "CraftEngine 方块实体同步失败（下一次同步会补上）：{error}"
   debug:
     cooking_pot_activation_skipped: "调试厨锅激活已跳过：放置后的方块未被识别，位置 {location}, id={id}"
     cooking_pot_no_entity: "调试厨锅激活失败：{location} 没有方块实体"

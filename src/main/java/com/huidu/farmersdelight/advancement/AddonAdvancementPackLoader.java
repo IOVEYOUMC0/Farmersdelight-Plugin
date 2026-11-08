@@ -77,10 +77,11 @@ final class AddonAdvancementPackLoader {
             }
             warnUnknownKeys(plugin, source, path, s, Set.of("parent", "icon", "title", "description", "frame",
                     "x", "y", "criteria", "required-ids", "criterion-requirements", "background",
-                    "show-toast", "announce-chat", "hidden"));
+                    "show-toast", "announce-chat", "hidden", "experience"));
             warnType(plugin, source, path + ".frame", s, "frame", String.class);
             warnType(plugin, source, path + ".x", s, "x", Number.class);
             warnType(plugin, source, path + ".y", s, "y", Number.class);
+            warnType(plugin, source, path + ".experience", s, "experience", Number.class);
             warnListType(plugin, source, path + ".criteria", s, "criteria");
             warnListType(plugin, source, path + ".required-ids", s, "required-ids");
             if (s.contains("criterion-requirements")
@@ -116,7 +117,7 @@ final class AddonAdvancementPackLoader {
                     frame, (float) s.getDouble("x", 0), (float) s.getDouble("y", 0), criteria,
                     s.getString("background"), required, criterionReq,
                     s.getBoolean("show-toast", parent != null), s.getBoolean("announce-chat", parent != null),
-                    s.getBoolean("hidden", false)));
+                    s.getBoolean("hidden", false), s.getInt("experience", 0)));
         }
         return List.copyOf(result);
     }

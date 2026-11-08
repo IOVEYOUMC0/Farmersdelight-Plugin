@@ -9,20 +9,29 @@ import java.util.Map;
 public record AdvancementDef(String id, String parentId, ItemStack icon, String title, String description,
                             String frame, float x, float y, List<String> criteria, String background,
                             List<String> requiredIds, Map<String, List<String>> criteriaRequirements,
-                            boolean showToast, boolean announceChat, boolean hidden) {
+                            boolean showToast, boolean announceChat, boolean hidden, int experience) {
 
     public AdvancementDef {
         criteria = criteria == null ? List.of() : List.copyOf(criteria);
         icon = icon == null ? null : icon.clone();
         requiredIds = requiredIds == null ? List.of() : List.copyOf(requiredIds);
         criteriaRequirements = copyRequirements(criteriaRequirements);
+        experience = Math.max(0, experience);
+    }
+
+    public AdvancementDef(String id, String parentId, ItemStack icon, String title, String description,
+                          String frame, float x, float y, List<String> criteria, String background,
+                          List<String> requiredIds, Map<String, List<String>> criteriaRequirements,
+                          boolean showToast, boolean announceChat, boolean hidden) {
+        this(id, parentId, icon, title, description, frame, x, y, criteria, background,
+                requiredIds, criteriaRequirements, showToast, announceChat, hidden, 0);
     }
 
     public AdvancementDef(String id, String parentId, ItemStack icon, String title, String description,
                           String frame, float x, float y, List<String> criteria, String background,
                           List<String> requiredIds, Map<String, List<String>> criteriaRequirements) {
         this(id, parentId, icon, title, description, frame, x, y, criteria, background,
-                requiredIds, criteriaRequirements, parentId != null, parentId != null, false);
+                requiredIds, criteriaRequirements, parentId != null, parentId != null, false, 0);
     }
 
     public AdvancementDef(String id, String parentId, ItemStack icon, String title, String description,

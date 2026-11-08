@@ -105,6 +105,8 @@ dependencies {
     // the upstream version it backports, plus Folia support and the automatic advancement-layout overload),
     // and libs/README.md records the exact version, sha256 and rebuild steps.
     compileOnly(files("libs/UltimateAdvancementAPI-folia.jar"))
+    // The advancement display probe reflects over the real API classes, so the tests need the same jar.
+    testImplementation(files("libs/UltimateAdvancementAPI-folia.jar"))
     testImplementation("io.papermc.paper:paper-api:1.21.5-R0.1-SNAPSHOT")
     if (ceJar.isPresent) {
         testImplementation(files(ceJar.get()))

@@ -5,6 +5,7 @@ import com.fren_gor.ultimateAdvancementAPI.UltimateAdvancementAPI;
 import com.fren_gor.ultimateAdvancementAPI.advancement.Advancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.BaseAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.RootAdvancement;
+import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementDisplay;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementFrameType;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.MultiTasksAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.tasks.TaskAdvancement;
@@ -24,6 +25,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -80,7 +82,7 @@ public class AdvancementManager {
             node("place_feast", "eat_nourishing_food", "farmersdelight:roast_chicken", Material.COOKED_CHICKEN, AdvancementFrameType.TASK, 4, 1),
             // Eating every dish; unobtainable only once every dish item is gone.
             multiNode("master_chef", "place_feast", "farmersdelight:honey_glazed_ham", Material.COOKED_PORKCHOP, 5, 1,
-                    DISHES, ContentRequirement.anyItem(prefixed())),
+                    DISHES, ContentRequirement.anyItem(prefixed())).experience(200),
             // ---- Farming branch (centre) ----
             // Crafting or picking up any of AchievementListener.FD_SEED_IDS.
             node("get_fd_seed", ROOT_ID, "farmersdelight:wild_onions", Material.SHORT_GRASS, AdvancementFrameType.TASK, 1, 3,
@@ -95,7 +97,7 @@ public class AdvancementManager {
                     ContentRequirement.anyBlock(Constants.BLOCK_RICE)),
             // Its vanilla subtasks keep it obtainable whatever happens to the FarmersDelight crops.
             multiNode("plant_all_crops", "plant_rice", "farmersdelight:cabbage", Material.IRON_SHOVEL, 3, 3,
-                    CROPS, ContentRequirement.ALWAYS),
+                    CROPS, ContentRequirement.ALWAYS).experience(100),
             // Right-clicking the rope-grown tomato block.
             node("harvest_ropelogged_tomato", "get_fd_seed", "farmersdelight:tomato", Material.RED_DYE, AdvancementFrameType.TASK, 2, 4,
                     ContentRequirement.anyBlock(Constants.BLOCK_TOMATO_CROP_ON_ROPE)),
@@ -115,7 +117,7 @@ public class AdvancementManager {
             node("use_cutting_board", "craft_knife", "farmersdelight:cutting_board", Material.OAK_SLAB, AdvancementFrameType.TASK, 2, 7),
             // Crafting/smithing exactly farmersdelight:netherite_knife.
             node("obtain_netherite_knife", "use_cutting_board", "farmersdelight:netherite_knife", Material.NETHERITE_SWORD, AdvancementFrameType.CHALLENGE, 3, 7,
-                    ContentRequirement.anyItem(Constants.ITEM_NETHERITE_KNIFE)),
+                    ContentRequirement.anyItem(Constants.ITEM_NETHERITE_KNIFE)).experience(200),
             // Crafting or picking up the compost item.
             node("get_organic_compost", "harvest_straw", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 3, 6,
                     ContentRequirement.anyItem(Constants.ITEM_ORGANIC_COMPOST)),
@@ -226,14 +228,13 @@ public class AdvancementManager {
             ItemStack icon = icon(spec.iconId(), spec.iconFallback());
             if (spec.parentId() == null) {
                 // Hide the root advancement's toast and chat announcement.
-                root = new RootAdvancement(tab, spec.id(),
-                        display(spec.id(), icon, spec.frame(), spec.x(), spec.y(), false, false), ROOT_BACKGROUND);
+                root = rootAdvancement(spec, icon);
                 byId.put(spec.id(), root);
                 continue;
             }
             Advancement parent = byId.get(parents.get(spec.id()));
             BaseAdvancement built = spec.criteria().isEmpty()
-                    ? new BaseAdvancement(spec.id(), display(spec.id(), icon, spec.frame(), spec.x(), spec.y()), parent)
+                    ? baseAdvancement(spec, icon, parent)
                     : multi(spec, icon, parent, gated ? gate : null);
             byId.put(spec.id(), built);
             children.add(built);
@@ -250,6 +251,38 @@ public class AdvancementManager {
         // baseline, or the next successful build would compare against a tree that never existed and skip the
         // line announcing that an advancement came back.
         gatedOff = AdvancementGate.logChanges(TAB, gatedOff, currentGatedOff);
+    }
+
+    private RootAdvancement rootAdvancement(NodeSpec spec, ItemStack icon) {
+        AdvancementDisplay display = display(spec.id(), icon, spec.frame(), spec.x(), spec.y(), false, false);
+        int experience = spec.experience();
+        return new RootAdvancement(tab, spec.id(), display, ROOT_BACKGROUND) {
+            @Override
+            public void giveReward(@NotNull Player player) {
+                awardExperience(player, experience);
+            }
+        };
+    }
+
+    private BaseAdvancement baseAdvancement(NodeSpec spec, ItemStack icon, Advancement parent) {
+        int experience = spec.experience();
+        return new BaseAdvancement(spec.id(), display(spec.id(), icon, spec.frame(), spec.x(), spec.y()), parent) {
+            @Override
+            public void giveReward(@NotNull Player player) {
+                awardExperience(player, experience);
+            }
+        };
+    }
+
+    /**
+     * Gives the completion experience through the upstream {@code giveReward} hook, on the player's own thread: the
+     * recipient can differ from the thread that completed the advancement (unredeemed replays pick an online member).
+     */
+    private void awardExperience(Player player, int experience) {
+        if (experience <= 0 || player == null) {
+            return;
+        }
+        plugin.scheduler().runForEntity(player, () -> player.giveExp(experience));
     }
 
     private static boolean isBuildableInOrder(List<String> order, Set<String> kept, Map<String, String> parents) {
@@ -287,14 +320,13 @@ public class AdvancementManager {
         return FarmersDelightItems.createOrFallback(ceId, fallback);
     }
 
-    private LocalizedAdvancementDisplay display(String key, ItemStack icon, AdvancementFrameType frame, float x, float y) {
+    private AdvancementDisplay display(String key, ItemStack icon, AdvancementFrameType frame, float x, float y) {
         return display(key, icon, frame, x, y, true, true);
     }
 
-    private LocalizedAdvancementDisplay display(String key, ItemStack icon, AdvancementFrameType frame, float x, float y,
-                                                boolean showToast, boolean announceChat) {
-        // The patched UltimateAdvancementAPI uses this display to render the toast + chat message per client.
-        return new LocalizedAdvancementDisplay(icon, KEY_PREFIX + key, KEY_PREFIX + key + ".desc",
+    private AdvancementDisplay display(String key, ItemStack icon, AdvancementFrameType frame, float x, float y,
+                                       boolean showToast, boolean announceChat) {
+        return AdvancementDisplaySupport.create(plugin, TAB, icon, KEY_PREFIX + key, KEY_PREFIX + key + ".desc",
                 frame, showToast, announceChat, x, y);
     }
 
@@ -303,8 +335,14 @@ public class AdvancementManager {
         List<String> criteria = gate == null
                 ? spec.criteria()
                 : gate.filterCriteria(key, spec.criteria(), criteriaRequirements(key));
+        int experience = spec.experience();
         MultiTasksAdvancement multi = new MultiTasksAdvancement(key,
-                display(key, icon, spec.frame(), spec.x(), spec.y()), parent, criteria.size());
+                display(key, icon, spec.frame(), spec.x(), spec.y()), parent, criteria.size()) {
+            @Override
+            public void giveReward(@NotNull Player player) {
+                awardExperience(player, experience);
+            }
+        };
         Map<String, TaskAdvancement> taskMap = new HashMap<>();
         List<TaskAdvancement> tasks = new ArrayList<>();
         for (String criterion : criteria) {
@@ -327,23 +365,29 @@ public class AdvancementManager {
 
     private record NodeSpec(String id, String parentId, String iconId, Material iconFallback,
                             AdvancementFrameType frame, float x, float y,
-                            List<String> criteria, ContentRequirement requirement) {
+                            List<String> criteria, ContentRequirement requirement, int experience) {
+
+        /** Declares the experience this advancement gives on completion; the default is none. */
+        NodeSpec experience(int experience) {
+            return new NodeSpec(id, parentId, iconId, iconFallback, frame, x, y, criteria, requirement, experience);
+        }
     }
 
     private static NodeSpec node(String id, String parentId, String iconId, Material iconFallback,
                                  AdvancementFrameType frame, float x, float y) {
-        return new NodeSpec(id, parentId, iconId, iconFallback, frame, x, y, List.of(), ContentRequirement.ALWAYS);
+        return new NodeSpec(id, parentId, iconId, iconFallback, frame, x, y, List.of(), ContentRequirement.ALWAYS, 0);
     }
 
     private static NodeSpec node(String id, String parentId, String iconId, Material iconFallback,
                                  AdvancementFrameType frame, float x, float y, ContentRequirement requirement) {
-        return new NodeSpec(id, parentId, iconId, iconFallback, frame, x, y, List.of(), requirement);
+        return new NodeSpec(id, parentId, iconId, iconFallback, frame, x, y, List.of(), requirement, 0);
     }
 
     private static NodeSpec multiNode(String id, String parentId, String iconId, Material iconFallback,
                                       float x, float y,
                                       List<String> criteria, ContentRequirement requirement) {
-        return new NodeSpec(id, parentId, iconId, iconFallback, AdvancementFrameType.CHALLENGE, x, y, criteria, requirement);
+        return new NodeSpec(id, parentId, iconId, iconFallback, AdvancementFrameType.CHALLENGE, x, y, criteria,
+                requirement, 0);
     }
 
     public void showTo(Player player) {
@@ -619,7 +663,8 @@ public class AdvancementManager {
     /**
      * Reports the installed UltimateAdvancementAPI build and whether it carries the layout overload this
      * plugin prefers. On a stock build the tree still registers, so this is a warning about the layout
-     * quality rather than a reason to stop.
+     * quality rather than a reason to stop. The same applies to the component-based display: a build without it
+     * keeps working, with English names and announcements instead of client-localized ones.
      */
     private void logApiState() {
         Plugin uaapi = Bukkit.getPluginManager().getPlugin("UltimateAdvancementAPI");
@@ -630,6 +675,10 @@ public class AdvancementManager {
                 "layout", patched ? "automatic" : "declared coordinates");
         if (!patched) {
             I18n.logWarning("advancement.layout_unsupported", "version", version);
+        }
+        if (!AdvancementDisplaySupport.isComponentDisplaySupported()) {
+            // Names and announcements degrade to English instead of showing client translation keys.
+            I18n.logWarning("advancement.display_fallback", "version", version);
         }
     }
 

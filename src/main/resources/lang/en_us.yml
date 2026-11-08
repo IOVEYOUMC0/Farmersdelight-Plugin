@@ -284,6 +284,7 @@ console:
     gate_structure_invalid: "[{tab}] Advancement gating produced a disconnected tree; building the full ungated tab instead."
     gate_unknown_id: "[{tab}] Config entry '{id}' in advancements.{list} matches no advancement in this tab."
     layout_unsupported: "UltimateAdvancementAPI {version} has no advancement-layout interface; the tree is registered with this plugin's own coordinates. Install the bundled UltimateAdvancementAPI build for the automatic layout."
+    display_fallback: "UltimateAdvancementAPI {version} has no component-based advancement display; advancement names fall back to the English text from the bundled resource pack and announcements use that build's own English message. Install the bundled UltimateAdvancementAPI build to keep client-localized names and their own colours."
     api_version: "UltimateAdvancementAPI {version} detected; advancement layout: {layout}."
   heat_source:
     invalid_vanilla_block: "Invalid vanilla block ID in heat source config: {id}"
@@ -352,6 +353,8 @@ console:
     nested_overrides_flat: "Block {block} sets both '{nested}' ({nested_value}) and '{flat}' ({flat_value}). The grouped key wins; remove one of them."
   block_set:
     unknown_tag: "Block list entry {tag} names a block tag the server does not know, so it matches nothing. Check the spelling, or drop the minecraft: namespace if you meant a CraftEngine block tag."
+  block:
+    block_entity_sync_failed: "CraftEngine block entity sync failed (the next sync catches up): {error}"
   debug:
     cooking_pot_activation_skipped: "Debug cooking pot activation skipped: the placed block was not recognized at {location}, id={id}"
     cooking_pot_no_entity: "Debug cooking pot activation failed: no block entity at {location}"

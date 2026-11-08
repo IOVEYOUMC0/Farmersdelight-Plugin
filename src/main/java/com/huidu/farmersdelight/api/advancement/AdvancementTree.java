@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.api.advancement;
 
 import com.huidu.farmersdelight.advancement.AdvancementDef;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,6 +16,7 @@ public final class AdvancementTree {
     private final List<AdvancementDef> defs = new ArrayList<>();
     private final Map<String, List<String>> requiredIds = new HashMap<>();
     private final Map<String, Map<String, List<String>>> criteriaRequiredIds = new HashMap<>();
+    private final Map<String, Integer> experienceById = new HashMap<>();
     private boolean hasRoot = false;
 
     AdvancementTree(String tabId) {
@@ -56,6 +58,25 @@ public final class AdvancementTree {
         return this;
     }
 
+    /**
+     * Gives the player this much experience when the advancement is completed, mirroring the original mod's
+     * {@code rewards.experience}. Zero or a negative amount clears any earlier declaration.
+     *
+     * @param advancementId The advancement id, as declared with {@link #advancement} or {@link #multiTask}.
+     * @param experience The experience to grant on completion.
+     * @return This builder.
+     */
+    public AdvancementTree experience(String advancementId, int experience) {
+        if (advancementId != null) {
+            if (experience > 0) {
+                experienceById.put(advancementId, experience);
+            } else {
+                experienceById.remove(advancementId);
+            }
+        }
+        return this;
+    }
+
     private static List<String> idList(String... craftEngineIds) {
         if (craftEngineIds == null || craftEngineIds.length == 0) {
             return List.of();
@@ -73,11 +94,13 @@ public final class AdvancementTree {
         if (!hasRoot) {
             return false;
         }
-        return FarmersDelightAdvancements.registerTree(tabId, withRequirements());
+        return FarmersDelightAdvancements.registerTree(tabId, definitions());
     }
 
-    private List<AdvancementDef> withRequirements() {
-        if (requiredIds.isEmpty() && criteriaRequiredIds.isEmpty()) {
+    /** The definitions this builder would register, with the requirement and experience overrides applied. */
+    @ApiStatus.Internal
+    List<AdvancementDef> definitions() {
+        if (requiredIds.isEmpty() && criteriaRequiredIds.isEmpty() && experienceById.isEmpty()) {
             return defs;
         }
         List<AdvancementDef> merged = new ArrayList<>(defs.size());
@@ -85,7 +108,9 @@ public final class AdvancementTree {
             merged.add(new AdvancementDef(def.id(), def.parentId(), def.icon(), def.title(), def.description(),
                     def.frame(), def.x(), def.y(), def.criteria(), def.background(),
                     requiredIds.getOrDefault(def.id(), List.of()),
-                    criteriaRequiredIds.getOrDefault(def.id(), Map.of())));
+                    criteriaRequiredIds.getOrDefault(def.id(), Map.of()),
+                    def.showToast(), def.announceChat(), def.hidden(),
+                    experienceById.getOrDefault(def.id(), def.experience())));
         }
         return merged;
     }
