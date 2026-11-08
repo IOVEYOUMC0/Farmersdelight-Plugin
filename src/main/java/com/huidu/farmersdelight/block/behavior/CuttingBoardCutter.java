@@ -23,6 +23,7 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
+import java.util.function.Supplier;
 import java.util.concurrent.ThreadLocalRandom;
 
 // Encapsulates the cutting outcome: recipe matching against the stored item, per-unit output rolling
@@ -134,7 +135,7 @@ final class CuttingBoardCutter {
         }
 
         if (!hasPossibleResult) {
-            debug("recipe=" + recipe.getId()
+            debug(() -> "recipe=" + recipe.getId()
                     + " matched input=" + formatItem(storedItem)
                     + " tool=" + formatItem(tool)
                     + " but produced no output");
@@ -320,6 +321,12 @@ final class CuttingBoardCutter {
     private void debug(String message) {
         if (plugin.isDebugEnabled("interact")) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", message));
+        }
+    }
+
+    private void debug(Supplier<String> messageSupplier) {
+        if (plugin.isDebugEnabled("interact")) {
+            plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", messageSupplier.get()));
         }
     }
 

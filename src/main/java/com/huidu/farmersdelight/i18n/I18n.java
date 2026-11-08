@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.IllegalFormatException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
@@ -508,8 +509,23 @@ public class I18n {
         }
     }
 
+    /**
+     * A detail line that is formatted only when it can be printed.
+     *
+     * The call sites sit on interaction and tick paths, so with the category off (and FINE not enabled) the
+     * language lookup, placeholder replacement and string building are skipped entirely.
+     */
     public static void logDetail(String category, String key, Object... args) {
-        logDetailMessage(category, formatConsole(key, args));
+        FarmersDelightPlugin pluginInstance = plugin;
+        Logger logger = pluginInstance != null ? pluginInstance.getLogger() : null;
+        if (logger == null) {
+            return;
+        }
+        if (pluginInstance.isDebugEnabled(category)) {
+            logger.info(formatConsole(key, args));
+        } else if (logger.isLoggable(Level.FINE)) {
+            logger.fine(formatConsole(key, args));
+        }
     }
 
     /**

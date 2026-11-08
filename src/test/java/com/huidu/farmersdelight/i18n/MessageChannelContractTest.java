@@ -102,8 +102,21 @@ class MessageChannelContractTest {
                         + " pluginInstance.getLogger().fine(message); }"),
                 "logDetailMessage prints at INFO only while the category's switch is on, and at FINE otherwise");
         assertTrue(i18n.contains("public static void logDetail(String category, String key, Object... args) {"
-                        + " logDetailMessage(category, formatConsole(key, args)); }"),
-                "logDetail is the entry point that keeps the detail lines behind that switch");
+                        + " FarmersDelightPlugin pluginInstance = plugin;"),
+                "logDetail is the entry point the call sites use");
+        assertTrue(i18n.contains("if (pluginInstance.isDebugEnabled(category)) { logger.info(formatConsole(key, args)); }"
+                        + " else if (logger.isLoggable(Level.FINE)) { logger.fine(formatConsole(key, args)); }"),
+                "logDetail formats the message only when it can be printed: these calls sit on interaction and"
+                        + " tick paths, so a disabled switch must not pay for the language lookup and formatting");
+    }
+
+    @Test
+    void theHandheldRefusalLineStaysBehindTheDebugSwitch() throws IOException {
+        String hooks = flat(MAIN.resolve("handheld").resolve("HandCookedSkewerHooks.java"));
+        assertFalse(hooks.contains("reportedBlocks"),
+                "the refusal line no longer keeps always-on dedupe state: it is a debug line like the other ones");
+        assertTrue(hooks.contains("if (owner == null || !owner.isDebugEnabled(\"handheld\")) { return; }"),
+                "a refused right-click must not write a line while the handheld category is off");
     }
 
     @Test

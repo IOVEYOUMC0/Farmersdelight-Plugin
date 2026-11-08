@@ -323,7 +323,7 @@ public class SkilletManager {
             }
 
             ItemStack toReturn = skillet.storedItem.clone();
-            debug("retrieve: returning=" + formatItem(toReturn) + ", hand=" + hand + ", location=" + formatLocation(location));
+            debug(() -> "retrieve: returning=" + formatItem(toReturn) + ", hand=" + hand + ", location=" + formatLocation(location));
             skillet.storedItem = null;
             skillet.currentRecipe = null;
             skillet.cookingProgress = 0;
@@ -344,13 +344,13 @@ public class SkilletManager {
         if (skillet.hasItem()) {
             CookingRecipe<?> recipe = findCampfireRecipe(heldItem);
             if (recipe == null || skillet.currentRecipe == null) {
-                debug("recipe match: stack add failed, recipe missing. input=" + formatItem(heldItem)
+                debug(() -> "recipe match: stack add failed, recipe missing. input=" + formatItem(heldItem)
                         + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location));
                 return false;
             }
 
             if (canStackWithStored(skillet.storedItem, heldItem, skillet.currentRecipe, recipe)) {
-                debug("recipe match: stack add failed, recipe/item mismatch. inputRecipe=" + recipe.getKey()
+                debug(() -> "recipe match: stack add failed, recipe/item mismatch. inputRecipe=" + recipe.getKey()
                         + ", storedRecipe=" + skillet.currentRecipe.getKey() + ", input=" + formatItem(heldItem)
                         + ", stored=" + formatItem(skillet.storedItem) + ", location=" + formatLocation(location));
                 return false;
@@ -367,7 +367,7 @@ public class SkilletManager {
             if (toMove <= 0) {
                 return false;
             }
-            debug("recipe match: stacking onto skillet, recipe=" + recipe.getKey() + ", move=" + toMove
+            debug(() -> "recipe match: stacking onto skillet, recipe=" + recipe.getKey() + ", move=" + toMove
                     + ", storedBefore=" + formatItem(skillet.storedItem) + ", input=" + formatItem(heldItem)
                     + ", location=" + formatLocation(location));
             int previousAmount = skillet.storedItem.getAmount();
@@ -376,7 +376,7 @@ public class SkilletManager {
             String previousOwnerName = skillet.ownerName;
             skillet.ownerId = player.getUniqueId();
             skillet.ownerName = player.getName();
-            debug("create state: stacked item now=" + formatItem(skillet.storedItem)
+            debug(() -> "create state: stacked item now=" + formatItem(skillet.storedItem)
                     + ", recipe=" + skillet.currentRecipe.getKey() + ", location=" + formatLocation(location));
             try {
                 createVisual(location, skillet);
@@ -391,12 +391,12 @@ public class SkilletManager {
             }
 
             if (player.getGameMode() != GameMode.CREATIVE) {
-                debug("consume: stacked move=" + toMove + ", before=" + heldItem.getAmount()
+                debug(() -> "consume: stacked move=" + toMove + ", before=" + heldItem.getAmount()
                         + ", after=" + (heldItem.getAmount() - toMove) + ", item=" + formatItem(heldItem)
                         + ", location=" + formatLocation(location));
                 heldItem.setAmount(heldItem.getAmount() - toMove);
             } else {
-                debug("consume: skipped for creative mode while stacking, item=" + formatItem(heldItem)
+                debug(() -> "consume: skipped for creative mode while stacking, item=" + formatItem(heldItem)
                         + ", location=" + formatLocation(location));
             }
 
@@ -410,11 +410,11 @@ public class SkilletManager {
 
         CookingRecipe<?> recipe = findCampfireRecipe(heldItem);
         if (recipe == null) {
-            debug("recipe match: no campfire recipe for input=" + formatItem(heldItem)
+            debug(() -> "recipe match: no campfire recipe for input=" + formatItem(heldItem)
                     + ", location=" + formatLocation(location));
             return false;
         }
-        debug("recipe match: recipe=" + recipe.getKey() + ", input=" + formatItem(heldItem)
+        debug(() -> "recipe match: recipe=" + recipe.getKey() + ", input=" + formatItem(heldItem)
                 + ", location=" + formatLocation(location));
 
         ItemStack toPlace = heldItem.clone();
@@ -427,7 +427,7 @@ public class SkilletManager {
         skillet.cookingProgress = 0;
         skillet.ownerId = player.getUniqueId();
         skillet.ownerName = player.getName();
-        debug("create state: stored=" + formatItem(toPlace) + ", recipe=" + recipe.getKey()
+        debug(() -> "create state: stored=" + formatItem(toPlace) + ", recipe=" + recipe.getKey()
                 + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
                 + ", location=" + formatLocation(location));
 
@@ -442,11 +442,11 @@ public class SkilletManager {
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
-            debug("consume: before=" + heldItem.getAmount() + ", after=" + (heldItem.getAmount() - placeAmount)
+            debug(() -> "consume: before=" + heldItem.getAmount() + ", after=" + (heldItem.getAmount() - placeAmount)
                     + ", moved=" + placeAmount + ", item=" + formatItem(heldItem) + ", location=" + formatLocation(location));
             heldItem.setAmount(heldItem.getAmount() - placeAmount);
         } else {
-            debug("consume: skipped for creative mode, moved=" + placeAmount + ", item=" + formatItem(heldItem)
+            debug(() -> "consume: skipped for creative mode, moved=" + placeAmount + ", item=" + formatItem(heldItem)
                     + ", location=" + formatLocation(location));
         }
 
@@ -579,7 +579,7 @@ public class SkilletManager {
                     return pending;
                 }
 
-                debug("hopper input: stacking onto skillet, move=" + toMove + ", storedBefore="
+                debug(() -> "hopper input: stacking onto skillet, move=" + toMove + ", storedBefore="
                         + formatItem(skillet.storedItem) + ", input=" + formatItem(pending)
                         + ", location=" + formatLocation(normalized));
                 skillet.storedItem.setAmount(skillet.storedItem.getAmount() + toMove);
@@ -601,7 +601,7 @@ public class SkilletManager {
             skillet.cookingProgress = 0;
             skillet.ownerId = null;
             skillet.ownerName = null;
-            debug("hopper input: stored=" + formatItem(toPlace) + ", recipe=" + incomingRecipe.getKey()
+            debug(() -> "hopper input: stored=" + formatItem(toPlace) + ", recipe=" + incomingRecipe.getKey()
                     + ", duration=" + skillet.cookingDuration + ", fireAspect=" + skillet.fireAspectLevel
                     + ", location=" + formatLocation(normalized));
 
@@ -1261,7 +1261,7 @@ public class SkilletManager {
         }
         if (!hasWork) return;
         if (isSkilletBlock(location)) {
-            debug("finish cooking: skipped because block is no longer a skillet at " + formatLocation(location));
+            debug(() -> "finish cooking: skipped because block is no longer a skillet at " + formatLocation(location));
             cleanupVisual(skillet);
             removeStoredData(location);
             removeTrackedSkillet(location);
@@ -1273,11 +1273,14 @@ public class SkilletManager {
         if (settlement == null) return;
 
         ItemStack result = settlement.recipe().getResult();
-        debug("finish cooking: result=" + formatItem(result) + ", storedBefore="
+        debug(() -> "finish cooking: result=" + formatItem(result) + ", storedBefore="
                 + formatItem(settlement.previous().item()) + ", location=" + formatLocation(location));
 
-        // The world part stays outside the monitor: the experience event, the drop, the display and the save.
-        // A failure in it puts the settled state back, so an item is never consumed without its result.
+        // The world part stays outside the monitor: the experience event, the display, the save and the drop.
+        // Everything that can fail runs BEFORE the drop, and a failure puts the settled state back, so an item is
+        // never consumed without its result. The drop goes last on purpose: rolling the ingredients back after the
+        // result already reached the ground would hand out both halves of one cooking.
+        boolean dropped = false;
         try {
             if (result != null) {
                 if (settlement.ownerId() != null) {
@@ -1290,6 +1293,17 @@ public class SkilletManager {
                             location
                     ));
                 }
+            }
+
+            if (settlement.keepStored()) {
+                createVisual(location, skillet);
+            } else {
+                cleanupVisual(skillet);
+            }
+            saveSkillet(location, skillet);
+            location.getWorld().playSound(location, Sound.BLOCK_FIRE_EXTINGUISH, 0.5f, 1.0f);
+
+            if (result != null) {
                 Block block = location.getBlock();
                 BlockFace facing = CustomBlockUtils.getFacing(block);
                 BlockFace clockwise = getClockWise(facing);
@@ -1301,20 +1315,15 @@ public class SkilletManager {
                         0.25,
                         clockwise.getModZ() * 0.08
                 ));
+                dropped = true;
             }
-
-            if (settlement.keepStored()) {
-                createVisual(location, skillet);
-            } else {
-                cleanupVisual(skillet);
-            }
-            saveSkillet(location, skillet);
-            location.getWorld().playSound(location, Sound.BLOCK_FIRE_EXTINGUISH, 0.5f, 1.0f);
         } catch (RuntimeException | LinkageError failure) {
-            synchronized (skillet) {
-                restoreCookingState(skillet, settlement.previous());
+            if (!dropped) {
+                synchronized (skillet) {
+                    restoreCookingState(skillet, settlement.previous());
+                }
+                repairVisualAfterRollback(location, skillet);
             }
-            repairVisualAfterRollback(location, skillet);
             throw failure;
         }
     }
@@ -1448,7 +1457,7 @@ public class SkilletManager {
                 createVisual(location, skillet);
             }
         } catch (RuntimeException | LinkageError repeated) {
-            debug("rollback display repair failed at " + formatLocation(location) + ": " + repeated);
+            debug(() -> "rollback display repair failed at " + formatLocation(location) + ": " + repeated);
         }
     }
 
@@ -1525,13 +1534,13 @@ public class SkilletManager {
         Location normalized = ManagerSupport.normalize(location);
         ensurePlacedSkilletState(skillet);
         if (!shouldPersistSkillet(skillet)) {
-            debug("save state: removing persisted skillet state at " + formatLocation(normalized));
+            debug(() -> "save state: removing persisted skillet state at " + formatLocation(normalized));
             markSkilletDirty(normalized);
             return;
         }
 
         markSkilletDirty(normalized);
-        debug("save state: hasItem=" + skillet.hasItem() + ", stored=" + formatItem(skillet.storedItem)
+        debug(() -> "save state: hasItem=" + skillet.hasItem() + ", stored=" + formatItem(skillet.storedItem)
                 + ", duration=" + skillet.cookingDuration + ", progress=" + skillet.cookingProgress
                 + ", hasPlacedSkillet=" + hasPlacedSkillet(skillet) + ", location=" + formatLocation(normalized));
     }

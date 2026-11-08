@@ -16,6 +16,7 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.util.function.Supplier;
 import java.util.Collection;
 
 // Owns the ItemDisplay entity visuals for each stove slot (what the items grilling on the stove look
@@ -47,14 +48,14 @@ final class StoveVisualManager {
 
         ItemStack item = stove.items[slot];
         if (item == null || item.getType().isAir()) {
-            debug("spawn display: skipped empty item for slot=" + slot + ", location=" + ManagerSupport.formatLocation(location));
+            debug(() -> "spawn display: skipped empty item for slot=" + slot + ", location=" + ManagerSupport.formatLocation(location));
             return;
         }
 
         double[] offset = getRotatedSlotOffset(slot, facing);
         ItemDisplayManager visualManager = plugin.getItemDisplayManager();
         if (visualManager == null || !visualManager.isAvailable()) {
-            debug("spawn display: visual manager unavailable for slot=" + slot + ", item=" + ManagerSupport.formatItem(item)
+            debug(() -> "spawn display: visual manager unavailable for slot=" + slot + ", item=" + ManagerSupport.formatItem(item)
                     + ", location=" + ManagerSupport.formatLocation(location));
             return;
         }
@@ -64,7 +65,7 @@ final class StoveVisualManager {
         CuttingBoardDisplayConfig.DisplayOverride displayOverride = displayConfig.getOverride(item);
         ItemStack visualItem = displayConfig.resolveDisplayItem(item, displayOverride);
         if (visualItem == null || visualItem.getType().isAir()) {
-            debug("spawn display: skipped unresolved display item for slot=" + slot + ", item=" + ManagerSupport.formatItem(item)
+            debug(() -> "spawn display: skipped unresolved display item for slot=" + slot + ", item=" + ManagerSupport.formatItem(item)
                     + ", location=" + ManagerSupport.formatLocation(location));
             return;
         }
@@ -118,7 +119,7 @@ final class StoveVisualManager {
                 ItemDisplay.ItemDisplayTransform.FIXED,
                 transformation
         ));
-        debug("spawn display: slot=" + slot + ", entityId=" + stove.displayEntities[slot] + ", item=" + ManagerSupport.formatItem(visualItem)
+        debug(() -> "spawn display: slot=" + slot + ", entityId=" + stove.displayEntities[slot] + ", item=" + ManagerSupport.formatItem(visualItem)
                 + ", location=" + ManagerSupport.formatLocation(location));
     }
 
@@ -171,6 +172,12 @@ final class StoveVisualManager {
     private void debug(String message) {
         if (plugin.isDebugEnabled("stove")) {
             plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", message));
+        }
+    }
+
+    private void debug(Supplier<String> messageSupplier) {
+        if (plugin.isDebugEnabled("stove")) {
+            plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", messageSupplier.get()));
         }
     }
 }

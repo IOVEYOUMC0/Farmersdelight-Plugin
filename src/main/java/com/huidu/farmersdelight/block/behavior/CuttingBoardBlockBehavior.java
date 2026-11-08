@@ -40,6 +40,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.function.Supplier;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -596,8 +597,10 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
         boolean allowOffhandInteractions = plugin.isCuttingBoardOffhandInteractionsAllowed();
         boolean stackingEnabled = plugin.isCuttingBoardStackingEnabled();
         BlockFace facing = getFacing(state);
-        debug("useOnBlock mode=" + plugin.getCuttingBoardInteractionMode().configKey()
-                + ", hasItem=" + blockEntity.hasItem()
+        // The lambda needs an effectively-final reference; blockEntity itself was assigned above.
+        CuttingBoardBlockEntity debugEntity = blockEntity;
+        debug(() -> "useOnBlock mode=" + plugin.getCuttingBoardInteractionMode().configKey()
+                + ", hasItem=" + debugEntity.hasItem()
                 + ", main=" + formatItem(mainHand)
                 + ", off=" + formatItem(offHand)
                 + ", allowOffhand=" + allowOffhandInteractions
@@ -794,7 +797,7 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             } catch (RuntimeException | LinkageError ignored) {
                 // display cleanup is best-effort; block removal proceeds regardless
             }
-            debug("place rolled back after store failure: " + t);
+            debug(() -> "place rolled back after store failure: " + t);
             return false;
         }
         if (player.getGameMode() != GameMode.CREATIVE) {
@@ -1028,6 +1031,12 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     private void debug(String message) {
         if (plugin != null && plugin.isDebugEnabled("interact")) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", message));
+        }
+    }
+
+    private void debug(Supplier<String> messageSupplier) {
+        if (plugin != null && plugin.isDebugEnabled("interact")) {
+            plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", messageSupplier.get()));
         }
     }
 

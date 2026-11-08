@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -173,10 +174,8 @@ public final class HandCookedSkewerHooks implements Listener {
     private volatile boolean progressDisplayEnabled = true;
     private volatile int cookingTicks = HandCookedSkewerService.COOKING_TICKS;
     private volatile SkewerProgressDisplay progressDisplay = SkewerProgressDisplay.NONE;
-    // One diagnostic line per player and reason, so a silent failure is loud exactly once.
-    private final Set<String> reportedBlocks = ConcurrentHashMap.newKeySet();
-    // Distinct entry-point signatures already logged. Bounded on purpose: reportedBlocks lives until the next
-    // shutdown, while this one must not grow with uptime, so the oldest signature is dropped beyond the cap.
+    // Distinct entry-point signatures already logged. Bounded on purpose: this set must not grow with uptime, so
+    // the oldest signature is dropped beyond the cap.
     // Synchronized because one click per player can arrive on several Folia region threads at once.
     private static final int ENTRY_LOG_CAPACITY = 256;
     private final Set<String> reportedEntryPoints = Collections.synchronizedSet(
@@ -447,10 +446,10 @@ public final class HandCookedSkewerHooks implements Listener {
         if (!SkewerBlockClickPolicy.accepted(decision)) {
             if (decision != SkewerBlockClickPolicy.Decision.DECLINE_NOT_A_RIGHT_CLICK) {
                 // A left click or a physical interaction is never ours and needs no second line; the block
-                // verdict is what the operator has to see (the block keeps its click).
-                // reportBlocked writes its first line per player and reason even with debug off, so it needs the
-                // real held id — the entry line above already resolved it whenever the category is on.
-                reportBlocked(player, entryId != null ? entryId : rawHeldId(player, reportedHand), decision.name());
+                // verdict is what the operator has to see (the block keeps its click). The held id is resolved
+                // inside reportBlocked, so a refused click costs nothing here with the category off.
+                reportBlocked(player, decision.name(),
+                        () -> entryId != null ? entryId : rawHeldId(player, reportedHand));
             }
             return;
         }
@@ -462,9 +461,8 @@ public final class HandCookedSkewerHooks implements Listener {
         String blocked = blockedReason(armed, candidate.hasResult(), skilletCooking, player.isSneaking(),
                 requireSneak, nearbyHeat);
         if (blocked != null) {
-            // Never silent: a use that does not start says why, once per player per reason under debug, and
-            // once per player in the log either way. Diagnosis beats a shrug.
-            reportBlocked(player, candidate.rawId(), blocked);
+            // A use that does not start says why under the handheld debug category, once per click.
+            reportBlocked(player, blocked, candidate::rawId);
             return;
         }
         // This click belongs to the skewer path: the slot is fixed here, because the gate and the conversion
@@ -525,18 +523,19 @@ public final class HandCookedSkewerHooks implements Listener {
         return null;
     }
 
-    /** One diagnostic line per player and reason, plus every reason when the handheld category is on debug. */
-    private void reportBlocked(Player player, @Nullable String rawId, String reason) {
+    /**
+     * Reports a click that did not start cooking, under the handheld debug category only.
+     *
+     * The held id is resolved lazily: with the category off the whole report is one boolean check, which matters
+     * because every refused right-click passes through here.
+     */
+    private void reportBlocked(Player player, String reason, Supplier<String> rawId) {
         FarmersDelightPlugin owner = plugin;
-        if (owner == null) {
+        if (owner == null || !owner.isDebugEnabled("handheld")) {
             return;
         }
-        String key = player.getUniqueId() + "|" + reason;
-        boolean first = reportedBlocks.add(key);
-        if (first || owner.isDebugEnabled("handheld")) {
-            owner.getLogger().info("[handheld] " + player.getName() + " right-click did not start cooking: "
-                    + reason + " (held=" + rawId + ")");
-        }
+        owner.getLogger().info("[handheld] " + player.getName() + " right-click did not start cooking: "
+                + reason + " (held=" + rawId.get() + ")");
     }
 
     /**
@@ -1196,7 +1195,6 @@ public final class HandCookedSkewerHooks implements Listener {
             hands.clear();
             cancelTaskLocked();
         }
-        reportedBlocks.clear();
         reportedEntryPoints.clear();
     }
 

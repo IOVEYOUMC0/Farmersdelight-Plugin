@@ -13,6 +13,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.function.Supplier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -51,7 +52,7 @@ final class CookingPotFiller {
             return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
         }
 
-        debug("start recipe=" + recipe.getId() + ", fillAll=" + fillAll
+        debug(() -> "start recipe=" + recipe.getId() + ", fillAll=" + fillAll
                 + ", before=" + summarizePot(entity));
 
         List<InventorySelection> selected = selectRecipeItemsFromInventory(player, recipe, entity, fillAll);
@@ -63,10 +64,10 @@ final class CookingPotFiller {
         if (selected.isEmpty() && selectedContainer == null) {
             if (missingIngredients(recipe, getCurrentInputItems(entity)).isEmpty() && hasRequiredContainer) {
                 activateAfterFill(entity);
-                debug("already matched recipe=" + recipe.getId() + ", after=" + summarizePot(entity));
+                debug(() -> "already matched recipe=" + recipe.getId() + ", after=" + summarizePot(entity));
                 return FillResult.returnToPot(FillButtonState.FILLED);
             }
-            debug("missing recipe=" + recipe.getId() + ", selected=0, hasContainer=" + hasRequiredContainer
+            debug(() -> "missing recipe=" + recipe.getId() + ", selected=0, hasContainer=" + hasRequiredContainer
                     + ", current=" + summarizePot(entity));
             return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
         }
@@ -82,7 +83,7 @@ final class CookingPotFiller {
             moved.setAmount(1);
             ItemStack leftover = CookingPotBlockBehavior.insertIngredientSpreadLikeHopper(cookingPotLocation, moved);
             if (leftover != null && !leftover.getType().isAir()) {
-                debug("rollback ingredient leftover=" + summarizeItem(leftover)
+                debug(() -> "rollback ingredient leftover=" + summarizeItem(leftover)
                         + ", recipe=" + recipe.getId() + ", after=" + summarizePot(entity));
                 player.updateInventory();
                 return FillResult.stay(FillButtonState.INVENTORY_FULL);
@@ -93,7 +94,7 @@ final class CookingPotFiller {
         if (selectedContainer != null) {
             ItemStack source = player.getInventory().getItem(selectedContainer.slot());
             if (source == null || source.getType().isAir()) {
-                debug("rollback missing container source recipe=" + recipe.getId()
+                debug(() -> "rollback missing container source recipe=" + recipe.getId()
                         + ", after=" + summarizePot(entity));
                 player.updateInventory();
                 return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
@@ -102,7 +103,7 @@ final class CookingPotFiller {
             container.setAmount(1);
             ItemStack leftover = CookingPotBlockBehavior.insertContainerLikeHopper(cookingPotLocation, container);
             if (leftover != null && !leftover.getType().isAir()) {
-                debug("rollback container leftover=" + summarizeItem(leftover)
+                debug(() -> "rollback container leftover=" + summarizeItem(leftover)
                         + ", recipe=" + recipe.getId() + ", after=" + summarizePot(entity));
                 player.updateInventory();
                 return FillResult.stay(FillButtonState.INVENTORY_FULL);
@@ -112,14 +113,16 @@ final class CookingPotFiller {
         }
         boolean complete = missingIngredients(recipe, getCurrentInputItems(entity)).isEmpty()
                 && (!recipe.needsContainer() || sameRecipeItem(recipe.getContainer(), entity.getContainerItem()));
+        // The debug suppliers below need the moved count as an effectively-final value; the loop above increments it.
+        int moved = movedCount;
         if (!complete) {
-            debug("partial recipe=" + recipe.getId() + ", moved=" + movedCount
+            debug(() -> "partial recipe=" + recipe.getId() + ", moved=" + moved
                     + ", after=" + summarizePot(entity));
             player.updateInventory();
             return FillResult.stay(FillButtonState.MISSING_INGREDIENTS);
         }
         activateAfterFill(entity);
-        debug("filled recipe=" + recipe.getId() + ", moved=" + movedCount
+        debug(() -> "filled recipe=" + recipe.getId() + ", moved=" + moved
                 + ", after=" + summarizePot(entity));
         player.updateInventory();
         return FillResult.returnToPot(FillButtonState.FILLED);
@@ -158,6 +161,12 @@ final class CookingPotFiller {
     private void debug(String message) {
         if (plugin.isDebugEnabled("cooking_pot")) {
             plugin.getLogger().info(I18n.formatConsole("debug.cooking_pot_fill", "message", message));
+        }
+    }
+
+    private void debug(Supplier<String> messageSupplier) {
+        if (plugin.isDebugEnabled("cooking_pot")) {
+            plugin.getLogger().info(I18n.formatConsole("debug.cooking_pot_fill", "message", messageSupplier.get()));
         }
     }
 
