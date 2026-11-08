@@ -276,6 +276,7 @@ console:
     show_failed: "向 {player} 显示进度页 '{tab}' 失败：{error}"
     addon_tab_built: "附属进度页 '{tab}' 已构建（{count} 个进度）。"
     addon_tab_build_failed: "构建附属进度页 '{tab}' 失败；其进度将不会在游戏内显示。"
+    tab_pruned: "[{tab}] 这些进度无法连到根节点（父节点拼错、成环或第二个根），已跳过：{ids}"
     tab_build_failed: "构建 FarmersDelight 进度页 '{tab}' 失败；其进度将不会在游戏内显示。"
     gate_disabled: "[{tab}] 已隐藏 CraftEngine 内容缺失的进度：{ids}"
     gate_restored: "[{tab}] CraftEngine 内容已恢复，重新显示进度：{ids}"

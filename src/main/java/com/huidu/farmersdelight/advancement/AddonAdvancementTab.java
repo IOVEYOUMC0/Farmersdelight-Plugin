@@ -126,8 +126,24 @@ public final class AddonAdvancementTab {
             parents = declaredParents;
             order = AdvancementGate.buildOrder(rootDef.id(), parents, kept);
             if (order == null) {
-                throw new IllegalStateException("advancement tab '" + tabName
-                        + "' has advancements with unknown/cyclic parents: " + unresolvedIds(defsById));
+                // A malformed node (unknown parent, a cycle, a second root) used to discard the whole page. Prune
+                // what cannot reach the root, keep the rest, and say which ids were dropped.
+                Set<String> pruned = AdvancementGate.pruneUnreachable(rootDef.id(), declaredParents,
+                        defsById.keySet());
+                Set<String> dropped = new LinkedHashSet<>(defsById.keySet());
+                dropped.removeAll(pruned);
+                if (pruned.size() <= 1) {
+                    throw new IllegalStateException("advancement tab '" + tabName
+                            + "' has no advancement that reaches its root: " + unresolvedIds(defsById));
+                }
+                kept = pruned;
+                parents = declaredParents;
+                order = AdvancementGate.buildOrder(rootDef.id(), parents, kept);
+                if (order == null) {
+                    throw new IllegalStateException("advancement tab '" + tabName
+                            + "' has advancements with unknown/cyclic parents: " + unresolvedIds(defsById));
+                }
+                I18n.logWarning("advancement.tab_pruned", "tab", tabName, "ids", String.join(", ", dropped));
             }
             I18n.logWarning("advancement.gate_structure_invalid", "tab", tabName);
         }
@@ -234,11 +250,23 @@ public final class AddonAdvancementTab {
     }
 
     private AdvancementDisplay display(AdvancementDef def) {
+        // The tab is registered with the automatic layout, so these coordinates only have to satisfy the display
+        // validator: a negative or non-finite value in a content pack used to throw and take the page with it.
+        float x = sanitizeCoordinate(def.x());
+        float y = sanitizeCoordinate(def.y());
         ItemStack icon = def.icon() != null && !def.icon().getType().isAir()
                 ? def.icon()
                 : new ItemStack(Material.BOOK);
         return AdvancementDisplaySupport.create(plugin, tabName, icon, def.title(), def.description(),
-                frameOf(def.frame()), def.showToast(), def.announceChat(), def.x(), def.y());
+                frameOf(def.frame()), def.showToast(), def.announceChat(), x, y);
+    }
+
+    /**
+     * Coordinates the display validator accepts. The addon tab is registered with the automatic layout, so an
+     * unusable value only has to stop mattering instead of failing the whole page.
+     */
+    private static float sanitizeCoordinate(float value) {
+        return Float.isFinite(value) && value >= 0.0f ? value : 0.0f;
     }
 
     private static AdvancementFrameType frameOf(String frame) {

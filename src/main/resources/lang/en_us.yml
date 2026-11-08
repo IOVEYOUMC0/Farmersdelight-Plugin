@@ -276,6 +276,7 @@ console:
     show_failed: "Failed to show advancement tab '{tab}' to {player}: {error}"
     addon_tab_built: "Addon advancement tab '{tab}' built ({count} advancements)."
     addon_tab_build_failed: "Failed to build addon advancement tab '{tab}'; its advancements will not appear in-game."
+    tab_pruned: "[{tab}] these advancements cannot reach the root (a misspelled parent, a cycle or a second root) and were skipped: {ids}"
     tab_build_failed: "Failed to build the FarmersDelight advancement tab '{tab}'; its advancements will not appear in-game."
     gate_disabled: "[{tab}] Hiding advancements whose CraftEngine content is missing: {ids}"
     gate_restored: "[{tab}] Showing advancements again now their CraftEngine content is back: {ids}"

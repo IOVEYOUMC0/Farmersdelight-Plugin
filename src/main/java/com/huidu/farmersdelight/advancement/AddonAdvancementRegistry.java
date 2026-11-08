@@ -160,6 +160,16 @@ public final class AddonAdvancementRegistry {
 
     public void awardForItem(Player player, String itemId) {
         if (!ready || player == null || itemId == null) return;
+        // Public entry point: addons may call it from any thread, and the awards below touch the player's
+        // advancement data. Everything else in this class goes through runForPlayer for the same reason.
+        if (FarmersDelightApi.get().isFolia() && !plugin.scheduler().isOwnedByCurrentRegion(player.getLocation())) {
+            runForPlayer(player, () -> awardForItemOnPlayerThread(player, itemId));
+            return;
+        }
+        awardForItemOnPlayerThread(player, itemId);
+    }
+
+    private void awardForItemOnPlayerThread(Player player, String itemId) {
         for (Map.Entry<String, TreeDefinition> entry : definitions.entrySet()) {
             AddonAdvancementTab tab = tabs.get(entry.getKey());
             if (tab == null) continue;

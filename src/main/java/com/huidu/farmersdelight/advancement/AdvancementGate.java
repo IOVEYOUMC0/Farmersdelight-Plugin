@@ -123,6 +123,34 @@ final class AdvancementGate {
         return resolved;
     }
 
+    /**
+     * Drops the nodes that cannot reach the root (unknown or cyclic parents) and returns the survivors, so one
+     * typo in a content pack costs that advancement and its subtree instead of the whole page.
+     */
+    static Set<String> pruneUnreachable(String rootId, Map<String, String> declaredParents, Set<String> kept) {
+        Set<String> survivors = new LinkedHashSet<>();
+        if (rootId == null || !kept.contains(rootId)) {
+            return survivors;
+        }
+        survivors.add(rootId);
+        int guard = kept.size() + 1;
+        for (String id : kept) {
+            if (rootId.equals(id)) {
+                continue;
+            }
+            Set<String> trail = new LinkedHashSet<>();
+            String current = id;
+            int steps = 0;
+            while (current != null && !rootId.equals(current) && steps++ <= guard && trail.add(current)) {
+                current = declaredParents.get(current);
+            }
+            if (rootId.equals(current)) {
+                survivors.add(id);
+            }
+        }
+        return survivors;
+    }
+
     static List<String> buildOrder(String rootId, Map<String, String> parents, Set<String> kept) {
         if (rootId == null || !kept.contains(rootId)) {
             return null;

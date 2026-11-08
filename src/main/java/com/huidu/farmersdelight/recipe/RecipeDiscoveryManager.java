@@ -659,19 +659,29 @@ public final class RecipeDiscoveryManager {
             // Clear dirty before snapshotting so a concurrent unlock re-marks it and is caught by the next flush.
             dirty = false;
             file = dataFile();
-            YamlConfiguration configuration = new YamlConfiguration();
             saved = new HashMap<>(diskSnapshot);
-            saved.forEach((id, keys) -> configuration.set(id.toString(), new ArrayList<>(keys)));
             for (Map.Entry<UUID, Set<String>> entry : unlocked.entrySet()) {
-                Set<String> keys = Set.copyOf(entry.getValue());
-                saved.put(entry.getKey(), keys);
-                // An in-memory player with nothing unlocked is an explicit "everything locked" state, so clear
-                // the stored key rather than leaving a stale list behind.
-                configuration.set(entry.getKey().toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
+                // An in-memory player with nothing unlocked is an explicit "everything locked" state, so the
+                // stored key is cleared rather than leaving a stale list behind (null below).
+                saved.put(entry.getKey(), Set.copyOf(entry.getValue()));
             }
-            yaml = configuration.saveToString();
             sequence = ++saveSequence;
         }
+
+        // Serialising the whole document used to happen on the monitor that isUnlocked/unlock/ensureLoaded hold
+        // on every region thread; the snapshot is enough to build it outside.
+        YamlConfiguration configuration = new YamlConfiguration();
+        List<UUID> explicitlyEmpty = new ArrayList<>();
+        saved.forEach((id, keys) -> {
+            if (keys.isEmpty() && unlocked.containsKey(id)) {
+                explicitlyEmpty.add(id);
+            }
+            configuration.set(id.toString(), keys.isEmpty() ? null : new ArrayList<>(keys));
+        });
+        for (UUID id : explicitlyEmpty) {
+            configuration.set(id.toString(), null);
+        }
+        yaml = configuration.saveToString();
 
         // File I/O happens off the monitor: isUnlocked/unlock/ensureLoaded on region threads keep running.
         synchronized (writeLock) {
