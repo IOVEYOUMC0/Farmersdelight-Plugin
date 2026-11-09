@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.util;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
@@ -11,6 +12,7 @@ import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.util.Direction;
 import net.momirealms.craftengine.core.util.Key;
+import net.momirealms.craftengine.core.world.BlockPos;
 import net.momirealms.craftengine.core.world.CEWorld;
 import net.momirealms.craftengine.core.world.chunk.CEChunk;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
@@ -28,6 +30,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public final class CustomBlockUtils {
+
+    /**
+     * True when the calling thread owns the block's region.
+     *
+     * <p>CraftEngine hands a block's container to vanilla hopper logic on whatever thread ticks the hopper, and
+     * the block-entity stores are only safe to read/write from their own region's thread. Callers of
+     * {@code getContainer} fail closed with this check instead of touching the controller from a foreign region.
+     * Off Folia the scheduler answers true, so Paper behaviour is unchanged.
+     */
+    public static boolean ownsBlockRegion(FarmersDelightPlugin plugin, World world, BlockPos pos) {
+        if (plugin == null || world == null || pos == null) {
+            return false;
+        }
+        return plugin.scheduler().isOwnedByCurrentRegion(new Location(world, pos.x(), pos.y(), pos.z()));
+    }
 
     private CustomBlockUtils() {
     }

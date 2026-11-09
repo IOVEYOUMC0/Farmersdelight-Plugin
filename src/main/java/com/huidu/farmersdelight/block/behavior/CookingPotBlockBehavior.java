@@ -1035,6 +1035,10 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
         if (world == null || pos == null) {
             return null;
         }
+        if (!CustomBlockUtils.ownsBlockRegion(plugin, world, pos)) {
+            // Vanilla hopper logic must not reach this store from another region's thread.
+            return null;
+        }
 
         CEWorld ceWorld = CustomBlockUtils.getCEWorld(world);
         if (ceWorld == null) {
