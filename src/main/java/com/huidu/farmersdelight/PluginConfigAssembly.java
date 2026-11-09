@@ -29,6 +29,7 @@ import org.joml.Vector3f;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -60,11 +61,22 @@ final class PluginConfigAssembly {
         // down when a dedicated enchantment plugin is present;
         // enchantments.compatibility.auto-disable-on-conflict: false forces it back on.
         boolean backstab = plugin.resolveBackstabbingCompatibility(loadedEnchantments);
-        if (backstab && loadedEnchantments.autoDisableOnConflict()) {
-            String conflict = plugin.detectEnchantmentConflict();
-            if (conflict != null) {
+        if (backstab) {
+            String conflict = plugin.detectEnchantmentTableConflict();
+            List<String> foreign = plugin.detectForeignEnchantments();
+            if (conflict != null && loadedEnchantments.autoDisableOnConflict()) {
                 I18n.logWarning("plugin.backstab_disabled_conflict", "conflict", conflict);
                 backstab = false;
+            } else if (!foreign.isEmpty() && loadedEnchantments.autoDisableOnConflict()
+                    && loadedEnchantments.disableOnCustomEnchantments()) {
+                I18n.logWarning("plugin.backstab_disabled_custom_enchantments", "enchantments",
+                        String.join(", ", foreign));
+                backstab = false;
+            } else if (!foreign.isEmpty()) {
+                // Reported, not acted on: the knives keep the backstab enchant and the operator can opt into
+                // the strict behaviour instead.
+                I18n.logInfo("plugin.backstab_kept_custom_enchantments", "enchantments",
+                        String.join(", ", foreign));
             }
         }
         plugin.backstabEnchantmentEnabled = backstab;

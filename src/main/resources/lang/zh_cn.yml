@@ -97,6 +97,8 @@ console:
     config_version_downgraded: "config.yml 声明的 config-version 为 {from}，而本构建为 {to}；该文件由更新的版本写过，已保持原样不动。"
     craftengine_release_failed: "释放 CraftEngine 资源失败（{namespace}）：{error}"
     backstab_disabled_conflict: "检测到其它附魔插件（{conflict}），已禁用背刺附魔；刀类附魔仍可用。若需强制启用，请把 enchantments.compatibility.auto-disable-on-conflict 设为 false。"
+    backstab_disabled_custom_enchantments: "检测到其它插件注册的自定义附魔（{enchantments}），已按 enchantments.compatibility.disable-on-custom-enchantments 禁用背刺附魔；刀类附魔仍可用。"
+    backstab_kept_custom_enchantments: "检测到其它插件注册的自定义附魔（{enchantments}）；这不影响背刺附魔，已继续启用。若要按旧行为自动停用，请把 enchantments.compatibility.disable-on-custom-enchantments 设为 true。"
     debug_tools_build: "当前 FarmersDelight 构建包含调试工具和仅测试用命令路径。"
     folia_scheduler: "检测到 Folia 调度器；FarmersDelight 会通过区域/全局调度器执行计划任务。"
     proxy_display_enabled: "已为炉灶和煎锅启用 CraftEngine 代理 ItemDisplay。"

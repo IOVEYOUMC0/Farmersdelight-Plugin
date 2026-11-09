@@ -11,6 +11,7 @@ import java.util.Set;
 public record EnchantmentSettings(
         boolean enabled,
         boolean autoDisableOnConflict,
+        boolean disableOnCustomEnchantments,
         Group knives,
         Group skillet,
         Group durable,
@@ -27,6 +28,7 @@ public record EnchantmentSettings(
         this(
                 enabled,
                 autoDisableOnConflict,
+                false,
                 new Group(table, anvilEnabled),
                 new Group(table, anvilEnabled),
                 new Group(table, anvilEnabled),
@@ -82,6 +84,10 @@ public record EnchantmentSettings(
 
         boolean enabled = bool(root, "enabled", true);
         boolean autoDisableOnConflict = bool(conflictSection, "auto-disable-on-conflict", true);
+        // Off by default: most servers run content plugins that register one or two enchantments of their own
+        // (a maid's debuff, a mod's utility enchant). That is not a competing enchantment system, and treating it
+        // as one silently removed the backstab enchant from every knife.
+        boolean disableOnCustomEnchantments = bool(conflictSection, "disable-on-custom-enchantments", false);
 
         Group knives = loadGroup(
                 child(groupsSection, "knives"),
@@ -126,7 +132,8 @@ public record EnchantmentSettings(
                 combat
         );
 
-        return new EnchantmentSettings(enabled, autoDisableOnConflict, knives, skillet, durable, backstabbing);
+        return new EnchantmentSettings(enabled, autoDisableOnConflict, disableOnCustomEnchantments,
+                knives, skillet, durable, backstabbing);
     }
 
     public boolean isBackstabbingConfigured() {

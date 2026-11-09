@@ -114,6 +114,8 @@ import org.joml.Vector3f;
 import org.bstats.bukkit.Metrics;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1670,7 +1672,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * and farmersdelight: namespaces (catches registry-based enchant plugins and custom-enchant datapacks).
      * Startup plugin-enable order is not guaranteed, so the handler-list side is only reliable once every
      */
-    String detectEnchantmentConflict() {
+    String detectEnchantmentTableConflict() {
         for (RegisteredListener listener : PrepareItemEnchantEvent.getHandlerList().getRegisteredListeners()) {
             Plugin other = listener.getPlugin();
             // CraftEngine is the required host, not a competing enchantment system: it hooks this event to manage
@@ -1681,6 +1683,21 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 return other.getName();
             }
         }
+        return null;
+    }
+
+    /**
+     * Enchantments registered outside the namespaces this plugin, CraftEngine and vanilla own.
+     *
+     * <p>One entry here is not a conflict on its own: content plugins routinely register a single enchantment of
+     * their own (a maid's debuff, a mod's utility enchant), and treating that as a competing enchantment system
+     * silently removed the backstab enchant from every knife on such a server. The list is reported, and it only
+     * disables the enchant when {@code enchantments.compatibility.disable-on-custom-enchantments} asks for it.
+     *
+     * @return {@code namespace (count)} entries, empty when nothing foreign is registered
+     */
+    List<String> detectForeignEnchantments() {
+        Map<String, Integer> counts = new TreeMap<>();
         var enchantRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
         for (Enchantment enchantment : enchantRegistry) {
             NamespacedKey key = enchantRegistry.getKey(enchantment);
@@ -1688,10 +1705,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                     && !"farmersdelight".equals(key.getNamespace())
                     && !"craftengine".equals(key.getNamespace())
                     && !FarmersDelightEnchantments.isRegistered(key.asString())) {
-                return "custom enchantment " + key;
+                counts.merge(key.getNamespace(), 1, Integer::sum);
             }
         }
-        return null;
+        List<String> described = new ArrayList<>(counts.size());
+        counts.forEach((namespace, count) -> described.add(namespace + " (" + count + ")"));
+        return described;
     }
 
     /**
@@ -1704,7 +1723,15 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (current == null || !current.autoDisableOnConflict() || !backstabEnchantmentEnabled) {
             return;
         }
-        String conflict = detectEnchantmentConflict();
+        String conflict = detectEnchantmentTableConflict();
+        if (conflict == null && current.disableOnCustomEnchantments()) {
+            // Strict mode: a plugin that registered enchantments mid-session counts the same way it does when
+            // the config is first read.
+            List<String> foreign = detectForeignEnchantments();
+            if (!foreign.isEmpty()) {
+                conflict = "custom enchantments " + String.join(", ", foreign);
+            }
+        }
         if (conflict == null) {
             return;
         }

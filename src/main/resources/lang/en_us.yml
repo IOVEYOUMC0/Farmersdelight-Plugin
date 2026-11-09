@@ -97,6 +97,8 @@ console:
     config_version_downgraded: "Config declares config-version {from}, but this build ships {to}; the file was written by a newer version and is left untouched."
     craftengine_release_failed: "Failed to release the CraftEngine resources for {namespace}: {error}"
     backstab_disabled_conflict: "Backstab is disabled because another enchantment plugin is present ({conflict}); knife enchanting stays active. Set enchantments.compatibility.auto-disable-on-conflict: false to force it on."
+    backstab_disabled_custom_enchantments: "Backstab is disabled by enchantments.compatibility.disable-on-custom-enchantments because other plugins registered custom enchantments ({enchantments}); knife enchanting stays active."
+    backstab_kept_custom_enchantments: "Other plugins registered custom enchantments ({enchantments}); they do not conflict with backstab, which stays enabled. Set enchantments.compatibility.disable-on-custom-enchantments: true for the old auto-disable behaviour."
     debug_tools_build: "This FarmersDelight build includes debug tools and test-only command paths."
     folia_scheduler: "Folia scheduler detected; FarmersDelight will route scheduled work through region/global schedulers."
     proxy_display_enabled: "CraftEngine proxy item displays enabled for stove and skillet."

@@ -16,6 +16,8 @@ class EnchantmentSettingsTest {
         EnchantmentSettings settings = EnchantmentSettings.defaults();
 
         assertTrue(settings.enabled());
+        // A content plugin registering a single enchantment of its own is not a competing enchantment system.
+        assertFalse(settings.disableOnCustomEnchantments());
         assertTrue(settings.table().overrideOffers());
         assertTrue(settings.table().enchantments().contains("minecraft:fortune"));
         assertTrue(settings.table().enchantments().contains("$backstabbing"));
@@ -36,6 +38,7 @@ class EnchantmentSettingsTest {
                   enabled: false
                   compatibility:
                     auto-disable-on-conflict: false
+                    disable-on-custom-enchantments: true
                   table:
                     enabled: false
                     override-offers: false
@@ -63,6 +66,7 @@ class EnchantmentSettingsTest {
 
         assertFalse(settings.enabled());
         assertFalse(settings.autoDisableOnConflict());
+        assertTrue(settings.disableOnCustomEnchantments());
         assertFalse(settings.table().enabled());
         assertFalse(settings.table().overrideOffers());
         assertEquals(1, settings.table().defaultEnchantability());
