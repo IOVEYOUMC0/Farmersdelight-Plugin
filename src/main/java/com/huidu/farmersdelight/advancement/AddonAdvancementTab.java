@@ -119,6 +119,7 @@ public final class AddonAdvancementTab {
         Map<String, String> parents = AdvancementGate.resolveParents(rootDef.id(), declaredParents, kept);
         List<String> order = parents == null ? null : AdvancementGate.buildOrder(rootDef.id(), parents, kept);
         boolean gated = order != null;
+        Set<String> considered = defsById.keySet();
         if (!gated) {
             // Either gating disconnected the tree or the addon's own tree is malformed. Try the full tree; only
             // if that is unbuildable too is the definition itself at fault.
@@ -144,11 +145,35 @@ public final class AddonAdvancementTab {
                             + "' has advancements with unknown/cyclic parents: " + unresolvedIds(defsById));
                 }
                 I18n.logWarning("advancement.tab_pruned", "tab", tabName, "ids", String.join(", ", dropped));
+                // Only the structural survivors are known to reach the root; which of them the gate hides is a
+                // separate question. Re-applying it here keeps force-disable / auto-disable-missing working
+                // instead of showing every survivor as if gating were off.
+                considered = pruned;
+                Set<String> gatedKept = new LinkedHashSet<>();
+                gatedKept.add(rootDef.id());
+                for (String id : pruned) {
+                    AdvancementDef def = defsById.get(id);
+                    if (!rootDef.id().equals(id) && def != null && gate.keeps(id, def.requirement())) {
+                        gatedKept.add(id);
+                    }
+                }
+                Map<String, String> gatedParents = AdvancementGate.resolveParents(rootDef.id(), declaredParents,
+                        gatedKept);
+                List<String> gatedOrder = gatedParents == null ? null
+                        : AdvancementGate.buildOrder(rootDef.id(), gatedParents, gatedKept);
+                if (gatedOrder != null) {
+                    kept = gatedKept;
+                    parents = gatedParents;
+                    order = gatedOrder;
+                    gated = true;
+                }
             }
             I18n.logWarning("advancement.gate_structure_invalid", "tab", tabName);
         }
         gate.warnUnknownConfiguredIds(defsById.keySet());
-        Set<String> currentGatedOff = AdvancementGate.orderedGatedOff(List.copyOf(defsById.keySet()), kept);
+        // Only ids that can reach the root are gated-off candidates; a structurally pruned node was never
+        // available, so reporting it as "disabled by the gate" made the next build claim a restore.
+        Set<String> currentGatedOff = AdvancementGate.orderedGatedOff(List.copyOf(considered), kept);
 
         String background = rootDef.background() == null
                 ? "minecraft:textures/block/stone.png"
