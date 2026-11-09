@@ -67,12 +67,16 @@ final class PluginConfigAssembly {
             if (conflict != null && loadedEnchantments.autoDisableOnConflict()) {
                 I18n.logWarning("plugin.backstab_disabled_conflict", "conflict", conflict);
                 backstab = false;
-            } else if (!foreign.isEmpty() && loadedEnchantments.autoDisableOnConflict()
+            } else if (conflict == null && !foreign.isEmpty() && loadedEnchantments.autoDisableOnConflict()
                     && loadedEnchantments.disableOnCustomEnchantments()) {
                 I18n.logWarning("plugin.backstab_disabled_custom_enchantments", "enchantments",
                         String.join(", ", foreign));
                 backstab = false;
-            } else if (!foreign.isEmpty()) {
+            } else if (conflict != null && !loadedEnchantments.autoDisableOnConflict()) {
+                // The operator asked for the enchant to stay on; say what was detected instead of the
+                // "nothing conflicts" wording below.
+                I18n.logInfo("plugin.backstab_forced_on", "conflict", conflict);
+            } else if (conflict == null && !foreign.isEmpty()) {
                 // Reported, not acted on: the knives keep the backstab enchant and the operator can opt into
                 // the strict behaviour instead.
                 I18n.logInfo("plugin.backstab_kept_custom_enchantments", "enchantments",

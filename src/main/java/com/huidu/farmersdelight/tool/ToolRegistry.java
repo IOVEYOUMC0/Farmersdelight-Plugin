@@ -58,9 +58,7 @@ public final class ToolRegistry {
                         }
         );
 
-        ((WritableRegistry<ItemSettingsModifierType<? extends ItemSettingsModifier>>)
-                BuiltInRegistries.ITEM_SETTINGS_TYPE)
-                .register(ResourceKey.create(Registries.ITEM_SETTINGS_TYPE.location(), type.id()), type);
+        registerType(type);
 
         ItemSettingsModifierType<ItemSettingsModifier> durableType = new ItemSettingsModifierType<>(
                 Key.of("farmersdelight", "durable"),
@@ -70,13 +68,29 @@ public final class ToolRegistry {
                         }
         );
 
-        ((WritableRegistry<ItemSettingsModifierType<? extends ItemSettingsModifier>>)
-                BuiltInRegistries.ITEM_SETTINGS_TYPE)
-                .register(ResourceKey.create(Registries.ITEM_SETTINGS_TYPE.location(), durableType.id()), durableType);
+        registerType(durableType);
         // Only now: a failure above (registry not ready, key already taken) used to leave the flag set, and the
         // two settings types were then never registered again for the rest of the run, silently dropping every
         // farmersdelight:sword/durable entry to "no durability, not enchantable".
         registered = true;
+    }
+
+    /**
+     * Registers one settings type unless the registry already has that id.
+     *
+     * <p>An interrupted earlier attempt (one type in, one type out) must be resumable: CraftEngine's registry
+     * throws on a duplicate key, so a plain retry would fail forever on the half that did register.
+     */
+    @SuppressWarnings("unchecked")
+    private static void registerType(ItemSettingsModifierType<? extends ItemSettingsModifier> type) {
+        WritableRegistry<ItemSettingsModifierType<? extends ItemSettingsModifier>> registry =
+                (WritableRegistry<ItemSettingsModifierType<? extends ItemSettingsModifier>>)
+                        BuiltInRegistries.ITEM_SETTINGS_TYPE;
+        ResourceKey<ItemSettingsModifierType<? extends ItemSettingsModifier>> key =
+                ResourceKey.create(Registries.ITEM_SETTINGS_TYPE.location(), type.id());
+        if (registry.get(key).isEmpty()) {
+            registry.register(key, type);
+        }
     }
 
     public static void refresh() {

@@ -99,6 +99,7 @@ console:
     backstab_disabled_conflict: "Backstab is disabled because another enchantment plugin is present ({conflict}); knife enchanting stays active. Set enchantments.compatibility.auto-disable-on-conflict: false to force it on."
     backstab_disabled_custom_enchantments: "Backstab is disabled by enchantments.compatibility.disable-on-custom-enchantments because other plugins registered custom enchantments ({enchantments}); knife enchanting stays active."
     backstab_kept_custom_enchantments: "Other plugins registered custom enchantments ({enchantments}); they do not conflict with backstab, which stays enabled. Set enchantments.compatibility.disable-on-custom-enchantments: true for the old auto-disable behaviour."
+    backstab_forced_on: "Detected another enchantment plugin ({conflict}), but enchantments.compatibility.auto-disable-on-conflict is false, so backstab stays enabled as configured."
     debug_tools_build: "This FarmersDelight build includes debug tools and test-only command paths."
     folia_scheduler: "Folia scheduler detected; FarmersDelight will route scheduled work through region/global schedulers."
     proxy_display_enabled: "CraftEngine proxy item displays enabled for stove and skillet."
@@ -156,8 +157,8 @@ console:
       unknown_tag: "Unknown enchantment tag: {tag}"
       tag_resolve_failed: "Failed to resolve enchantment tag {tag}: {error}"
     tool:
-      invalid_durability: "farmersdelight:sword has no max-durability or it is 0 — item will have no durability"
-      zero_enchantability: "farmersdelight:sword enchantability is 0 — item cannot be enchanted at table"
+      invalid_durability: "{id} has no max-durability or it is 0 — item will have no durability"
+      zero_enchantability: "{id} enchantability is 0 — item cannot be enchanted at table"
       loaded: "Loaded {count} tool item(s)"
     config_summary: "{label}: scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     content_summary: "{banner}: {cooking_pot} pot / {cutting_board} board / {drop_rules} drop rules / {advancements} advancements / tools {tools} -- enabled"

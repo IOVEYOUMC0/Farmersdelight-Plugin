@@ -113,6 +113,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.joml.Vector3f;
 import org.bstats.bukkit.Metrics;
 
+import java.io.IOException;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.TreeMap;
@@ -122,6 +123,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import com.huidu.farmersdelight.api.util.DatapackSupport;
+import com.huidu.farmersdelight.datapack.FarmersDelightDatapacks;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -1687,6 +1693,43 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     /**
+     * Ids this plugin's own enchant datapack declares: the configured backstabbing id plus every addon
+     * definition written through {@code FarmersDelightEnchantments}. Reading the files avoids depending on the
+     * API registry, which an addon only fills during its own enable.
+     */
+    private Set<String> managedEnchantmentIds() {
+        Set<String> ids = new HashSet<>();
+        Path root;
+        try {
+            root = DatapackSupport.managedPack(getDataFolder().toPath(), FarmersDelightDatapacks.ENCHANT_PACK);
+        } catch (RuntimeException ignored) {
+            return ids;
+        }
+        Path data = root.resolve("data");
+        if (!Files.isDirectory(data)) {
+            return ids;
+        }
+        try (DirectoryStream<Path> namespaces = Files.newDirectoryStream(data)) {
+            for (Path namespace : namespaces) {
+                Path enchantmentDir = namespace.resolve("enchantment");
+                if (!Files.isDirectory(enchantmentDir)) {
+                    continue;
+                }
+                String namespaceName = namespace.getFileName().toString();
+                try (DirectoryStream<Path> files = Files.newDirectoryStream(enchantmentDir, "*.json")) {
+                    for (Path file : files) {
+                        String name = file.getFileName().toString();
+                        ids.add(namespaceName + ":" + name.substring(0, name.length() - ".json".length()));
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // Unreadable directory: fall back to the registry-based answer for this pass.
+        }
+        return ids;
+    }
+
+    /**
      * Enchantments registered outside the namespaces this plugin, CraftEngine and vanilla own.
      *
      * <p>One entry here is not a conflict on its own: content plugins routinely register a single enchantment of
@@ -1698,13 +1741,21 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      */
     List<String> detectForeignEnchantments() {
         Map<String, Integer> counts = new TreeMap<>();
+        // Addon enchantments are registered through the API in the addon's own onEnable, which runs after this
+        // plugin's enable pass. On the second and later boots the registry already holds them, so the id set and
+        // the managed datapack's own declarations are the reliable "ours, not foreign" answer.
+        Set<String> owned = managedEnchantmentIds();
+        EnchantmentSettings current = getEnchantmentSettings();
+        String backstabId = current == null ? null : current.backstabbing().id();
         var enchantRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
         for (Enchantment enchantment : enchantRegistry) {
             NamespacedKey key = enchantRegistry.getKey(enchantment);
             if (key != null && !"minecraft".equals(key.getNamespace())
                     && !"farmersdelight".equals(key.getNamespace())
                     && !"craftengine".equals(key.getNamespace())
-                    && !FarmersDelightEnchantments.isRegistered(key.asString())) {
+                    && !FarmersDelightEnchantments.isRegistered(key.asString())
+                    && !owned.contains(key.asString())
+                    && !key.asString().equals(backstabId)) {
                 counts.merge(key.getNamespace(), 1, Integer::sum);
             }
         }
@@ -1724,18 +1775,20 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             return;
         }
         String conflict = detectEnchantmentTableConflict();
-        if (conflict == null && current.disableOnCustomEnchantments()) {
+        if (conflict != null) {
+            I18n.logWarning("plugin.backstab_disabled_conflict", "conflict", conflict);
+        } else if (current.disableOnCustomEnchantments()) {
             // Strict mode: a plugin that registered enchantments mid-session counts the same way it does when
             // the config is first read.
             List<String> foreign = detectForeignEnchantments();
-            if (!foreign.isEmpty()) {
-                conflict = "custom enchantments " + String.join(", ", foreign);
+            if (foreign.isEmpty()) {
+                return;
             }
-        }
-        if (conflict == null) {
+            I18n.logWarning("plugin.backstab_disabled_custom_enchantments", "enchantments",
+                    String.join(", ", foreign));
+        } else {
             return;
         }
-        I18n.logWarning("plugin.backstab_disabled_conflict", "conflict", conflict);
         backstabEnchantmentEnabled = false;
         listeners.disableBackstabOnConflict(current);
     }

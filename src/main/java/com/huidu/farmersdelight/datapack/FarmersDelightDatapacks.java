@@ -73,9 +73,20 @@ public final class FarmersDelightDatapacks {
                 // Read one entry at a time and skip what cannot be understood: a tag entry may be an object
                 // ({"id": ..., "required": false}) or a "#tag" reference, and letting one of those throw aborted
                 // the whole datapack pass - the enchantment, damage-type and tag packs then all went missing.
-                JsonElement parsedFile = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
-                JsonArray values = parsedFile.isJsonObject()
-                        ? parsedFile.getAsJsonObject().getAsJsonArray("values") : null;
+                JsonArray values = null;
+                try {
+                    JsonElement parsedFile = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+                    if (parsedFile.isJsonObject()) {
+                        JsonElement rawValues = parsedFile.getAsJsonObject().get("values");
+                        if (rawValues != null && rawValues.isJsonArray()) {
+                            values = rawValues.getAsJsonArray();
+                        }
+                    }
+                } catch (RuntimeException unreadable) {
+                    // Broken JSON or a hand-edited non-array values field: keep the file's existing entries out
+                    // of this pass instead of aborting the whole datapack preparation.
+                    values = null;
+                }
                 if (values != null) {
                     for (JsonElement value : values) {
                         String id = tagEntryId(value);

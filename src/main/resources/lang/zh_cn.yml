@@ -99,6 +99,7 @@ console:
     backstab_disabled_conflict: "检测到其它附魔插件（{conflict}），已禁用背刺附魔；刀类附魔仍可用。若需强制启用，请把 enchantments.compatibility.auto-disable-on-conflict 设为 false。"
     backstab_disabled_custom_enchantments: "检测到其它插件注册的自定义附魔（{enchantments}），已按 enchantments.compatibility.disable-on-custom-enchantments 禁用背刺附魔；刀类附魔仍可用。"
     backstab_kept_custom_enchantments: "检测到其它插件注册的自定义附魔（{enchantments}）；这不影响背刺附魔，已继续启用。若要按旧行为自动停用，请把 enchantments.compatibility.disable-on-custom-enchantments 设为 true。"
+    backstab_forced_on: "检测到其它附魔插件（{conflict}），但 enchantments.compatibility.auto-disable-on-conflict 为 false，背刺附魔按配置保持启用。"
     debug_tools_build: "当前 FarmersDelight 构建包含调试工具和仅测试用命令路径。"
     folia_scheduler: "检测到 Folia 调度器；FarmersDelight 会通过区域/全局调度器执行计划任务。"
     proxy_display_enabled: "已为炉灶和煎锅启用 CraftEngine 代理 ItemDisplay。"
@@ -156,8 +157,8 @@ console:
       unknown_tag: "未知附魔标签：{tag}"
       tag_resolve_failed: "解析附魔标签 {tag} 失败：{error}"
     tool:
-      invalid_durability: "farmersdelight:sword 缺少 max-durability 或值为 0，该物品将没有耐久"
-      zero_enchantability: "farmersdelight:sword 的 enchantability 为 0，该物品无法在附魔台附魔"
+      invalid_durability: "{id} 缺少 max-durability 或值为 0，该物品将没有耐久"
+      zero_enchantability: "{id} 的 enchantability 为 0，该物品无法在附魔台附魔"
       loaded: "已加载 {count} 个工具物品配置"
     config_summary: "{label}：scheduler={scheduler}, cutting-board mode={mode}, hopper={hopper}, cooking-pot-hopper={cooking_pot_hopper}, cutting-board-hopper={cutting_board_hopper}, skillet-hopper={skillet_hopper}, advancements={advancements}"
     content_summary: "{banner}：{cooking_pot} 厨锅 / {cutting_board} 砧板 / {drop_rules} 掉落规则 / {advancements} 进度 / 工具 {tools} -- 已启用"

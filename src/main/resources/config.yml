@@ -23,7 +23,9 @@ datapacks:
 enchantments:
   enabled: true
   # Paper discovers farmersdelight_enchant at startup. Use false for an externally supplied definition.
-  # Configure generated definitions below; /fd reload enchant saves them for the next server start.
+  # Configure generated definitions below. The section is re-read by /fd reload config (or /fd reload);
+  # /fd reload enchant only regenerates the datapack files from the settings already loaded. New definitions
+  # take effect on the next server start.
   install-datapack: true
   compatibility:
     # When another enchantment plugin is detected, stand down only FarmersDelight's custom backstab enchant so

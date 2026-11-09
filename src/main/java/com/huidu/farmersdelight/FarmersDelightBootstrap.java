@@ -45,6 +45,11 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
         boolean enchantsEnabled = config.getBoolean("enchantments.install-datapack", true)
                 && config.getBoolean("enchantments.enabled", true);
         boolean damageEnabled = config.getBoolean("damage-type.install-datapack", true);
+        // Each pack is only discovered when this boot actually prepared it: a failed prepare must not leave the
+        // previous run's pack.mcmeta to be picked up again.
+        boolean tagsPrepared = false;
+        boolean enchantsPrepared = false;
+        boolean damagePrepared = false;
         // Each pack is prepared on its own: a broken file in one of them used to abort this whole method, so
         // the other two packs were never written for that boot (and the failure surfaced as one ERROR line).
         if (tagsEnabled) {
@@ -67,6 +72,7 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
                     System.getLogger(FarmersDelightBootstrap.class.getName()).log(System.Logger.Level.WARNING,
                             "Invalid common tag references: " + problems);
                 }
+                tagsPrepared = true;
             } catch (Exception tagFailure) {
                 reportPackFailure("tags", tagFailure);
             }
@@ -76,6 +82,7 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
                 FarmersDelightDatapacks.prepareEnchantments(
                         DatapackSupport.managedPack(directory, FarmersDelightDatapacks.ENCHANT_PACK),
                         EnchantmentSettings.load(config.getConfigurationSection("enchantments")), version);
+                enchantsPrepared = true;
             } catch (Exception enchantFailure) {
                 reportPackFailure("enchantments", enchantFailure);
             }
@@ -86,13 +93,27 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
                         FarmersDelightBootstrap.class.getResourceAsStream("/damage-types.yml"),
                         DatapackSupport.managedPack(directory, FarmersDelightDatapacks.DAMAGE_PACK),
                         "FarmersDelight damage types", version);
+                damagePrepared = true;
             } catch (Exception damageFailure) {
                 reportPackFailure("damage types", damageFailure);
             }
         }
-        DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.TAG_PACK, tagsEnabled);
-        DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.ENCHANT_PACK, enchantsEnabled);
-        DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.DAMAGE_PACK, damageEnabled);
+        // One discover failure must not stop the other two packs from being discovered.
+        try {
+            DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.TAG_PACK, tagsPrepared);
+        } catch (Exception discoverFailure) {
+            reportPackFailure("tags (discovery)", discoverFailure);
+        }
+        try {
+            DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.ENCHANT_PACK, enchantsPrepared);
+        } catch (Exception discoverFailure) {
+            reportPackFailure("enchantments (discovery)", discoverFailure);
+        }
+        try {
+            DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.DAMAGE_PACK, damagePrepared);
+        } catch (Exception discoverFailure) {
+            reportPackFailure("damage types (discovery)", discoverFailure);
+        }
     }
 
     private static void reportPackFailure(String pack, Exception failure) {
