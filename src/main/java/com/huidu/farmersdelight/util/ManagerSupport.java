@@ -1,10 +1,12 @@
 package com.huidu.farmersdelight.util;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 
 import java.util.List;
 import java.util.Locale;
@@ -112,10 +114,11 @@ public final class ManagerSupport {
         return out;
     }
 
-    public static void spawnParticleFor(List<Player> viewers, Particle particle, double x, double y, double z,
+    public static void spawnParticleFor(SchedulerAdapter scheduler, List<Player> viewers, Particle particle, double x, double y, double z,
                                         int count, double offsetX, double offsetY, double offsetZ, double extra) {
         for (Player viewer : viewers) {
-            viewer.spawnParticle(particle, x, y, z, count, offsetX, offsetY, offsetZ, extra, null, false);
+            scheduler.runForEntity(viewer, () -> viewer.spawnParticle(particle, x, y, z, count,
+                    offsetX, offsetY, offsetZ, extra, null, false));
         }
     }
 }

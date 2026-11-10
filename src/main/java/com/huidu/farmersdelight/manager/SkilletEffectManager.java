@@ -130,7 +130,7 @@ public class SkilletEffectManager {
                 spawnCookingParticles(nearbyViewers, location);
             }
             if (sizzle && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
-                SoundUtils.play(nearbyViewers, location, getSizzleSound(carrierState),
+                SoundUtils.play(plugin.scheduler(), nearbyViewers, location, getSizzleSound(carrierState),
                         Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
             }
         } finally {
@@ -156,7 +156,7 @@ public class SkilletEffectManager {
         double px = location.getX() + 0.5;
         double py = location.getY() + smokeYOffset;
         double pz = location.getZ() + 0.5;
-        ManagerSupport.spawnParticleFor(viewers, smokeParticle, px, py, pz,
+        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, smokeParticle, px, py, pz,
                 smokeCount, smokeOffsetX, smokeOffsetY, smokeOffsetZ, smokeSpeed);
     }
 

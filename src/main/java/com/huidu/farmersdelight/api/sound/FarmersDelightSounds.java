@@ -1,5 +1,7 @@
 package com.huidu.farmersdelight.api.sound;
 
+import com.huidu.farmersdelight.api.PluginAccess;
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.SoundUtils;
 import org.bukkit.Location;
 import org.bukkit.Sound;
@@ -32,7 +34,10 @@ public final class FarmersDelightSounds {
 
     public static void play(List<Player> viewers, Location location, String soundKey,
                             Sound fallback, float volume, float pitch) {
-        SoundUtils.play(viewers, location, soundKey, fallback, volume, pitch);
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin != null) {
+            SoundUtils.play(plugin.scheduler(), viewers, location, soundKey, fallback, volume, pitch);
+        }
     }
 
     public static void clearCache() {

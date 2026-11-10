@@ -7,6 +7,7 @@ import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import com.huidu.farmersdelight.util.scheduler.SchedulerAdapter;
 
 import java.util.List;
 import java.util.Locale;
@@ -41,25 +42,43 @@ public final class SoundUtils {
         }
     }
 
+    /** Legacy API for addons; internal managers should use the scheduler-aware overload. */
     public static void play(List<Player> viewers, Location location, String soundKey, Sound fallback, float volume, float pitch) {
+        play(null, viewers, location, soundKey, fallback, volume, pitch);
+    }
+
+    public static void play(SchedulerAdapter scheduler, List<Player> viewers, Location location, String soundKey, Sound fallback, float volume, float pitch) {
         if (viewers.isEmpty() || location == null) {
             return;
         }
         if (soundKey == null || soundKey.isBlank()) {
             for (Player viewer : viewers) {
-                viewer.playSound(location, fallback, volume, pitch);
+                if (scheduler == null) {
+                    viewer.playSound(location, fallback, volume, pitch);
+                } else {
+                    scheduler.runForEntity(viewer, () -> viewer.playSound(location, fallback, volume, pitch));
+                }
             }
             return;
         }
         Object resolved = resolveCached(soundKey);
         if (resolved instanceof Sound sound) {
             for (Player viewer : viewers) {
-                viewer.playSound(location, sound, volume, pitch);
+                if (scheduler == null) {
+                    viewer.playSound(location, sound, volume, pitch);
+                } else {
+                    scheduler.runForEntity(viewer, () -> viewer.playSound(location, sound, volume, pitch));
+                }
             }
         } else {
             String soundName = (String) resolved;
             for (Player viewer : viewers) {
-                viewer.playSound(location, soundName, SoundCategory.BLOCKS, volume, pitch);
+                if (scheduler == null) {
+                    viewer.playSound(location, soundName, SoundCategory.BLOCKS, volume, pitch);
+                } else {
+                    scheduler.runForEntity(viewer, () -> viewer.playSound(location, soundName,
+                            SoundCategory.BLOCKS, volume, pitch));
+                }
             }
         }
     }

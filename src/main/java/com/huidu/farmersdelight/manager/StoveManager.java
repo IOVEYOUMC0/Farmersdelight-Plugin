@@ -900,7 +900,7 @@ public class StoveManager {
                         crackleSound = getCrackleSound(state);
                         crackleResolved = true;
                     }
-                    SoundUtils.play(nearbyViewers, location, crackleSound, Sound.BLOCK_CAMPFIRE_CRACKLE, crackleVolume, cracklePitch);
+                    SoundUtils.play(plugin.scheduler(), nearbyViewers, location, crackleSound, Sound.BLOCK_CAMPFIRE_CRACKLE, crackleVolume, cracklePitch);
                 }
                 if (finished) {
                     int finishedSlot = i;
@@ -1102,7 +1102,7 @@ public class StoveManager {
         double px = location.getX() + 0.5 + offset[0];
         double py = location.getY() + offset[1] + smokeYOffset;
         double pz = location.getZ() + 0.5 + offset[2];
-        ManagerSupport.spawnParticleFor(viewers, smokeParticle, px, py, pz,
+        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, smokeParticle, px, py, pz,
                 smokeCount, smokeOffsetX, smokeOffsetY, smokeOffsetZ, smokeSpeed);
     }
 
@@ -1116,8 +1116,8 @@ public class StoveManager {
         double px = location.getX() + 0.5D + xOffset;
         double py = location.getY() + yOffset;
         double pz = location.getZ() + 0.5D + zOffset;
-        ManagerSupport.spawnParticleFor(viewers, Particle.SMOKE, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
-        ManagerSupport.spawnParticleFor(viewers, Particle.FLAME, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, Particle.SMOKE, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, Particle.FLAME, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
     }
 
     private boolean retrieveItem(Player player, Location location, StoveData stove) {

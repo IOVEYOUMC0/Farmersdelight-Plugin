@@ -188,7 +188,7 @@ class CookingPotEffectManager {
             double y = center.getY() + bubble.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.6D - 0.3D);
             ManagerSupport.spawnParticleFor(
-                    nearbyViewers, bubble.particle(),
+                    plugin.scheduler(), nearbyViewers, bubble.particle(),
                     x, y, z,
                     bubble.count(),
                     bubble.offsetX(),
@@ -205,7 +205,7 @@ class CookingPotEffectManager {
             double y = center.getY() + steam.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.4D - 0.2D);
             ManagerSupport.spawnParticleFor(
-                    nearbyViewers, steam.particle(),
+                    plugin.scheduler(), nearbyViewers, steam.particle(),
                     x, y, z,
                     steam.count(),
                     steam.offsetX(),
@@ -218,7 +218,7 @@ class CookingPotEffectManager {
             if (secondary.enabled()
                     && EffectPacketBudget.tryReserve(chunkBudget, cookingPotChunkEffectBudgetLimit, 1)) {
                 ManagerSupport.spawnParticleFor(
-                        nearbyViewers, secondary.particle(),
+                        plugin.scheduler(), nearbyViewers, secondary.particle(),
                         x,
                         y + secondary.yOffset(),
                         z,
