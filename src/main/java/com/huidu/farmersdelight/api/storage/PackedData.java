@@ -7,15 +7,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 
 /**
- * A small typed tree for plugin-owned data packed into an item's {@code minecraft:custom_data}.
- *
- * <p>Values are limited to the shapes a packed block needs — strings, integers, doubles, booleans,
- * {@link ItemStack}s and nested trees — so the payload stays portable across CraftEngine versions and is never a
- * raw NBT handle. Read a tree with {@link PackedStorageApi#read}, edit it, and write it back with
- * {@link PackedStorageApi#write}; the write merges into the item's existing custom data instead of replacing it.
- *
- * <p>Instances are mutable and not thread-safe. Callers own their tree; trees handed out by the API are fresh
- * copies and never shared with the item.
+ * Mutable typed tree for plugin-owned data packed into an item. Values are limited to strings, integers,
+ * doubles, booleans, ItemStacks and nested trees; instances are not thread-safe.
  */
 @ApiStatus.AvailableSince("6")
 public interface PackedData {

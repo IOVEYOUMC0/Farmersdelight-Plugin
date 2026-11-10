@@ -10,13 +10,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Map;
 
 /**
- * One place for the custom-data carrier every packed station item uses.
- *
- * <p>Packed block state lives in a nested compound under the item's {@code minecraft:custom_data} component.
- * The component itself is shared with CraftEngine's item identity and with other plugins, so writing one key
- * must merge into the existing compound instead of replacing it. Reading and writing here keeps that rule (and
- * its version-skew tolerance) identical for the cooking pot today and for an addon that packs its own station
- * later.
+ * Reads and writes the packed custom-data carrier: one nested compound per packed key, merged into the
+ * component instead of replacing it so CraftEngine identity and other plugins' keys survive.
  */
 public final class PackedCarrierCodec {
 

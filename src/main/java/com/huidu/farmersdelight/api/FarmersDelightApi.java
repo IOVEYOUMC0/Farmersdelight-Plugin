@@ -112,7 +112,9 @@ public final class FarmersDelightApi {
             // FarmersDelightStationPlacedEvent / FarmersDelightStationBrokenEvent for the four built-in stations.
             "station-events",
             // api.storage: CE-neutral packed block data in an item's custom_data (PackedData/PackedStorageApi).
-            "packed-storage"
+            "packed-storage",
+            // api.util.WarningThrottle for once-per-cooldown console warnings from addons.
+            "warning-throttle"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();

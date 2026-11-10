@@ -16,12 +16,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * CraftEngine-backed implementation of the packed-storage tree.
- *
- * <p>Not exported to addons: the api jar carries only {@code api.storage.PackedData} and
- * {@code api.storage.PackedStorageApi}, and those resolve this class from the FarmersDelight plugin class loader
- * at runtime. That keeps {@code net.momirealms.*} out of every addon's compile classpath while the payload stays
- * CraftEngine-compatible.
+ * CraftEngine-backed implementation of {@code api.storage}. Kept out of the api jar: addons see only the
+ * api classes and this resolves from the plugin class loader at runtime.
  */
 public final class PackedDataCodec {
 
