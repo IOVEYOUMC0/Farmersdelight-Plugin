@@ -53,6 +53,14 @@ public final class SchedulerAdapter implements RegionDispatcher {
         return Bukkit.isOwnedByCurrentRegion(location);
     }
 
+    /** True when the calling thread owns this entity's region; always true off Folia. */
+    public boolean isOwnedByCurrentRegion(Entity entity) {
+        if (!folia || entity == null) {
+            return true;
+        }
+        return Bukkit.isOwnedByCurrentRegion(entity);
+    }
+
     public void run(Runnable task) {
         if (folia) {
             FoliaTasks.globalExecute(plugin, task);

@@ -928,6 +928,23 @@ public final class FarmersDelightApi {
         plugin.scheduler().runForEntity(entity, task);
     }
 
+    /**
+     * True when the calling thread owns this entity's region; always true off Folia.
+     *
+     * <p>Use it to decide between running inline and {@link #runForEntity}: reading or writing a player's or
+     * villager's state from another region's thread throws on Folia.
+     */
+    public boolean isOwnedByCurrentRegion(Entity entity) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        return plugin != null && plugin.scheduler().isOwnedByCurrentRegion(entity);
+    }
+
+    /** Like {@link #isOwnedByCurrentRegion(Entity)} for a block/entity position. */
+    public boolean isOwnedByCurrentRegion(Location location) {
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        return plugin != null && plugin.scheduler().isOwnedByCurrentRegion(location);
+    }
+
     /** Like runForEntity, delayed by ticks on the same scheduler. */
     public void runLaterForEntity(Entity entity, Runnable task, long delayTicks) {
         FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
