@@ -110,7 +110,9 @@ public final class FarmersDelightApi {
             // FarmersDelightMealConsumedEvent for the meals, snacks, drinks and sweets a player finishes.
             "meal-consumed-event",
             // FarmersDelightStationPlacedEvent / FarmersDelightStationBrokenEvent for the four built-in stations.
-            "station-events"
+            "station-events",
+            // api.storage: CE-neutral packed block data in an item's custom_data (PackedData/PackedStorageApi).
+            "packed-storage"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
