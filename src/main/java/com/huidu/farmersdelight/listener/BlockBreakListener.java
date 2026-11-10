@@ -16,6 +16,7 @@ import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.storage.PackedCarrierCodec;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.Text;
@@ -336,12 +337,7 @@ public class BlockBreakListener implements Listener {
             applyMealLore(potItem, meal);
         }
         Item wrapped = BukkitItemManager.instance().wrap(potItem);
-        CompoundTag customData = CustomBlockUtils.getComponentCompound(wrapped, DataComponentKeys.CUSTOM_DATA);
-        if (customData == null) {
-            customData = new CompoundTag();
-        }
-        customData.put(behavior.getCustomDataKey(), packedData);
-        wrapped.setSparrowTagComponent(DataComponentKeys.CUSTOM_DATA, customData);
+        PackedCarrierCodec.write(wrapped, DataComponentKeys.CUSTOM_DATA, behavior.getCustomDataKey(), packedData);
         if (hasMeal) {
             // max_damage = 64, damage = 64 - servings (clamped >=1 so a full meal still shows a near-full bar;
             // vanilla hides the bar at damage 0). Bar width then scales with the meal count.

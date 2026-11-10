@@ -4,6 +4,7 @@ import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.CeItemInterop;
 import com.huidu.farmersdelight.manager.TickManager;
+import com.huidu.farmersdelight.storage.PackedCarrierCodec;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -216,7 +217,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
     }
 
     private CompoundTag getPackedDataFromItem(Item item) {
-        return CustomBlockUtils.getNestedComponentCompound(item, DataComponentKeys.CUSTOM_DATA, this.behavior.getCustomDataKey());
+        return PackedCarrierCodec.read(item, DataComponentKeys.CUSTOM_DATA, this.behavior.getCustomDataKey());
     }
 
     public static void loadDataIntoEntity(CookingPotBlockEntity entity, CompoundTag data) {
