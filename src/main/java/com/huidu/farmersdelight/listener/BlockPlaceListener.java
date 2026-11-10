@@ -17,6 +17,7 @@ import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.storage.PackedCarrierCodec;
 import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.VanillaAdvancements;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -252,7 +253,7 @@ public class BlockPlaceListener implements Listener {
             return;
         }
         Item wrapped = BukkitItemManager.instance().wrap(placedItem);
-        CompoundTag data = CustomBlockUtils.getNestedComponentCompound(wrapped, DataComponentKeys.CUSTOM_DATA, behavior.getCustomDataKey());
+        CompoundTag data = PackedCarrierCodec.read(wrapped, DataComponentKeys.CUSTOM_DATA, behavior.getCustomDataKey());
         if (data == null) {
             return;
         }
