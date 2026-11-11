@@ -5,8 +5,13 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
+import net.momirealms.craftengine.libraries.nbt.ByteTag;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
+import net.momirealms.craftengine.libraries.nbt.DoubleTag;
+import net.momirealms.craftengine.libraries.nbt.IntTag;
+import net.momirealms.craftengine.libraries.nbt.LongTag;
 import net.momirealms.craftengine.libraries.nbt.NumericTag;
+import net.momirealms.craftengine.libraries.nbt.StringTag;
 import net.momirealms.craftengine.libraries.nbt.Tag;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -74,34 +79,32 @@ public final class PackedDataCodec {
         return customData.getCompound(key);
     }
 
-    private static PackedData fromTag(CompoundTag tag) {
+    static PackedData fromTag(CompoundTag tag) {
         Tree tree = new Tree();
         for (Map.Entry<String, Tag> entry : tag.entrySet()) {
             Tag value = entry.getValue();
             String key = entry.getKey();
             if (value instanceof CompoundTag compound) {
                 tree.values.put(key, fromTag(compound));
+            } else if (value instanceof ByteTag) {
+                // NBT has no boolean: the api writes booleans as bytes and no other value as a byte.
+                tree.values.put(key, ((ByteTag) value).getAsByte() != 0);
+            } else if (value instanceof IntTag) {
+                tree.values.put(key, ((NumericTag) value).getAsInt());
+            } else if (value instanceof LongTag) {
+                tree.values.put(key, ((NumericTag) value).getAsLong());
             } else if (value instanceof NumericTag) {
-                String raw = value.getAsString();
-                try {
-                    tree.values.put(key, raw.contains(".") || raw.contains("E") || raw.contains("e")
-                            ? Double.parseDouble(raw) : Long.parseLong(raw));
-                } catch (NumberFormatException notANumber) {
-                    tree.values.put(key, raw);
-                }
+                tree.values.put(key, ((NumericTag) value).getAsDouble());
+            } else if (value instanceof StringTag) {
+                tree.values.put(key, value.getAsString());
             } else if (value != null) {
-                String raw = value.getAsString();
-                if ("true".equalsIgnoreCase(raw) || "false".equalsIgnoreCase(raw)) {
-                    tree.values.put(key, Boolean.parseBoolean(raw));
-                } else {
-                    tree.values.put(key, raw);
-                }
+                tree.values.put(key, value.getAsString());
             }
         }
         return tree;
     }
 
-    private static CompoundTag toTag(PackedData data) {
+    static CompoundTag toTag(PackedData data) {
         CompoundTag tag = new CompoundTag();
         if (!(data instanceof Tree tree)) {
             // The api only hands out Tree instances; store a foreign implementation as text rather than failing.
