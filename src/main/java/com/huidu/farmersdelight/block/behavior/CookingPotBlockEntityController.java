@@ -123,7 +123,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         PerformanceProbe.Sample wait = PerformanceProbe.begin(PerformanceProbe.Operation.SERIALIZATION_LOCK);
         synchronized (entity.getLock()) {
             if (wait != null) wait.close();
-            data.put(ITEMS, PerformanceProbe.items(entity.getInventoryInternal()));
+            data.put(ITEMS, ItemUtils.saveBukkitItemsAsListTag(entity.getInventoryInternal()));
             data.put(RECIPES_USED, entity.saveUsedRecipes());
         }
         data.putInt(COOKING_PROGRESS, entity.getCookingProgress());
@@ -154,7 +154,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
                     packed[slot] = inventory[slot];
                 }
             }
-            data.put(ITEMS, PerformanceProbe.items(packed));
+            data.put(ITEMS, ItemUtils.saveBukkitItemsAsListTag(packed));
         }
         // The packed meal is finished; any in-flight batch belongs to the ingredients that stay behind.
         data.putInt(COOKING_PROGRESS, 0);
@@ -329,7 +329,7 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             bukkitItems[i] = nonCeOriginal[i] != null ? adjustCount(nonCeOriginal[i], this.items[i])
                     : CeItemInterop.asBukkitStack(this.items[i]);
         }
-        data.put(ITEMS, PerformanceProbe.items(bukkitItems));
+        data.put(ITEMS, ItemUtils.saveBukkitItemsAsListTag(bukkitItems));
 
         data.putInt(COOKING_PROGRESS, this.cookingProgress);
         data.putInt(COOKING_DURATION, this.cookingDuration);

@@ -368,7 +368,15 @@ public final class ItemUtils {
     }
 
     public static CompoundTag saveBukkitItemAsTag(ItemStack item) {
-        return PerformanceProbe.item(item);
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.ITEM_SERIALIZATION)) {
+            return ItemStackUtils.saveBukkitItemAsTag(item);
+        }
+    }
+
+    public static net.momirealms.craftengine.libraries.nbt.ListTag saveBukkitItemsAsListTag(ItemStack[] items) {
+        try (PerformanceProbe.Sample ignored = PerformanceProbe.begin(PerformanceProbe.Operation.ITEM_SERIALIZATION)) {
+            return ItemStackUtils.saveBukkitItemsAsListTag(items);
+        }
     }
 
     /**

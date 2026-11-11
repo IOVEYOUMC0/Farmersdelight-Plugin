@@ -1,12 +1,8 @@
 package com.huidu.farmersdelight.api.util;
 
 import com.huidu.farmersdelight.api.FarmersDelightApi;
-import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
-import net.momirealms.craftengine.libraries.nbt.CompoundTag;
-import net.momirealms.craftengine.libraries.nbt.ListTag;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /** Opt-in timings only; callers retain responsibility for world ownership and data consistency. */
@@ -48,18 +44,6 @@ public final class PerformanceProbe {
     public static Sample begin(Operation operation) {
         Timing timing = FarmersDelightApi.get().performanceTiming(operation);
         return timing == null ? null : new Sample(timing);
-    }
-
-    public static CompoundTag item(ItemStack item) {
-        try (Sample ignored = begin(Operation.ITEM_SERIALIZATION)) {
-            return ItemStackUtils.saveBukkitItemAsTag(item);
-        }
-    }
-
-    public static ListTag items(ItemStack[] items) {
-        try (Sample ignored = begin(Operation.ITEM_SERIALIZATION)) {
-            return ItemStackUtils.saveBukkitItemsAsListTag(items);
-        }
     }
 
     @Nullable
