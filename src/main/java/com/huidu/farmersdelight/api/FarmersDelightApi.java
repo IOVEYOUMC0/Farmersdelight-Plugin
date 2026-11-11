@@ -114,7 +114,9 @@ public final class FarmersDelightApi {
             // api.storage: CE-neutral packed block data in an item's custom_data (PackedData/PackedStorageApi).
             "packed-storage",
             // api.util.WarningThrottle for once-per-cooldown console warnings from addons.
-            "warning-throttle"
+            "warning-throttle",
+            // api.util.KeyLocks: bounded per-key monitors for addon block state.
+            "key-locks"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
