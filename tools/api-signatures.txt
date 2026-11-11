@@ -16,6 +16,8 @@ member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean isContentLo
 member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean isFolia()
 member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean isHeatSource(Block block)
 member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean isItemDisplayActive(int handle)
+member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean isOwnedByCurrentRegion(Entity entity)
+member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean isOwnedByCurrentRegion(Location location)
 member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean isTextDisplayActive(int handle)
 member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean registerCustomHeatSource(String blockIdWithOptionalState)
 member|com.huidu.farmersdelight.api.FarmersDelightApi|public boolean registerRecipeConfiguration(String station, String id, ConfigurationSection section)
@@ -678,6 +680,27 @@ member|com.huidu.farmersdelight.api.sound.ToolSoundTable|public Entry resolve(It
 member|com.huidu.farmersdelight.api.sound.ToolSoundTable|public boolean isEmpty()
 member|com.huidu.farmersdelight.api.sound.ToolSoundTable|public static ToolSoundTable empty()
 member|com.huidu.farmersdelight.api.sound.ToolSoundTable|public static ToolSoundTable from(ConfigurationSection section, float defaultVolume, float defaultPitch)
+member|com.huidu.farmersdelight.api.storage.PackedData|public ItemStack item(String key)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData compound(String key)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData putBool(String key, boolean value)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData putCompound(String key, PackedData value)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData putDouble(String key, double value)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData putInt(String key, int value)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData putItem(String key, ItemStack value)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData putLong(String key, long value)
+member|com.huidu.farmersdelight.api.storage.PackedData|public PackedData putString(String key, String value)
+member|com.huidu.farmersdelight.api.storage.PackedData|public Set<String>keys()
+member|com.huidu.farmersdelight.api.storage.PackedData|public String string(String key, String fallback)
+member|com.huidu.farmersdelight.api.storage.PackedData|public boolean bool(String key, boolean fallback)
+member|com.huidu.farmersdelight.api.storage.PackedData|public boolean isEmpty()
+member|com.huidu.farmersdelight.api.storage.PackedData|public double decimal(String key, double fallback)
+member|com.huidu.farmersdelight.api.storage.PackedData|public int integer(String key, int fallback)
+member|com.huidu.farmersdelight.api.storage.PackedData|public long longValue(String key, long fallback)
+member|com.huidu.farmersdelight.api.storage.PackedData|public void remove(String key)
+member|com.huidu.farmersdelight.api.storage.PackedStorageApi|public static PackedData create()
+member|com.huidu.farmersdelight.api.storage.PackedStorageApi|public static PackedData read(ItemStack item, String key)
+member|com.huidu.farmersdelight.api.storage.PackedStorageApi|public static void remove(ItemStack item, String key)
+member|com.huidu.farmersdelight.api.storage.PackedStorageApi|public static void write(ItemStack item, String key, PackedData data)
 member|com.huidu.farmersdelight.api.tag.FarmersDelightTags|public static final String BLOCK_CABINETS
 member|com.huidu.farmersdelight.api.tag.FarmersDelightTags|public static final String BLOCK_CABINETS_WOODEN
 member|com.huidu.farmersdelight.api.tag.FarmersDelightTags|public static final String BLOCK_CAMPFIRE_SIGNAL_SMOKE
@@ -802,6 +825,13 @@ member|com.huidu.farmersdelight.api.util.DebugToolRegistry|public static void re
 member|com.huidu.farmersdelight.api.util.DebugToolRegistry|public static void unregister(String name)
 member|com.huidu.farmersdelight.api.util.ItemDelivery|public static void giveOrDrop(Player player, ItemStack item)
 member|com.huidu.farmersdelight.api.util.ItemDelivery|public static void giveOrDrop(Player player, Location dropAt, ItemStack item)
+member|com.huidu.farmersdelight.api.util.KeyLocks|public KeyLocks()
+member|com.huidu.farmersdelight.api.util.KeyLocks|public KeyLocks(int stripes)
+member|com.huidu.farmersdelight.api.util.KeyLocks|public Object lockFor(String key)
+member|com.huidu.farmersdelight.api.util.KeyLocks|public int stripeCount()
+member|com.huidu.farmersdelight.api.util.KeyLocks|public static final int DEFAULT_STRIPES
+member|com.huidu.farmersdelight.api.util.KeyLocks|public void run(String key, Runnable action)
+member|com.huidu.farmersdelight.api.util.KeyLocks|public<T>T call(String key, Supplier<T>action)
 member|com.huidu.farmersdelight.api.util.NestingGuard|public static boolean isContainerNestingHazard(ItemStack item)
 member|com.huidu.farmersdelight.api.util.NestingGuard|public static void register(String containerId)
 member|com.huidu.farmersdelight.api.util.PerformanceProbe.Sample|public void close()
@@ -828,6 +858,11 @@ member|com.huidu.farmersdelight.api.util.ShutdownBudget|public long remainingMil
 member|com.huidu.farmersdelight.api.util.ShutdownBudget|public static ShutdownBudget ofMillis(long totalMillis, Logger logger)
 member|com.huidu.farmersdelight.api.util.ShutdownBudget|public static final long MIN_TOTAL_MILLIS
 member|com.huidu.farmersdelight.api.util.TooltipUtils|public static void hideDurabilityLine(Item wrapped)
+member|com.huidu.farmersdelight.api.util.WarningThrottle|public WarningThrottle()
+member|com.huidu.farmersdelight.api.util.WarningThrottle|public WarningThrottle(long cooldownMillis, LongSupplier clock)
+member|com.huidu.farmersdelight.api.util.WarningThrottle|public static final long DEFAULT_COOLDOWN_MILLIS
+member|com.huidu.farmersdelight.api.util.WarningThrottle|public synchronized boolean allow(String feature, String worldId)
+member|com.huidu.farmersdelight.api.util.WarningThrottle|public synchronized int trackedKeys()
 member|com.huidu.farmersdelight.api.visual.DisplayGroup|public boolean hide(Object key)
 member|com.huidu.farmersdelight.api.visual.DisplayGroup|public int handle(Object key)
 member|com.huidu.farmersdelight.api.visual.DisplayGroup|public int showItem(Object key, Location location, ItemStack item, ItemDisplay.ItemDisplayTransform itemTransform, Transformation transformation)
@@ -946,6 +981,8 @@ type|com.huidu.farmersdelight.api.scheduler.ApiTask|public interface ApiTask
 type|com.huidu.farmersdelight.api.sound.FarmersDelightSounds|public final class FarmersDelightSounds
 type|com.huidu.farmersdelight.api.sound.ToolSoundTable.Entry|public record Entry(String soundKey, float volume, float pitchMin, float pitchMax)
 type|com.huidu.farmersdelight.api.sound.ToolSoundTable|public final class ToolSoundTable
+type|com.huidu.farmersdelight.api.storage.PackedData|public interface PackedData
+type|com.huidu.farmersdelight.api.storage.PackedStorageApi|public final class PackedStorageApi
 type|com.huidu.farmersdelight.api.tag.FarmersDelightTags|public final class FarmersDelightTags
 type|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks.TagSource|public interface TagSource
 type|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks|public final class KnifeMineableBlocks
@@ -962,6 +999,7 @@ type|com.huidu.farmersdelight.api.util.DebugToolExtension.UndoSink|interface Und
 type|com.huidu.farmersdelight.api.util.DebugToolExtension|public interface DebugToolExtension
 type|com.huidu.farmersdelight.api.util.DebugToolRegistry|public final class DebugToolRegistry
 type|com.huidu.farmersdelight.api.util.ItemDelivery|public final class ItemDelivery
+type|com.huidu.farmersdelight.api.util.KeyLocks|public final class KeyLocks
 type|com.huidu.farmersdelight.api.util.NestingGuard|public final class NestingGuard
 type|com.huidu.farmersdelight.api.util.PerformanceProbe.Operation|public enum Operation
 type|com.huidu.farmersdelight.api.util.PerformanceProbe.Sample|public static final class Sample implements AutoCloseable
@@ -971,5 +1009,6 @@ type|com.huidu.farmersdelight.api.util.PluginManagerGuard|public final class Plu
 type|com.huidu.farmersdelight.api.util.ProtectionCompat|public final class ProtectionCompat
 type|com.huidu.farmersdelight.api.util.ShutdownBudget|public final class ShutdownBudget
 type|com.huidu.farmersdelight.api.util.TooltipUtils|public final class TooltipUtils
+type|com.huidu.farmersdelight.api.util.WarningThrottle|public final class WarningThrottle
 type|com.huidu.farmersdelight.api.visual.DisplayGroup|public final class DisplayGroup
 type|com.huidu.farmersdelight.api.world.WorldBlockKey|public final class WorldBlockKey

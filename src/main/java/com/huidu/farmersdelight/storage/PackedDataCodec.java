@@ -7,7 +7,6 @@ import net.momirealms.craftengine.core.item.Item;
 import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 import net.momirealms.craftengine.libraries.nbt.ByteTag;
 import net.momirealms.craftengine.libraries.nbt.CompoundTag;
-import net.momirealms.craftengine.libraries.nbt.DoubleTag;
 import net.momirealms.craftengine.libraries.nbt.IntTag;
 import net.momirealms.craftengine.libraries.nbt.LongTag;
 import net.momirealms.craftengine.libraries.nbt.NumericTag;
