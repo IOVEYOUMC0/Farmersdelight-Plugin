@@ -731,12 +731,15 @@ public final class CookingPotBlockEntityController extends BlockEntityController
 
     @Override
     public int[] getSlotsForFace(Direction direction) {
-        return switch (direction) {
-            case UP -> layout.inputSlots();
-            case DOWN -> layout.outputSlots();
-            case NORTH, SOUTH, EAST, WEST -> layout.containerSlots();
-            default -> new int[0];
-        };
+        if (direction == Direction.UP) {
+            return layout.inputSlots();
+        }
+        int[] containers = layout.containerSlots();
+        int[] outputs = layout.outputSlots();
+        int[] slots = new int[containers.length + outputs.length];
+        System.arraycopy(containers, 0, slots, 0, containers.length);
+        System.arraycopy(outputs, 0, slots, containers.length, outputs.length);
+        return slots;
     }
 
     @Override
@@ -744,16 +747,12 @@ public final class CookingPotBlockEntityController extends BlockEntityController
         if (isNestingHazard(stack)) {
             return false;
         }
-        return switch (direction) {
-            case UP -> layout.isInputSlot(slot);
-            case NORTH, SOUTH, EAST, WEST -> layout.isContainerSlot(slot);
-            default -> false;
-        };
+        return direction == Direction.UP ? layout.isInputSlot(slot) : layout.isContainerSlot(slot);
     }
 
     @Override
     public boolean canTakeItemThroughFace(int slot, Item stack, Direction direction) {
-        return direction == Direction.DOWN && layout.isOutputSlot(slot);
+        return direction == Direction.UP ? layout.isInputSlot(slot) : layout.isOutputSlot(slot);
     }
 
     private boolean isValidSlot(int slot) {

@@ -51,6 +51,7 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.context.function.FunctionFactory;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.util.Key;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class BehaviorRegistrar {
 
@@ -81,7 +82,7 @@ public final class BehaviorRegistrar {
 
         // Census line, not news on a healthy boot: routed through the startup detail channel so it is
         // recorded at FINE normally and raised to INFO only for an operator debugging the load phase.
-        I18n.logDetail("startup", "plugin.registered_block_behaviors");
+        I18n.logDetail(DebugCategory.STARTUP, "plugin.registered_block_behaviors");
     }
 
     public static void registerItemBehaviors() {
@@ -131,7 +132,7 @@ public final class BehaviorRegistrar {
         registerFunctions();
         registerConditions();
         registerLootFunctions();
-        I18n.logDetail("startup", "plugin.replayed_content_registrations",
+        I18n.logDetail(DebugCategory.STARTUP, "plugin.replayed_content_registrations",
                 "count", ContentRegistration.registeredIds().size());
     }
 

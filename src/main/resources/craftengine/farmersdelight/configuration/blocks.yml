@@ -907,6 +907,9 @@ block:
     behavior:
     - type: farmersdelight:rich_soil
       boost-chance: 0.2
+      planted-from-below:
+      - minecraft:cave_vines
+      - minecraft:cave_vines_plant
       mushroom-colony:
         brown: farmersdelight:brown_mushroom_colony
         red: farmersdelight:red_mushroom_colony
@@ -962,7 +965,10 @@ block:
         step: minecraft:block.gravel.step
     behavior:
     - type: farmersdelight:rich_soil_farmland
-      boost-chance: 0.08
+      boost-chance: 0.2
+      planted-from-below:
+      - minecraft:cave_vines
+      - minecraft:cave_vines_plant
       moisture-property: moisture
       rich-soil-block: farmersdelight:rich_soil
     loot:

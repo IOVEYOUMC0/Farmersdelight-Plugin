@@ -167,6 +167,7 @@ console:
     advancement_directory_delete_failed: "删除进度数据包目录 {path} 失败：{error}"
     datapack_removal_deferred: "异步队列已满，删除进度数据包被推迟；下次关闭进度时会重新尝试。"
     debug_tools_missing: "构建标记要求启用调试工具，但调试工具类不存在。"
+    debug_unknown_categories: "config.yml 里有未知的调试类别：{categories}；将被忽略。"
     server_properties_read_failed: "读取 server.properties 的 level-name 失败：{error}"
     papi_bridge_registered: "PlaceholderAPI 桥接已注册（标识符：farmersdelight）"
     papi_bridge_failed: "PlaceholderAPI 桥接注册失败：{error}"

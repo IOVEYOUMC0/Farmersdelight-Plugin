@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 // Transfers ingredients from a player inventory into a cooking pot for the selected recipe.
 // The caller supplies the player, pot location and recipe group; no GUI state is retained.
@@ -159,13 +160,13 @@ final class CookingPotFiller {
     }
 
     private void debug(String message) {
-        if (plugin.isDebugEnabled("cooking_pot")) {
+        if (plugin.isDebugEnabled(DebugCategory.COOKING_POT)) {
             plugin.getLogger().info(I18n.formatConsole("debug.cooking_pot_fill", "message", message));
         }
     }
 
     private void debug(Supplier<String> messageSupplier) {
-        if (plugin.isDebugEnabled("cooking_pot")) {
+        if (plugin.isDebugEnabled(DebugCategory.COOKING_POT)) {
             plugin.getLogger().info(I18n.formatConsole("debug.cooking_pot_fill", "message", messageSupplier.get()));
         }
     }

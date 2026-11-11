@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class SpecialRecipeLoader {
 
@@ -62,7 +63,7 @@ public final class SpecialRecipeLoader {
         }
         FILE_REGISTERED.clear();
         FILE_REGISTERED.putAll(fileEntries);
-        I18n.logDetail("recipe", "recipe.special_recipe_loaded", "count", fileEntries.size());
+        I18n.logDetail(DebugCategory.RECIPE, "recipe.special_recipe_loaded", "count", fileEntries.size());
 
         // Backfill bundled recipes the on-disk file does not define, so servers with an older file still gain
         // newly bundled entries. Gated by the same switch as the other recipe files: an entry the operator
@@ -84,7 +85,7 @@ public final class SpecialRecipeLoader {
                 }
             }
             if (backfilled > 0) {
-                I18n.logDetail("recipe", "recipe.special_recipe_backfilled", "count", backfilled);
+                I18n.logDetail(DebugCategory.RECIPE, "recipe.special_recipe_backfilled", "count", backfilled);
             }
         } else {
             withdrawVanished(registry, BACKFILL_REGISTERED, Map.of());
@@ -132,7 +133,7 @@ public final class SpecialRecipeLoader {
         PACK_REGISTERED.clear();
         PACK_REGISTERED.putAll(current);
         if (applied > 0) {
-            I18n.logDetail("recipe", "recipe.special_recipe_pack_loaded", "count", applied);
+            I18n.logDetail(DebugCategory.RECIPE, "recipe.special_recipe_pack_loaded", "count", applied);
         }
     }
 

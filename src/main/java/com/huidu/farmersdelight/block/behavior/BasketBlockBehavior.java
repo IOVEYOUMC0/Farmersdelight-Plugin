@@ -33,9 +33,9 @@ public class BasketBlockBehavior extends FarmersDelightBlockBehavior implements 
         FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
         int cooldown = Math.max(1, BehaviorArgParser.getInt(arguments, "transfer-cooldown", DEFAULT_TRANSFER_COOLDOWN));
-        // When on, the basket pushes its contents into a container it faces; when off it only collects
-        // dropped items. Collection is always on. Defaults to on so an existing basket gains the behavior.
-        boolean eject = BehaviorArgParser.getBoolean(arguments, "eject", true);
+        // Optional extra: push contents into a container the basket faces. The upstream basket only collects,
+        // so this stays off unless a server opts in; collection itself is always on.
+        boolean eject = BehaviorArgParser.getBoolean(arguments, "eject", false);
         return new BasketBlockBehavior(plugin, block, cooldown, eject);
     };
 

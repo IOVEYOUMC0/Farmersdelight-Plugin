@@ -162,6 +162,11 @@ final class PluginConfigAssembly {
     void loadDebugFlags() {
         DebugSettings settings = DebugSettings.load(plugin.getConfig());
         plugin.debugSettings = settings;
+        java.util.List<String> unknownCategories = settings.unknownCategories();
+        if (!unknownCategories.isEmpty()) {
+            I18n.logWarning("plugin.debug_unknown_categories",
+                    "categories", String.join(", ", unknownCategories));
+        }
     }
 
     Map<String, GuiConfig> loadCustomCookingPotGuiConfigs(YamlConfiguration config) {

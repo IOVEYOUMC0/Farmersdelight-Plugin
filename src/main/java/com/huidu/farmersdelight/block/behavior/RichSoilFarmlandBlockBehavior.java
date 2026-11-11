@@ -36,6 +36,7 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
     private final float boostChance;
     private final Property<Integer> moistureProperty;
     private final Key richSoilBlockId;
+    private final ConfiguredBlockSet plantedFromBelow;
     // Null when the configuration declares no unaffected-blocks key of its own, in which case the list is
     // borrowed from the rich soil block named by rich-soil-block. An explicitly configured empty list is a
     // parsed empty set, not null, so writing an empty list does disable the exclusions.
@@ -48,12 +49,14 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
     private volatile ConfiguredBlockSet borrowedUnaffectedBlocks;
 
     private RichSoilFarmlandBlockBehavior(BlockDefinition block, float boostChance, Property<Integer> moistureProperty,
-                                          Key richSoilBlockId, ConfiguredBlockSet configuredUnaffectedBlocks) {
+                                          Key richSoilBlockId, ConfiguredBlockSet configuredUnaffectedBlocks,
+                                          ConfiguredBlockSet plantedFromBelow) {
         super(block);
         this.boostChance = boostChance;
         this.moistureProperty = moistureProperty;
         this.richSoilBlockId = richSoilBlockId;
         this.configuredUnaffectedBlocks = configuredUnaffectedBlocks;
+        this.plantedFromBelow = plantedFromBelow;
     }
 
     private ConfiguredBlockSet unaffectedBlocks() {
@@ -79,7 +82,7 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
 
     public static final BlockBehaviorFactory<RichSoilFarmlandBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
-        float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
+        float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.2f);
         // Moisture drives the whole random tick: drying out, rehydrating from water or rain, and the boost
         // that only fully wet soil performs. The property may carry another name, but one of that name has
         // to exist: a block declaring this behavior without it aborts its own load here, with the config
@@ -93,7 +96,11 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
         ConfiguredBlockSet unaffected = BehaviorArgParser.hasArgument(arguments, "unaffected-blocks")
                 ? ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"))
                 : null;
-        return new RichSoilFarmlandBlockBehavior(block, chance, moistureProperty, Key.of(richSoilId), unaffected);
+        ConfiguredBlockSet plantedFromBelow = arguments.get("planted-from-below") != null
+                ? ConfiguredBlockSet.parse(arguments.get("planted-from-below"))
+                : ConfiguredBlockSet.parse(java.util.List.of("minecraft:cave_vines", "minecraft:cave_vines_plant"));
+        return new RichSoilFarmlandBlockBehavior(block, chance, moistureProperty, Key.of(richSoilId), unaffected,
+                plantedFromBelow);
     };
 
     @Override
@@ -190,19 +197,31 @@ public class RichSoilFarmlandBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     private void boostAbove(World world, BlockPos pos) {
-        Block plant = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
-        if (plant.getType() == Material.AIR) return;
-        if (unaffectedBlocks().contains(plant)) return;
+        Block above = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
+        if (RichSoilBlockBehavior.boostsAbove(plantedFromBelow.contains(above)) && boostPlant(above)) {
+            return;
+        }
+        Block below = world.getBlockAt(pos.x(), pos.y() - 1, pos.z());
+        if (RichSoilBlockBehavior.boostsBelow(plantedFromBelow.contains(below))) {
+            boostPlant(below);
+        }
+    }
+
+    private boolean boostPlant(Block plant) {
+        if (plant.getType() == Material.AIR) return false;
+        if (unaffectedBlocks().contains(plant)) return false;
         try {
             // applyBoneMeal invokes BonemealableBlock growth for vanilla crops and CE blocks
             // that implement the interface.
             if (plant.applyBoneMeal(BlockFace.UP)) {
                 plant.getWorld().spawnParticle(Particle.HAPPY_VILLAGER,
                         plant.getLocation().add(0.5, 0.5, 0.5), 10, 0.3, 0.3, 0.3);
+                return true;
             }
         } catch (RuntimeException | LinkageError ignored) {
             // cosmetic only; effect failure does not block growth
         }
+        return false;
     }
 
 }

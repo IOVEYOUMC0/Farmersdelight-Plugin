@@ -167,6 +167,7 @@ console:
     advancement_directory_delete_failed: "Failed to delete advancement datapack directory {path}: {error}"
     datapack_removal_deferred: "The async queue is full, so removing the advancement datapack was postponed; it will be retried the next time the advancements are turned off."
     debug_tools_missing: "Debug tools were requested by the build flag, but the debug tools class is missing."
+    debug_unknown_categories: "Unknown debug categories in config.yml: {categories}; they are ignored."
     server_properties_read_failed: "Failed to read server.properties level-name: {error}"
     papi_bridge_registered: "PlaceholderAPI bridge registered (identifier: farmersdelight)"
     papi_bridge_failed: "PlaceholderAPI bridge failed to register: {error}"

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class RecipeFileLoader {
 
@@ -288,7 +289,7 @@ public final class RecipeFileLoader {
                 }
             }
 
-            I18n.logDetail("recipe", "recipe.loaded_total", "count", loadedCount, "type", recipeTypeName);
+            I18n.logDetail(DebugCategory.RECIPE, "recipe.loaded_total", "count", loadedCount, "type", recipeTypeName);
         }
     }
 

@@ -39,6 +39,7 @@ import java.util.function.Supplier;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 /** Generates configured food overlays during pack caching, never during player ticks. */
 public final class HandheldCookingModels implements Listener {
@@ -178,7 +179,7 @@ public final class HandheldCookingModels implements Listener {
             if (!generated.isEmpty() || !manager.loadedItems().isEmpty()) {
                 deleteStaleGeneratedFiles(generated);
                 available = Set.copyOf(generated);
-                I18n.logDetail("startup", "skillet.models_generated",
+                I18n.logDetail(DebugCategory.STARTUP, "skillet.models_generated",
                         "count", generated.size(), "ingredients", wantedSources.size());
             }
             event.registerExternalResourcePack(folder);

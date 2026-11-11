@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class CustomBlockUtils {
 
@@ -203,7 +204,7 @@ public final class CustomBlockUtils {
                 // CraftEngine failure escape would leave the result stored and the ingredients unconsumed, so the
                 // next tick would produce a second result from the same ingredients. The world copy catches up on
                 // the next push instead.
-                I18n.logDetail("block", "block.block_entity_sync_failed", "error", String.valueOf(failure));
+                I18n.logDetail(DebugCategory.BLOCK, "block.block_entity_sync_failed", "error", String.valueOf(failure));
             }
         }
     }
@@ -217,7 +218,7 @@ public final class CustomBlockUtils {
         } catch (RuntimeException | LinkageError failure) {
             // Same reason as the (World, BlockPosKey) overload: this push can sit between the two halves of a
             // settlement, and a CraftEngine failure escaping here would let the same ingredients produce twice.
-            I18n.logDetail("block", "block.block_entity_sync_failed", "error", String.valueOf(failure));
+            I18n.logDetail(DebugCategory.BLOCK, "block.block_entity_sync_failed", "error", String.valueOf(failure));
         }
     }
 

@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class AddonAdvancementTab {
 
@@ -75,7 +76,7 @@ public final class AddonAdvancementTab {
             }
             tab = api.createAdvancementTab(tabName);
             buildTree();
-            I18n.logDetail("startup", "advancement.addon_tab_built", "tab", tabName, "count", definitions.size());
+            I18n.logDetail(DebugCategory.STARTUP, "advancement.addon_tab_built", "tab", tabName, "count", definitions.size());
             return true;
         } catch (Exception | LinkageError e) {
             disposeQuietly();

@@ -134,7 +134,12 @@ enchantments:
 #   config     - Config file integrity checks
 #   reload     - Per-phase timings for /fd reload, so a stall can be attributed
 #   resource   - Resource auto-completion details (+ added / = skipped)
-# Set to ["all"] or ["*"] to temporarily enable every category.
+#   block      - Block behavior and state diagnostics
+#   enchant    - Enchantment lookup / conflict diagnostics
+#   handheld   - Handheld cooking sessions and models
+#   tags       - Tag resolution details
+# Set to ["all"] or ["*"] to temporarily enable every category. A name that is not in this list
+# is reported once at load and otherwise ignored.
 debug:
   enabled: false
   categories: []

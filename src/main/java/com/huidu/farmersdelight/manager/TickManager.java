@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.UUID;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class TickManager {
 
@@ -103,7 +104,7 @@ public class TickManager {
         tickTask = plugin.scheduler().runRepeating(this::tick, 1L, TICK_INTERVAL);
         cleanupTask = plugin.scheduler().runRepeating(this::performCleanup,
                 PeriodicStagger.initialDelay("tick-cleanup", CLEANUP_INTERVAL), CLEANUP_INTERVAL);
-        I18n.logDetail("startup", "tick.started", "interval", TICK_INTERVAL);
+        I18n.logDetail(DebugCategory.STARTUP, "tick.started", "interval", TICK_INTERVAL);
     }
 
     public void stop() {
@@ -129,7 +130,7 @@ public class TickManager {
         scheduledActiveBlocks.clear();
         effectManager.cleanup();
 
-        I18n.logDetail("startup", "tick.stopped");
+        I18n.logDetail(DebugCategory.STARTUP, "tick.stopped");
     }
     
     private void performCleanup() {
@@ -689,7 +690,7 @@ public class TickManager {
 
         boolean canCook = hasHeat && entity.canCook();
         CookingPotRecipe recipe = canCook ? entity.getCurrentRecipe() : null;
-        if (plugin.isDebugEnabled("cooking_pot")) {
+        if (plugin.isDebugEnabled(DebugCategory.COOKING_POT)) {
             plugin.getLogger().info(I18n.formatNamedArgs("console.debug.cooking_pot_tick",
                     "pos", posKey,
                     "has_heat", hasHeat,

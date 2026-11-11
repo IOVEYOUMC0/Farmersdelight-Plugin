@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class I18n {
 
@@ -88,7 +89,7 @@ public class I18n {
         // The locale set is resolved on plugin load, again on enable, and once more on every CraftEngine
         // reload. Which locale is active is startup detail: the one line a boot prints already names the
         // versions and the content counts, so this stays one turn of the startup debug category away.
-        logDetail("startup", "i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
+        logDetail(DebugCategory.STARTUP, "i18n.loaded", "count", loaded.size(), "locale", resolvedDefault);
     }
 
     private static void saveDefaultLanguages() {
@@ -515,6 +516,10 @@ public class I18n {
      * The call sites sit on interaction and tick paths, so with the category off (and FINE not enabled) the
      * language lookup, placeholder replacement and string building are skipped entirely.
      */
+    public static void logDetail(DebugCategory category, String key, Object... args) {
+        logDetail(category.id(), key, args);
+    }
+
     public static void logDetail(String category, String key, Object... args) {
         FarmersDelightPlugin pluginInstance = plugin;
         Logger logger = pluginInstance != null ? pluginInstance.getLogger() : null;
@@ -532,6 +537,10 @@ public class I18n {
      * Detail-level line for a message that is already formatted: INFO while the category's debug switch is on,
      * and invisible otherwise. Used by the callers that build their own message before deciding to report it.
      */
+    public static void logDetailMessage(DebugCategory category, String message) {
+        logDetailMessage(category.id(), message);
+    }
+
     public static void logDetailMessage(String category, String message) {
         FarmersDelightPlugin pluginInstance = plugin;
         if (pluginInstance == null || pluginInstance.getLogger() == null || message == null) {

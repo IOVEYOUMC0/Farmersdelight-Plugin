@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static com.huidu.farmersdelight.api.util.DatapackSupport.writeIfChanged;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class EnchantmentDatapackInstaller implements Listener {
 
@@ -204,7 +205,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
                         "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
             }
             if (changed > 0) {
-                I18n.logDetail("startup", "plugin.enchantment_datapack_written",
+                I18n.logDetail(DebugCategory.STARTUP, "plugin.enchantment_datapack_written",
                         "count", changed, "dir", datapackDir);
             }
             return changed > 0;

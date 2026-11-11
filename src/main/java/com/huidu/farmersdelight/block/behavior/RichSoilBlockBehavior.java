@@ -36,10 +36,13 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
     // Store unaffected blocks per behavior instance so different configurations cannot overwrite each other.
     // Publish the fully parsed final set before region ticks can read it.
     private final ConfiguredBlockSet unaffectedBlocks;
+    // Crops such as cave vines hang from the block below and must only be boosted from there.
+    private final ConfiguredBlockSet plantedFromBelow;
 
     private RichSoilBlockBehavior(BlockDefinition block, float boostChance,
                                    Key brownMushroomColonyId, Key redMushroomColonyId,
                                    ConfiguredBlockSet unaffectedBlocks,
+                                   ConfiguredBlockSet plantedFromBelow,
                                    ConfiguredBlockSet brownMushrooms,
                                    ConfiguredBlockSet redMushrooms) {
         super(block);
@@ -47,6 +50,7 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
         this.brownMushroomColonyId = brownMushroomColonyId;
         this.redMushroomColonyId = redMushroomColonyId;
         this.unaffectedBlocks = unaffectedBlocks;
+        this.plantedFromBelow = plantedFromBelow;
         this.brownMushrooms = brownMushrooms;
         this.redMushrooms = redMushrooms;
     }
@@ -65,16 +69,19 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
 
     public static final BlockBehaviorFactory<RichSoilBlockBehavior> FACTORY = (BlockDefinition block, ConfigSection section) -> {
         Map<String, Object> arguments = section != null ? section.values() : Map.of();
-        float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.08f);
+        float chance = BehaviorArgParser.getFloat(arguments, "boost-chance", 0.2f);
         String brownId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.brown", "brown-mushroom-colony", "farmersdelight:brown_mushroom_colony");
         String redId = BehaviorArgParser.getStringStrict(arguments, "mushroom-colony.red", "red-mushroom-colony", "farmersdelight:red_mushroom_colony");
         ConfiguredBlockSet unaffected = ConfiguredBlockSet.parse(arguments.get("unaffected-blocks"));
+        ConfiguredBlockSet plantedFromBelow = arguments.get("planted-from-below") != null
+                ? ConfiguredBlockSet.parse(arguments.get("planted-from-below"))
+                : ConfiguredBlockSet.parse(java.util.List.of("minecraft:cave_vines", "minecraft:cave_vines_plant"));
         ConfiguredBlockSet brownMushrooms = configuredMushrooms(arguments, "brown-mushroom-blocks",
                 "minecraft:brown_mushroom", Constants.BLOCK_BROWN_MUSHROOM);
         ConfiguredBlockSet redMushrooms = configuredMushrooms(arguments, "red-mushroom-blocks",
                 "minecraft:red_mushroom", Constants.BLOCK_RED_MUSHROOM);
         return new RichSoilBlockBehavior(block, chance, Key.of(brownId), Key.of(redId), unaffected,
-                brownMushrooms, redMushrooms);
+                plantedFromBelow, brownMushrooms, redMushrooms);
     };
 
     @Override
@@ -96,9 +103,21 @@ public class RichSoilBlockBehavior extends FarmersDelightBlockBehavior {
         if (boostChance <= 0F) return;
         if (ThreadLocalRandom.current().nextFloat() > boostChance) return;
         Block above = world.getBlockAt(pos.x(), pos.y() + 1, pos.z());
-        if (boostPlant(above)) return;
+        if (boostsAbove(plantedFromBelow.contains(above)) && boostPlant(above)) return;
         Block below = world.getBlockAt(pos.x(), pos.y() - 1, pos.z());
-        boostPlant(below);
+        if (boostsBelow(plantedFromBelow.contains(below))) {
+            boostPlant(below);
+        }
+    }
+
+    /** An ordinary crop grows upward from the soil, so it is boosted from above only. */
+    static boolean boostsAbove(boolean plantedFromBelow) {
+        return !plantedFromBelow;
+    }
+
+    /** A hanging crop is planted from the block below, so that is the only direction it can be boosted. */
+    static boolean boostsBelow(boolean plantedFromBelow) {
+        return plantedFromBelow;
     }
 
     private boolean convertMushroomToColony(Block target) {

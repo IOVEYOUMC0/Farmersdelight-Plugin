@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 /**
  * FarmersDelight's own view of the CraftEngine pack sections it claims: the cooking-pot, cutting-board,
@@ -49,7 +50,7 @@ public final class PackSections {
         if (!sharedRegistered) {
             I18n.logWarning("plugin.pack_sections_conflict", "ids", String.join(", ", roots.keySet()));
         } else {
-            I18n.logDetail("startup", "plugin.pack_sections_registered", "ids", String.join(", ", roots.keySet()));
+            I18n.logDetail(DebugCategory.STARTUP, "plugin.pack_sections_registered", "ids", String.join(", ", roots.keySet()));
         }
 
         // The advanced tag groups are claimed separately: one claim's ids are registered as a unit, so putting
@@ -60,7 +61,7 @@ public final class PackSections {
         if (!tagGroups.registered()) {
             I18n.logWarning("plugin.pack_sections_conflict", "ids", String.join(", ", separateRoots().keySet()));
         } else {
-            I18n.logDetail("startup", "plugin.pack_sections_registered",
+            I18n.logDetail(DebugCategory.STARTUP, "plugin.pack_sections_registered",
                     "ids", String.join(", ", separateRoots().keySet()));
         }
         if (!sharedRegistered && !tagGroups.registered()) {

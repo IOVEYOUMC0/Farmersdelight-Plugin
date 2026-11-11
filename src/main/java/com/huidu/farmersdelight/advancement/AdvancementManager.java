@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class AdvancementManager {
 
@@ -167,7 +168,7 @@ public class AdvancementManager {
             buildTree();
             ensureLoadingListener();
             logApiState();
-            I18n.logDetail("startup", "advancement.loaded_keys", "count", byId.size());
+            I18n.logDetail(DebugCategory.STARTUP, "advancement.loaded_keys", "count", byId.size());
         } catch (Exception | LinkageError e) {
             // Discard the half-built (uninitialized) tab so it doesn't remain registered.
             try {
@@ -670,7 +671,7 @@ public class AdvancementManager {
         Plugin uaapi = Bukkit.getPluginManager().getPlugin("UltimateAdvancementAPI");
         String version = uaapi == null ? "unknown" : uaapi.getDescription().getVersion();
         boolean patched = AutomaticAdvancementLayout.isSupported();
-        I18n.logDetail("startup", "advancement.api_version",
+        I18n.logDetail(DebugCategory.STARTUP, "advancement.api_version",
                 "version", version,
                 "layout", patched ? "automatic" : "declared coordinates");
         if (!patched) {

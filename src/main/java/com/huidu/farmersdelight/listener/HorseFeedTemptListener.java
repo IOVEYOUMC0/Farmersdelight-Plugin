@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class HorseFeedTemptListener implements Listener {
 
@@ -126,7 +127,7 @@ public class HorseFeedTemptListener implements Listener {
         tickInterval = shortestInterval == Long.MAX_VALUE ? DEFAULT_TICK_INTERVAL : shortestInterval;
         tickBudget = Math.max(1, plugin.getConfig().getInt("performance.budgets.pet-tempt-tick-budget", DEFAULT_TICK_BUDGET));
         if (logSummary) {
-            I18n.logDetail("startup", "pet_food.tempt_loaded",
+            I18n.logDetail(DebugCategory.STARTUP, "pet_food.tempt_loaded",
                     "enabled", enabled,
                     "foods", temptFoods.size(),
                     "interval", tickInterval);

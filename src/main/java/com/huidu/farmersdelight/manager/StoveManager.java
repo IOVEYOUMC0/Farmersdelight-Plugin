@@ -45,6 +45,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class StoveManager {
 
@@ -804,7 +805,7 @@ public class StoveManager {
         BlockFace front = CustomBlockUtils.getFacing(state);
         BlockFace facing = front.getOppositeFace();
         // Cache the debug flag so per-slot debug lambdas are only allocated when debug is enabled.
-        boolean debugStove = plugin.isDebugEnabled("stove");
+        boolean debugStove = plugin.isDebugEnabled(DebugCategory.STOVE);
         // Lazily resolve the crackle sound (one CE block-state lookup), at most once per tick
         // instead of once per crackling slot.
         String crackleSound = null;
@@ -1192,13 +1193,13 @@ public class StoveManager {
     }
 
     private void debug(String message) {
-        if (plugin.isDebugEnabled("stove")) {
+        if (plugin.isDebugEnabled(DebugCategory.STOVE)) {
             plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", message));
         }
     }
 
     private void debug(Supplier<String> messageSupplier) {
-        if (plugin.isDebugEnabled("stove")) {
+        if (plugin.isDebugEnabled(DebugCategory.STOVE)) {
             plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", messageSupplier.get()));
         }
     }

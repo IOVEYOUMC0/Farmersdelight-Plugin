@@ -25,6 +25,7 @@ import org.bukkit.util.Vector;
 
 import java.util.function.Supplier;
 import java.util.concurrent.ThreadLocalRandom;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 // Encapsulates the cutting outcome: recipe matching against the stored item, per-unit output rolling
 // (with Fortune bonus), result spawning, durable consumption and the player/dispenser cut paths. Kept
@@ -319,13 +320,13 @@ final class CuttingBoardCutter {
     }
 
     private void debug(String message) {
-        if (plugin.isDebugEnabled("interact")) {
+        if (plugin.isDebugEnabled(DebugCategory.INTERACT)) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", message));
         }
     }
 
     private void debug(Supplier<String> messageSupplier) {
-        if (plugin.isDebugEnabled("interact")) {
+        if (plugin.isDebugEnabled(DebugCategory.INTERACT)) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", messageSupplier.get()));
         }
     }

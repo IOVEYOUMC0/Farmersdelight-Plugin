@@ -8,6 +8,7 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
 import com.huidu.farmersdelight.recipe.CuttingBoardRecipeManager;
 import com.huidu.farmersdelight.startup.StartupVersionBanner;
 import com.huidu.farmersdelight.tool.ToolRegistry;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 final class StartupSummary {
 
@@ -91,7 +92,7 @@ final class StartupSummary {
         // The split the summary line cannot show without changing an existing language string: how much of
         // the addon figure arrived as CraftEngine pack content. Detail level, so a normal boot stays quiet.
         if (cookingPotPack > 0 || cuttingBoardPack > 0) {
-            I18n.logDetail("recipe", "recipe.pack_recipes", "pot", cookingPotPack, "board", cuttingBoardPack);
+            I18n.logDetail(DebugCategory.RECIPE, "recipe.pack_recipes", "pot", cookingPotPack, "board", cuttingBoardPack);
         }
 
         // The warmup runs on enable and on the CraftEngine readiness pass, never on a reload, so its timing is
@@ -104,7 +105,7 @@ final class StartupSummary {
 
         boolean firstReport = lastReportedCounts == null;
         if (!firstReport && counts.equals(lastReportedCounts)) {
-            I18n.logDetail("startup", key, full);
+            I18n.logDetail(DebugCategory.STARTUP, key, full);
             return;
         }
         lastReportedCounts = counts;
@@ -116,7 +117,7 @@ final class StartupSummary {
             // marker. A later report (a reload, an addon republish) keeps its numbers under startup detail.
             I18n.logInfo(key, full);
         } else {
-            I18n.logDetail("startup", key, full);
+            I18n.logDetail(DebugCategory.STARTUP, key, full);
         }
     }
 

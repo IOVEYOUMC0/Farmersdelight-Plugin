@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class RecipeIngredientIcons {
 
@@ -66,7 +67,7 @@ public final class RecipeIngredientIcons {
             }
         } catch (Exception e) {
             FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
-            if (plugin != null && plugin.isDebugEnabled("gui")) {
+            if (plugin != null && plugin.isDebugEnabled(DebugCategory.GUI)) {
                 plugin.getLogger().fine(I18n.formatConsole("gui_runtime.create_item_failed", "key", key));
             }
         }

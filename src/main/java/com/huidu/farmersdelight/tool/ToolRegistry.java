@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class ToolRegistry {
 
@@ -127,7 +128,7 @@ public final class ToolRegistry {
         durableIds = Collections.unmodifiableSet(newDurableIds);
         // The count is carried by the startup summary line; this stays startup detail so one boot never prints
         // the same figure twice with two different values (an empty pass and the filled one).
-        I18n.logDetail("startup", "plugin.tool.loaded", "count", newCache.size());
+        I18n.logDetail(DebugCategory.STARTUP, "plugin.tool.loaded", "count", newCache.size());
     }
 
     public static Optional<ToolData> get(Key id) {

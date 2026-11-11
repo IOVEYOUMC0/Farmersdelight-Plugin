@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 /**
  * Reports behaviour options a pack declared but the behaviour never read. Such an option is normally a typo:
@@ -148,7 +149,7 @@ public final class BehaviorArgDiagnostics {
     }
 
     private static void logDetail(String message) {
-        I18n.logDetailMessage("startup", message);
+        I18n.logDetailMessage(DebugCategory.STARTUP, message);
     }
 
     /** Test seam for the warning channel; null restores the console logger. */

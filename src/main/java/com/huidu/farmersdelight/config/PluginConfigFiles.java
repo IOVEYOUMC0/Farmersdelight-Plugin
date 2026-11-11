@@ -7,6 +7,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 /** Loads FD's auxiliary YAML files without mixing file I/O into runtime settings assembly. */
 public final class PluginConfigFiles {
@@ -35,7 +36,7 @@ public final class PluginConfigFiles {
         Path path = plugin.getDataFolder().toPath().resolve("gui.yml");
         YamlConfiguration yaml = new YamlConfiguration();
         if (Files.notExists(path)) {
-            if (plugin.isDebugEnabled("config")) {
+            if (plugin.isDebugEnabled(DebugCategory.CONFIG)) {
                 I18n.logInfo("plugin.gui_missing_defaults");
             }
             return yaml;

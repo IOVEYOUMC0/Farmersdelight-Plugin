@@ -38,6 +38,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 import java.util.UUID;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
@@ -65,11 +66,11 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
         }
         ItemStack snapshot = manager.pickupSnapshot(new Location(bukkitWorld, pos.x(), pos.y(), pos.z()));
         if (snapshot == null) {
-            I18n.logDetail("interact", "skillet.pick_block_default", "item", Constants.ITEM_SKILLET);
+            I18n.logDetail(DebugCategory.INTERACT, "skillet.pick_block_default", "item", Constants.ITEM_SKILLET);
             return null;
         }
         String itemId = ItemUtils.getCustomItemId(snapshot);
-        I18n.logDetail("interact", "skillet.pick_block_snapshot", "item",
+        I18n.logDetail(DebugCategory.INTERACT, "skillet.pick_block_snapshot", "item",
                 itemId != null ? itemId : snapshot.getType().getKey().toString());
         return BukkitAdaptor.adapt(snapshot);
     }
@@ -193,7 +194,7 @@ public class SkilletBlockBehavior extends FarmersDelightBlockBehavior implements
             return InteractionResult.PASS;
         }
 
-        if (plugin.isDebugEnabled("skillet")) {
+        if (plugin.isDebugEnabled(DebugCategory.SKILLET)) {
             logDebug(player, block, heldItem, manager.findRecipeId(heldItem));
         }
         if (!PermissionChecker.check(player, permission)) {

@@ -16,6 +16,20 @@ public record DebugSettings(boolean enabled, Set<String> categories) {
         return new DebugSettings(enabled, categories);
     }
 
+    /** The enum path used by internal call sites; a typo cannot compile past it. */
+    public boolean enabledFor(DebugCategory category) {
+        return enabled && category != null
+                && (categories.contains("*") || categories.contains("all") || categories.contains(category.id()));
+    }
+
+    /** Configured category names the enum does not know; reported once when the config is read. */
+    public java.util.List<String> unknownCategories() {
+        return categories.stream()
+                .filter(name -> !name.equals("*") && !name.equals("all") && DebugCategory.byId(name).isEmpty())
+                .sorted()
+                .toList();
+    }
+
     public boolean enabledFor(String category) {
         if (!enabled || category == null || category.isBlank()) {
             return false;

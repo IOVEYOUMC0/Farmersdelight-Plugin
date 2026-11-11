@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.logging.Level;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 /** Coordinates work that must wait for CraftEngine's deferred custom-item load. */
 final class CraftEngineReadinessCoordinator {
@@ -272,7 +273,7 @@ final class CraftEngineReadinessCoordinator {
             }
             readinessAttempt = 0;
             I18n.reload();
-            I18n.logDetail("startup", "plugin.craftengine_reload");
+            I18n.logDetail(DebugCategory.STARTUP, "plugin.craftengine_reload");
             plugin.refreshAfterCraftEngineReload();
             // Warm caches must follow publication of the newly claimed CE recipe sections on every reload.
             loadRecipesThenPublish("plugin.refreshing_recipes_after_ce",
@@ -478,10 +479,10 @@ final class CraftEngineReadinessCoordinator {
             long indexNanos = System.nanoTime() - mark;
             long ms = (System.nanoTime() - start) / 1_000_000L;
             startupSummary.recordWarmup(items, ms);
-            I18n.logDetail("startup", "plugin.warmup_done", "items", items, "ms", ms);
+            I18n.logDetail(DebugCategory.STARTUP, "plugin.warmup_done", "items", items, "ms", ms);
             // Per-phase split: this whole block runs synchronously on a tick thread, so knowing which
             // phase dominates is what decides whether it is worth splitting across ticks.
-            I18n.logDetail("startup", "plugin.warmup_breakdown",
+            I18n.logDetail(DebugCategory.STARTUP, "plugin.warmup_breakdown",
                     "items", itemNanos / 1_000_000L,
                     "gui", guiNanos / 1_000_000L,
                     "icons", iconNanos / 1_000_000L,

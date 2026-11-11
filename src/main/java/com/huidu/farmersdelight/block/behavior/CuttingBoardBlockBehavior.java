@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock, WorldlyContainerHolder {
 
@@ -1033,13 +1034,13 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
     }
 
     private void debug(String message) {
-        if (plugin != null && plugin.isDebugEnabled("interact")) {
+        if (plugin != null && plugin.isDebugEnabled(DebugCategory.INTERACT)) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", message));
         }
     }
 
     private void debug(Supplier<String> messageSupplier) {
-        if (plugin != null && plugin.isDebugEnabled("interact")) {
+        if (plugin != null && plugin.isDebugEnabled(DebugCategory.INTERACT)) {
             plugin.getLogger().info(I18n.formatConsole("debug.cutting_board", "message", messageSupplier.get()));
         }
     }

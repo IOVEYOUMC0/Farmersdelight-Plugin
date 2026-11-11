@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class ResourceInstaller {
 
@@ -138,7 +139,7 @@ public final class ResourceInstaller {
             throw new IOException("No bundled CraftEngine resources found at " + ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         }
 
-        boolean debug = plugin.isDebugEnabled("resource");
+        boolean debug = plugin.isDebugEnabled(DebugCategory.RESOURCE);
         int copiedFiles = 0;
         int skippedFiles = 0;
         Files.createDirectories(targetRoot);
@@ -189,7 +190,7 @@ public final class ResourceInstaller {
             throw new IOException("No bundled CraftEngine resources found at " + ResourceInstaller.CRAFTENGINE_RESOURCE_ROOT);
         }
 
-        boolean debug = plugin.isDebugEnabled("resource");
+        boolean debug = plugin.isDebugEnabled(DebugCategory.RESOURCE);
         Path parent = Objects.requireNonNull(targetRoot.getParent(), "targetRoot parent");
         Files.createDirectories(parent);
         Path tempRoot = Files.createTempDirectory(parent, targetRoot.getFileName() + "-");

@@ -52,6 +52,7 @@ import org.bukkit.util.BoundingBox;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior implements EntityBlock {
 
@@ -294,7 +295,7 @@ public class StoveCookingBlockBehavior extends FarmersDelightBlockBehavior imple
             return InteractionResult.PASS;
         }
 
-        if (plugin.isDebugEnabled("stove")) {
+        if (plugin.isDebugEnabled(DebugCategory.STOVE)) {
             logDebug(player, block, heldItem, manager.findRecipeId(heldItem));
         }
         if (!PermissionChecker.check(player, "farmersdelight.use.stove")) {

@@ -30,6 +30,7 @@ import java.util.function.ToIntFunction;
 import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.util.CommonTagResolver;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class CookingPotRecipeManager {
 
@@ -220,7 +221,7 @@ public class CookingPotRecipeManager {
         List<CookingPotRecipe> newSortedRecipes = sortedRecipeList(newRecipes);
         // Only reported when it actually happens: a pack that declares every container keeps the boot log quiet.
         if (inferredContainers[0] > 0) {
-            I18n.logDetail("recipe", "recipe.cooking_pot_inferred_containers", "count", inferredContainers[0]);
+            I18n.logDetail(DebugCategory.RECIPE, "recipe.cooking_pot_inferred_containers", "count", inferredContainers[0]);
         }
         Map<String, List<CookingPotRecipe>> newSortedCustomRecipes = new HashMap<>();
         Map<String, List<CookingPotRecipe>> newSortedCustomOnlyRecipes = new HashMap<>();
@@ -335,7 +336,7 @@ public class CookingPotRecipeManager {
                 }
             }
         }
-        I18n.logDetail("recipe", "recipe.custom_cooking_pot_loaded", "count", loadedCount);
+        I18n.logDetail(DebugCategory.RECIPE, "recipe.custom_cooking_pot_loaded", "count", loadedCount);
     }
 
     private List<CookingPotRecipe> sortedRecipeList(Map<String, CookingPotRecipe> source) {

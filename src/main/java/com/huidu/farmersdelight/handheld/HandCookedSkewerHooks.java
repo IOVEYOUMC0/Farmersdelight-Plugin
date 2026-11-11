@@ -48,6 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 /**
  * Runs handheld skewer cooking on the player entity scheduler.
@@ -471,7 +472,7 @@ public final class HandCookedSkewerHooks implements Listener {
         StartTarget target = new StartTarget(candidate.hand(), slot, candidate.stack(), candidate.rawId());
         SessionStart start = handleUse(player.getUniqueId(), target, true, false, false, false, true);
         if (start == SessionStart.REFUSED) {
-            if (plugin != null && plugin.isDebugEnabled("handheld")) {
+            if (plugin != null && plugin.isDebugEnabled(DebugCategory.HANDHELD)) {
                 plugin.getLogger().info("[handheld] use was accepted but the session did not start for " + player.getName());
             }
             return;
@@ -491,7 +492,7 @@ public final class HandCookedSkewerHooks implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
     public void onInteractObserved(PlayerInteractEvent event) {
-        if (plugin == null || !plugin.isDebugEnabled("handheld")) {
+        if (plugin == null || !plugin.isDebugEnabled(DebugCategory.HANDHELD)) {
             return;
         }
         logEntryPoint(event.getPlayer(), event.getAction(), event.getHand(), event.useInteractedBlock() == Event.Result.DENY,
@@ -531,7 +532,7 @@ public final class HandCookedSkewerHooks implements Listener {
      */
     private void reportBlocked(Player player, String reason, Supplier<String> rawId) {
         FarmersDelightPlugin owner = plugin;
-        if (owner == null || !owner.isDebugEnabled("handheld")) {
+        if (owner == null || !owner.isDebugEnabled(DebugCategory.HANDHELD)) {
             return;
         }
         owner.getLogger().info("[handheld] " + player.getName() + " right-click did not start cooking: "
@@ -595,7 +596,7 @@ public final class HandCookedSkewerHooks implements Listener {
     private String logEntryPoint(Player player, Action action, @Nullable EquipmentSlot reportedHand, boolean cancelled,
                                  @Nullable Block clickedBlock) {
         FarmersDelightPlugin owner = plugin;
-        if (owner == null || !owner.isDebugEnabled("handheld")) {
+        if (owner == null || !owner.isDebugEnabled(DebugCategory.HANDHELD)) {
             return null;
         }
         String itemId = rawHeldId(player, reportedHand);

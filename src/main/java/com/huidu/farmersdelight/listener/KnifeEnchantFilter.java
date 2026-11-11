@@ -43,6 +43,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class KnifeEnchantFilter implements Listener {
 
@@ -145,7 +146,7 @@ public final class KnifeEnchantFilter implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEnchantItem(EnchantItemEvent event) {
-        if (plugin != null && plugin.isDebugEnabled("enchant")) {
+        if (plugin != null && plugin.isDebugEnabled(DebugCategory.ENCHANT)) {
             plugin.getLogger().info("[enchant] EnchantItemEvent fired for " + event.getEnchanter().getName()
                     + " (button " + event.whichButton() + ")");
         }
@@ -513,7 +514,7 @@ public final class KnifeEnchantFilter implements Listener {
      */
     private void diagnoseIfEnchantable(Player player, ItemStack item, EnchantmentSettings.GroupId groupId,
                                        PrepareItemEnchantEvent event) {
-        if (plugin == null || !plugin.isDebugEnabled("enchant") || groupId == null) {
+        if (plugin == null || !plugin.isDebugEnabled(DebugCategory.ENCHANT) || groupId == null) {
             return;
         }
         ItemMeta meta = item.getItemMeta();

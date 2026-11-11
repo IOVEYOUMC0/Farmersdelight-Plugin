@@ -18,6 +18,7 @@ import org.joml.Vector3f;
 
 import java.util.function.Supplier;
 import java.util.Collection;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 // Owns the ItemDisplay entity visuals for each stove slot (what the items grilling on the stove look
 // like). Self-contained: depends only on the plugin (stove display config, item-display manager) and
@@ -170,13 +171,13 @@ final class StoveVisualManager {
     }
 
     private void debug(String message) {
-        if (plugin.isDebugEnabled("stove")) {
+        if (plugin.isDebugEnabled(DebugCategory.STOVE)) {
             plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", message));
         }
     }
 
     private void debug(Supplier<String> messageSupplier) {
-        if (plugin.isDebugEnabled("stove")) {
+        if (plugin.isDebugEnabled(DebugCategory.STOVE)) {
             plugin.getLogger().info(I18n.formatConsole("debug.stove", "message", messageSupplier.get()));
         }
     }

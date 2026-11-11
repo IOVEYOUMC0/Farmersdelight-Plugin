@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public final class CraftEngineStateUsageMonitor {
     private static final String FARMERS_DELIGHT_NAMESPACE = "farmersdelight:";
@@ -49,7 +50,7 @@ public final class CraftEngineStateUsageMonitor {
                 plugin.getLogger().fine(message);
             } else {
                 lastReportedUsage = usage;
-                I18n.logDetailMessage("startup", message);
+                I18n.logDetailMessage(DebugCategory.STARTUP, message);
             }
 
             if (usage.free() == 0) {

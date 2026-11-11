@@ -54,7 +54,7 @@ class MessageChannelContractTest {
         }
         assertTrue(plugin.contains("private void logReloadEvent(String key, Object... args) {"),
                 "the reporter that decides between receipt and console has to exist");
-        assertTrue(plugin.contains("if (reloadPassTimings.drivenByCommand()) { I18n.logDetail(\"reload\", key, args); }"),
+        assertTrue(plugin.contains("if (reloadPassTimings.drivenByCommand()) { I18n.logDetail(DebugCategory.RELOAD, key, args); }"),
                 "a command-started pass reports on the detail channel, which is off by default");
         assertTrue(plugin.contains("I18n.logInfo(key, args);"),
                 "a pass started elsewhere keeps its visible console line");
@@ -115,7 +115,7 @@ class MessageChannelContractTest {
         String hooks = flat(MAIN.resolve("handheld").resolve("HandCookedSkewerHooks.java"));
         assertFalse(hooks.contains("reportedBlocks"),
                 "the refusal line no longer keeps always-on dedupe state: it is a debug line like the other ones");
-        assertTrue(hooks.contains("if (owner == null || !owner.isDebugEnabled(\"handheld\")) { return; }"),
+        assertTrue(hooks.contains("if (owner == null || !owner.isDebugEnabled(DebugCategory.HANDHELD)) { return; }"),
                 "a refused right-click must not write a line while the handheld category is off");
     }
 

@@ -137,19 +137,19 @@ class StartupVersionBannerTest {
         String tools = readSource("tool/ToolRegistry.java");
         assertFalse(tools.contains("logInfo(\"plugin.tool.loaded\""),
                 "the tool count must not be a line of its own");
-        assertTrue(tools.contains("logDetail(\"startup\", \"plugin.tool.loaded\""),
+        assertTrue(tools.contains("logDetail(DebugCategory.STARTUP, \"plugin.tool.loaded\""),
                 "it stays reachable under the startup category");
 
         String plugin = readSource("FarmersDelightPlugin.java");
         assertFalse(plugin.contains("logInfo(\"plugin.config_summary\""), "the settings dump is not INFO");
-        assertTrue(plugin.contains("logDetail(\"startup\", \"plugin.config_summary\""));
+        assertTrue(plugin.contains("logDetail(DebugCategory.STARTUP, \"plugin.config_summary\""));
 
         String i18n = readSource("i18n/I18n.java");
         assertFalse(i18n.contains("logInfo(\"i18n.loaded\""), "the active locale is not a line of its own");
 
         String usage = readSource("compat/CraftEngineStateUsageMonitor.java");
         assertFalse(usage.contains("plugin.getLogger().info(message)"), "state occupancy is not INFO");
-        assertTrue(usage.contains("logDetailMessage(\"startup\""), "it stays under the startup category");
+        assertTrue(usage.contains("logDetailMessage(DebugCategory.STARTUP"), "it stays under the startup category");
     }
 
     private static String readSource(String relative) throws IOException {

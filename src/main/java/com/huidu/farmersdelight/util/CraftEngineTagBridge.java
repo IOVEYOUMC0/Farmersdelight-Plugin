@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 /**
  * Bridges the common (`c:`) tag membership declared by CraftEngine item settings into the family tag
@@ -62,7 +63,7 @@ public final class CraftEngineTagBridge {
         }
         CommonTagResolver.registerSource(SOURCE, tags);
         int members = tags.values().stream().mapToInt(List::size).sum();
-        if (plugin != null && plugin.isDebugEnabled("tags")) {
+        if (plugin != null && plugin.isDebugEnabled(DebugCategory.TAGS)) {
             plugin.getLogger().info("Bridged " + tags.size() + " CraftEngine common tags (" + members + " members)");
         }
         return members;

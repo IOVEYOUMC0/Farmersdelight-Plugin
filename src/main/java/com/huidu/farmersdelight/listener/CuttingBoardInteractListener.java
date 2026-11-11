@@ -20,6 +20,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.ApiStatus;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class CuttingBoardInteractListener implements Listener {
 
@@ -91,7 +92,7 @@ public class CuttingBoardInteractListener implements Listener {
                         }
                     }
                 })) {
-            if (plugin.isDebugEnabled("interact")) {
+            if (plugin.isDebugEnabled(DebugCategory.INTERACT)) {
                 plugin.getLogger().info(I18n.formatConsole("debug.cutting_board",
                         "message", "sneak insert rolled back after store failure"));
             }

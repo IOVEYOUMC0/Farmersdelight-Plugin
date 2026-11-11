@@ -49,6 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class SkilletManager {
 
@@ -1595,13 +1596,13 @@ public class SkilletManager {
     }
 
     private void debug(String message) {
-        if (plugin.isDebugEnabled("skillet")) {
+        if (plugin.isDebugEnabled(DebugCategory.SKILLET)) {
             plugin.getLogger().info(I18n.formatConsole("debug.skillet", "message", message));
         }
     }
 
     private void debug(Supplier<String> messageSupplier) {
-        if (plugin.isDebugEnabled("skillet")) {
+        if (plugin.isDebugEnabled(DebugCategory.SKILLET)) {
             plugin.getLogger().info(I18n.formatConsole("debug.skillet", "message", messageSupplier.get()));
         }
     }

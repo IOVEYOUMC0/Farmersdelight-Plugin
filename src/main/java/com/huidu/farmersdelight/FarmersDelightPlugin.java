@@ -24,7 +24,9 @@ import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.command.FarmersDelightCommandRegistrar;
 import com.huidu.farmersdelight.command.ReloadPassTimings;
+import com.huidu.farmersdelight.shutdown.BehaviorTeardown;
 import com.huidu.farmersdelight.shutdown.ShutdownSteps;
+import com.huidu.farmersdelight.shutdown.TeardownStep;
 import com.huidu.farmersdelight.command.ReloadTiming;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;
 import com.huidu.farmersdelight.config.ConfigLookup;
@@ -136,6 +138,7 @@ import java.util.logging.Level;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import com.huidu.farmersdelight.config.DebugCategory;
 
 public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
@@ -213,7 +216,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     void loadRecipeManagers(String logKey) {
         RecipeFileLoader.resetReportedIssues();
-        I18n.logDetail("recipe", logKey);
+        I18n.logDetail(DebugCategory.RECIPE, logKey);
         // Both loads read YAML from disk (the plugin's own files plus a scan of every CraftEngine pack's
         // farmersdelight/ directory) on the calling thread, which is a tick thread. Timed so the cost is
         // attributable: the warmup that follows reports its own number separately.
@@ -228,7 +231,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (recipeDiscoveryManager != null) {
             recipeDiscoveryManager.invalidateIndex();
         }
-        I18n.logDetail("recipe", "plugin.recipes_loaded_timing",
+        I18n.logDetail(DebugCategory.RECIPE, "plugin.recipes_loaded_timing",
                 "pot", potNanos / 1_000_000L,
                 "board", boardNanos / 1_000_000L,
                 "total", (potNanos + boardNanos) / 1_000_000L);
@@ -355,7 +358,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         datapackCoordinator = new DatapackCoordinator(this);
         if (scheduler.isFolia()) {
             // Reported as a field of the startup config summary rather than its own line.
-            I18n.logDetail("startup", "plugin.folia_scheduler");
+            I18n.logDetail(DebugCategory.STARTUP, "plugin.folia_scheduler");
         }
 
         // Build the protection facade over all installed land plugins; WorldGuard flags were already
@@ -415,7 +418,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         itemDisplayManager = new ProxyItemDisplayManager(this);
         if (itemDisplayManager.isAvailable()) {
-            I18n.logDetail("startup", "plugin.proxy_display_enabled");
+            I18n.logDetail(DebugCategory.STARTUP, "plugin.proxy_display_enabled");
         } else {
             I18n.logWarning("plugin.proxy_display_unavailable");
         }
@@ -444,7 +447,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
             try {
                 new PlaceholderApiHook(this).register();
-                I18n.logDetail("startup", "plugin.papi_bridge_registered");
+                I18n.logDetail(DebugCategory.STARTUP, "plugin.papi_bridge_registered");
             } catch (Throwable t) {
                 I18n.logWarning("plugin.papi_bridge_failed", "error", t.getMessage());
             }
@@ -463,7 +466,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         // The server already prints "Enabling FarmersDelight vX" ; the startup config and content
         // summary lines carry everything a second "enabled" line would not.
-        I18n.logDetail("startup", "plugin.enabled");
+        I18n.logDetail(DebugCategory.STARTUP, "plugin.enabled");
         enabledSuccessfully = true;
     }
 
@@ -574,13 +577,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             }
         });
 
-        runDisableStep("plugin.disable_step_cleanup_cooking_pot_block_entities", () -> CookingPotBlockBehavior.cleanupAll(!folia));
-        runDisableStep("plugin.disable_step_cleanup_cutting_board_block_entities", () -> CuttingBoardBlockBehavior.cleanupAll(!folia));
-        runDisableStep("plugin.disable_step_cleanup_stove_block_entities", StoveCookingBlockBehavior::cleanupAll);
-        runDisableStep("plugin.disable_step_cleanup_skillet_block_entities", SkilletBlockBehavior::cleanupAll);
-        runDisableStep("plugin.disable_step_cleanup_tall_crops", TallCropBlockBehavior::cleanupAll);
-        runDisableStep("plugin.disable_step_cleanup_mushroom_colonies", MushroomColonyBehavior::cleanupAll);
-        runDisableStep("plugin.disable_step_cleanup_wild_rice_blocks", WildRiceBlockBehavior::cleanupAll);
+        // One ordered plan instead of a block per behavior: the order is load-bearing and pinned by test.
+        for (TeardownStep step : BehaviorTeardown.steps(!folia)) {
+            runDisableStep(step.id(), step);
+        }
         runDisableStep("plugin.disable_step_clear_behavior_config_lists", BlockBehaviorConfigs::clear);
 
         runDisableStep("plugin.disable_step_cancel_pending_tasks", () -> {
@@ -888,7 +888,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // A full reload runs synchronously inside one tick, so on a large server it is the single biggest
         // server-thread stall the plugin causes. The split says which phase to attack; it is off unless the
         // `reload` debug category is on, so a normal server never pays for the timing itself.
-        I18n.logDetail("reload", "plugin.reload_breakdown",
+        I18n.logDetail(DebugCategory.RELOAD, "plugin.reload_breakdown",
                 "total", (System.nanoTime() - reloadStart) / 1_000_000L,
                 "config", configNanos / 1_000_000L,
                 "tools", toolsNanos / 1_000_000L,
@@ -897,7 +897,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
                 "listeners", listenersNanos / 1_000_000L);
         // The config bucket on its own does not say whether the cost is disk, merging or validation, and each
         // of those points at a different fix (read off-thread / merge fewer keys / validate fewer files).
-        I18n.logDetail("reload", "plugin.reload_breakdown_config",
+        I18n.logDetail(DebugCategory.RELOAD, "plugin.reload_breakdown_config",
                 "read", readConfigNanos / 1_000_000L,
                 "migrate", migrateNanos / 1_000_000L,
                 "validate", validateNanos / 1_000_000L,
@@ -964,9 +964,9 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             reloadPassTimings.recordAddons(addonNanos);
             // Timed separately because this work is invisible in the reloadCommon breakdown: on a server with
             // several addons it can exceed everything FarmersDelight does itself.
-            I18n.logDetail("reload", "plugin.reload_addons", "ms", addonNanos / 1_000_000L);
+            I18n.logDetail(DebugCategory.RELOAD, "plugin.reload_addons", "ms", addonNanos / 1_000_000L);
             // Now that the addon pass has landed, repeat the summary in the console with the complete split.
-            I18n.logDetail("reload", "plugin.reload_report",
+            I18n.logDetail(DebugCategory.RELOAD, "plugin.reload_report",
                     "total", reloadTotalMillis(),
                     "split", reloadTimingSummary());
         }), 1L);
@@ -1021,7 +1021,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      */
     private void logReloadEvent(String key, Object... args) {
         if (reloadPassTimings.drivenByCommand()) {
-            I18n.logDetail("reload", key, args);
+            I18n.logDetail(DebugCategory.RELOAD, key, args);
         } else {
             I18n.logInfo(key, args);
         }
@@ -1390,6 +1390,10 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return debugSettings.enabled();
     }
 
+    public boolean isDebugEnabled(DebugCategory category) {
+        return debugSettings.enabledFor(category);
+    }
+
     public boolean isDebugEnabled(String category) {
         return debugSettings.enabledFor(category);
     }
@@ -1623,7 +1627,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
      * startup debug category away.
      */
     private void logConfigSummary(String label) {
-        I18n.logDetail("startup", "plugin.config_summary",
+        I18n.logDetail(DebugCategory.STARTUP, "plugin.config_summary",
                 "label", label,
                 "scheduler", scheduler != null && scheduler.isFolia() ? "folia" : "bukkit",
                 "mode", stationSettings.interactionMode().configKey(),
