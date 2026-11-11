@@ -44,7 +44,9 @@ class KeyLocksTest {
     void theStripeCountRoundsUpToAPowerOfTwo() {
         assertEquals(1024, new KeyLocks(1000).stripeCount());
         assertEquals(1, new KeyLocks(0).stripeCount());
+        assertEquals(1, new KeyLocks(-8).stripeCount());
         assertEquals(64, new KeyLocks(64).stripeCount());
+        assertEquals(KeyLocks.MAX_STRIPES, new KeyLocks(Integer.MAX_VALUE).stripeCount());
     }
 
     @Test

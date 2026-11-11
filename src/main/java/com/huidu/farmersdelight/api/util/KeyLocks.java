@@ -18,6 +18,9 @@ public final class KeyLocks {
     /** Stripes used by the no-argument constructor. */
     public static final int DEFAULT_STRIPES = 1024;
 
+    /** Hard cap for a requested stripe count, so a typo cannot allocate millions of monitors. */
+    public static final int MAX_STRIPES = 16_384;
+
     private final Object[] monitors;
     private final Object nullMonitor = new Object();
 
@@ -25,10 +28,12 @@ public final class KeyLocks {
         this(DEFAULT_STRIPES);
     }
 
-    /** @param stripes requested monitor count, rounded up to the next power of two; values below 1 become 1 */
+    /** @param stripes requested monitor count, rounded up to the next power of two; below 1 becomes 1, above
+     *                 {@link #MAX_STRIPES} is capped at that value */
     public KeyLocks(int stripes) {
+        int target = Math.min(stripes, MAX_STRIPES);
         int size = 1;
-        while (size < stripes && size < (1 << 20)) {
+        while (size < target) {
             size <<= 1;
         }
         monitors = new Object[size];

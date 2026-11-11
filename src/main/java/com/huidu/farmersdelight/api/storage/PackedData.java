@@ -7,7 +7,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 
 /**
- * Mutable typed tree for plugin-owned data packed into an item. Values are limited to strings, integers,
+ * Mutable typed tree for plugin-owned data packed into an item. Values are limited to strings, integers, longs,
  * doubles, booleans, ItemStacks and nested trees; instances are not thread-safe.
  */
 @ApiStatus.AvailableSince("6")

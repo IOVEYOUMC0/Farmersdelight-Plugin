@@ -933,7 +933,8 @@ public final class FarmersDelightApi {
     }
 
     /**
-     * True when the calling thread owns this entity's region; always true off Folia.
+     * True when the calling thread owns this entity's region. Off Folia this answers true while the plugin is
+     * enabled, and false while it is unavailable or disabling (the call fails closed).
      *
      * <p>Use it to decide between running inline and {@link #runForEntity}: reading or writing a player's or
      * villager's state from another region's thread throws on Folia.

@@ -26,6 +26,7 @@ class ApiDocsDriftTest {
     private static final List<Path> DOC_ROOTS = List.of(
             Path.of("api-docs"),
             Path.of("wiki", "api-docs"),
+            Path.of("..", "..", "FarmersDelightPluginWiKi", "api-docs"),
             Path.of("..", "..", "FarmersdelightPluginWiKi", "api-docs"));
 
     private static final Pattern FEATURE_ROW = Pattern.compile("^\\|\\s*`([a-z0-9-]+)`\\s*\\|");

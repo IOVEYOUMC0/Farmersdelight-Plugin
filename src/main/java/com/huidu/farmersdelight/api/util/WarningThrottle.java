@@ -34,10 +34,14 @@ public final class WarningThrottle {
     /** True when a warning for this feature/world pair may be reported now; a true result starts its cooldown. */
     public synchronized boolean allow(String feature, String worldId) {
         long now = clock.getAsLong();
-        String key = feature + ":" + worldId;
+        String key = feature + "\u0000" + worldId;
         Long last = lastReported.get(key);
-        if (last != null && now - last < cooldownMillis) {
-            return false;
+        if (last != null) {
+            long elapsed = now - last;
+            // A clock jump backwards must not suppress warnings until the old timestamp is reached again.
+            if (elapsed >= 0 && elapsed < cooldownMillis) {
+                return false;
+            }
         }
         lastReported.values().removeIf(reportedAt -> now - reportedAt >= cooldownMillis);
         lastReported.put(key, now);
@@ -46,6 +50,7 @@ public final class WarningThrottle {
 
     /** Pairs currently inside their cooldown; for tests and diagnostics. */
     public synchronized int trackedKeys() {
+        lastReported.values().removeIf(reportedAt -> clock.getAsLong() - reportedAt >= cooldownMillis);
         return lastReported.size();
     }
 }

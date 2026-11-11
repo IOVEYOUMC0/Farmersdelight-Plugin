@@ -830,6 +830,7 @@ member|com.huidu.farmersdelight.api.util.KeyLocks|public KeyLocks(int stripes)
 member|com.huidu.farmersdelight.api.util.KeyLocks|public Object lockFor(String key)
 member|com.huidu.farmersdelight.api.util.KeyLocks|public int stripeCount()
 member|com.huidu.farmersdelight.api.util.KeyLocks|public static final int DEFAULT_STRIPES
+member|com.huidu.farmersdelight.api.util.KeyLocks|public static final int MAX_STRIPES
 member|com.huidu.farmersdelight.api.util.KeyLocks|public void run(String key, Runnable action)
 member|com.huidu.farmersdelight.api.util.KeyLocks|public<T>T call(String key, Supplier<T>action)
 member|com.huidu.farmersdelight.api.util.NestingGuard|public static boolean isContainerNestingHazard(ItemStack item)

@@ -15,7 +15,9 @@ import net.momirealms.craftengine.libraries.nbt.Tag;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -24,6 +26,9 @@ import java.util.Set;
  * api classes and this resolves from the plugin class loader at runtime.
  */
 public final class PackedDataCodec {
+
+    /** Marks a nested compound as a packed ItemStack instead of a sub-tree. */
+    private static final String ITEM_MARKER = "farmersdelight:packed_item";
 
     private PackedDataCodec() {
     }
@@ -83,7 +88,15 @@ public final class PackedDataCodec {
         for (Map.Entry<String, Tag> entry : tag.entrySet()) {
             Tag value = entry.getValue();
             String key = entry.getKey();
-            if (value instanceof CompoundTag compound) {
+            if (value instanceof CompoundTag compound
+                    && compound.keySet().size() == 1 && compound.get(ITEM_MARKER) != null) {
+                ItemStack stack = parseStoredItem(compound.get(ITEM_MARKER));
+                if (stack != null) {
+                    tree.values.put(key, stack);
+                } else {
+                    tree.values.put(key, fromTag(compound));
+                }
+            } else if (value instanceof CompoundTag compound) {
                 tree.values.put(key, fromTag(compound));
             } else if (value instanceof ByteTag) {
                 // NBT has no boolean: the api writes booleans as bytes and no other value as a byte.
@@ -106,11 +119,7 @@ public final class PackedDataCodec {
     static CompoundTag toTag(PackedData data) {
         CompoundTag tag = new CompoundTag();
         if (!(data instanceof Tree tree)) {
-            // The api only hands out Tree instances; store a foreign implementation as text rather than failing.
-            for (String key : data.keys()) {
-                tag.putString(key, data.string(key, ""));
-            }
-            return tag;
+            throw new IllegalArgumentException("PackedData must come from PackedStorageApi.create() or read()");
         }
         for (Map.Entry<String, Object> entry : tree.values.entrySet()) {
             Object value = entry.getValue();
@@ -120,7 +129,9 @@ public final class PackedDataCodec {
             } else if (value instanceof ItemStack stack) {
                 Tag itemTag = ItemUtils.saveBukkitItemAsTag(stack);
                 if (itemTag != null) {
-                    tag.put(key, itemTag);
+                    CompoundTag wrapper = new CompoundTag();
+                    wrapper.put(ITEM_MARKER, itemTag);
+                    tag.put(key, wrapper);
                 }
             } else if (value instanceof Boolean flag) {
                 tag.putBoolean(key, flag);
@@ -137,6 +148,16 @@ public final class PackedDataCodec {
         return tag;
     }
 
+    @Nullable
+    private static ItemStack parseStoredItem(Tag tag) {
+        try {
+            ItemStack stack = ItemUtils.parseStoredItem(tag);
+            return stack == null || stack.getType().isAir() ? null : stack.clone();
+        } catch (RuntimeException | LinkageError unreadable) {
+            return null;
+        }
+    }
+
     /** The live tree handed to callers; kept out of the api jar. */
     private static final class Tree implements PackedData {
 
@@ -149,7 +170,7 @@ public final class PackedDataCodec {
 
         @Override
         public Set<String> keys() {
-            return Set.copyOf(values.keySet());
+            return Collections.unmodifiableSet(new LinkedHashSet<>(values.keySet()));
         }
 
         @Override

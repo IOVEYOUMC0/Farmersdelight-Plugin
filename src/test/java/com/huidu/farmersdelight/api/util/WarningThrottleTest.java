@@ -41,6 +41,26 @@ class WarningThrottleTest {
     }
 
     @Test
+    void trackedKeysDropsExpiredPairsWithoutAnAllowCall() {
+        assertTrue(throttle.allow("save", "world"));
+        now.addAndGet(100L);
+        assertEquals(0, throttle.trackedKeys());
+    }
+
+    @Test
+    void aClockJumpBackwardsDoesNotSuppressForever() {
+        assertTrue(throttle.allow("save", "world"));
+        now.addAndGet(-5_000L);
+        assertTrue(throttle.allow("save", "world"), "a backwards clock must not keep the pair suppressed");
+    }
+
+    @Test
+    void featureAndWorldCannotCollideThroughTheirSeparator() {
+        assertTrue(throttle.allow("save:world", "x"));
+        assertTrue(throttle.allow("save", "world:x"));
+    }
+
+    @Test
     void zeroCooldownReportsEveryTime() {
         WarningThrottle always = new WarningThrottle(0L, now::get);
         assertTrue(always.allow("save", "world"));

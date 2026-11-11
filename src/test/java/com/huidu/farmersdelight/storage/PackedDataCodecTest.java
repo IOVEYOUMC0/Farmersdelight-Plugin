@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -58,6 +60,25 @@ class PackedDataCodecTest {
         assertEquals("brewinandchewin:beer", tank.string("fluid", null));
         assertEquals(750, tank.integer("amount", 0));
         assertFalse(tank.bool("full", true));
+    }
+
+    @Test
+    void keysKeepTheirInsertionOrder() {
+        PackedData data = PackedStorageApi.create().putInt("b", 1).putInt("a", 2).putInt("c", 3);
+        assertEquals(java.util.List.of("b", "a", "c"), java.util.List.copyOf(data.keys()));
+    }
+
+    @Test
+    void anUnreadablePackedItemFallsBackToANestedTree() {
+        CompoundTag wrapper = new CompoundTag();
+        wrapper.putString("farmersdelight:packed_item", "not-a-real-item-tag");
+        CompoundTag tag = new CompoundTag();
+        tag.put("slot", wrapper);
+
+        PackedData read = PackedDataCodec.fromTag(tag);
+
+        assertNull(read.item("slot"), "an unreadable item tag must not surface as an ItemStack");
+        assertNotNull(read.compound("slot"), "the payload is still readable as a nested tree");
     }
 
     @Test

@@ -162,7 +162,7 @@ tasks.test {
     listOf(
         file("api-docs"),
         file("wiki/api-docs"),
-        file("../../FarmersdelightPluginWiKi/api-docs"),
+        file("../../FarmersDelightPluginWiKi/api-docs"),
     ).filter { it.isDirectory }.forEach { docs ->
         inputs.dir(docs).withPropertyName("apiDocs:${docs.name}")
     }
@@ -347,6 +347,8 @@ tasks.register<Jar>("pluginJar") {
 
 configurations["apiElements"].outgoing.artifacts.clear()
 configurations["apiElements"].outgoing.artifact(tasks.named("pluginJar"))
+configurations["runtimeElements"].outgoing.artifacts.clear()
+configurations["runtimeElements"].outgoing.artifact(tasks.named("pluginJar"))
 
 // Publication that names the module for Gradle's source-dependency channel: it publishes exactly one
 // artifact, so the surface an addon gets from git is the same one it gets from the sibling checkout.
