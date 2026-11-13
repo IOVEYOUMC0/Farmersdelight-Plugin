@@ -86,7 +86,8 @@ class DebugToolsCommandTest {
     void serializationProfilingCompletesTheOperationAndBoundedDuration() {
         DebugToolsCommand command = new DebugToolsCommand(null);
         assertTrue(command.tabComplete(null, new String[]{"debugtools", ""}).contains("profile"));
-        assertEquals(List.of("serialization"),
+        assertTrue(command.tabComplete(null, new String[]{"debugtools", ""}).contains("status"));
+        assertEquals(DebugToolsCommand.PROFILE_FEATURES,
                 command.tabComplete(null, new String[]{"debugtools", "profile", ""}));
         assertEquals(List.of("200", "600", "1200"),
                 command.tabComplete(null, new String[]{"debugtools", "profile", "serialization", ""}));
@@ -138,6 +139,7 @@ class DebugToolsCommandTest {
             assertTrue(rendered.startsWith("/fd debugtools recipe place <target|all>"), rendered);
             assertTrue(language.isString("command.debug_usage_stop"));
             assertTrue(language.isString("command.debug_usage_undo"));
+            assertTrue(language.isString("command.debug_usage_status"));
         }
     }
 }

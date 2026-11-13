@@ -23,7 +23,7 @@ final class DebugProfileRunner {
         var manager = plugin.getTickManager();
         var feature = Arrays.stream(PerformanceMonitor.Feature.values())
                 .filter(value -> value.id().equals(featureId)).findFirst().orElse(null);
-        if (feature == null) {
+        if (feature == null && !"all".equals(featureId)) {
             // An addon/unknown target has no FD performance feature, so this samples every FD tick feature
             // instead. Say so up front; otherwise the numbers read as if the addon's own work was measured.
             player.sendMessage(I18n.getComponent("command.debug_test_addon_metrics", player,
@@ -44,16 +44,18 @@ final class DebugProfileRunner {
                     if (!player.isOnline()) return;
                     if (feature == PerformanceMonitor.Feature.SERIALIZATION) {
                         player.sendMessage(I18n.getComponent("command.debug_serialization_finished", player));
-                        for (var entry : snapshot.features().entrySet()) {
-                            var timing = entry.getValue();
-                            player.sendMessage(I18n.getComponent("command.stats_feature_line", player, Map.of(
-                                    "feature", I18n.get("command.stats_feature_" + entry.getKey().id(), player),
-                                    "calls", String.valueOf(timing.calls()),
-                                    "rate", String.format(Locale.ROOT, "%.1f", snapshot.elapsedNanos() <= 0 ? 0
-                                            : timing.calls() * 1_000_000_000.0 / snapshot.elapsedNanos()),
-                                    "total", millis(timing.totalNanos()), "avg", millis(timing.averageNanos()),
-                                    "p95", millis(timing.percentile(95)), "max", millis(timing.maxNanos()))));
-                        }
+                    }
+                    for (var entry : snapshot.features().entrySet()) {
+                        var timing = entry.getValue();
+                        player.sendMessage(I18n.getComponent("command.stats_feature_line", player, Map.of(
+                                "feature", I18n.get("command.stats_feature_" + entry.getKey().id(), player),
+                                "calls", String.valueOf(timing.calls()),
+                                "rate", String.format(Locale.ROOT, "%.1f", snapshot.elapsedNanos() <= 0 ? 0
+                                        : timing.calls() * 1_000_000_000.0 / snapshot.elapsedNanos()),
+                                "total", millis(timing.totalNanos()), "avg", millis(timing.averageNanos()),
+                                "p95", millis(timing.percentile(95)), "max", millis(timing.maxNanos()))));
+                    }
+                    if (feature == PerformanceMonitor.Feature.SERIALIZATION) {
                         return;
                     }
                     player.sendMessage(I18n.getComponent("command.stats_dispatch", player, Map.of(

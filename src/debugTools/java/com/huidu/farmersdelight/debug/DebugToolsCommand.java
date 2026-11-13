@@ -11,6 +11,7 @@ import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockEntity;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.manager.SkilletManager;
 import com.huidu.farmersdelight.manager.HandheldSimulation;
+import com.huidu.farmersdelight.manager.PerformanceMonitor;
 import com.huidu.farmersdelight.manager.StoveManager;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
@@ -50,6 +51,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
@@ -65,6 +67,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
+import java.util.stream.Stream;
 
 import static com.huidu.farmersdelight.debug.DebugReadOnlyCommands.REPORT_CAP;
 import static com.huidu.farmersdelight.debug.DebugArguments.clamp;
@@ -82,7 +85,10 @@ public final class DebugToolsCommand {
     private static final int DEFAULT_MAX_PLACE_COUNT = 4096;
     // Optional debug-only limit; release config intentionally omits it.
     private static final String CONFIG_MAX_PLACE_COUNT = "debug-tools.max-place-count";
-    private static final List<String> ACTIONS = List.of("test", "profile", "place", "activate", "undo", "stop", "inspect", "item", "recipe", "i18n");
+    private static final List<String> ACTIONS = List.of("status", "test", "profile", "place", "activate", "undo",
+            "stop", "inspect", "item", "recipe", "i18n");
+    static final List<String> PROFILE_FEATURES = Stream.concat(Stream.of("all"),
+            Arrays.stream(PerformanceMonitor.Feature.values()).map(PerformanceMonitor.Feature::id)).toList();
     private static final List<String> TARGETS = List.of("cooking_pot", "skillet", "stove", "stove_blocked",
             "cutting_board", "basket");
     // Stations a single recipe can be set up on; a recipe's own type decides which one is placed.
@@ -112,8 +118,14 @@ public final class DebugToolsCommand {
     }
 
     public void execute(CommandSender sender, String label, String[] args) {
+        // Status is the only read-only action that is also useful from the console (no player scheduler);
+        // every other debug action needs the acting player.
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(I18n.getComponent("command.player_only"));
+            if (args.length >= 2 && "status".equals(normalize(args[1]))) {
+                DebugStatusReport.print(plugin, sender);
+            } else {
+                sender.sendMessage(I18n.getComponent("command.player_only"));
+            }
             return;
         }
         if (args.length < 2) {
@@ -122,6 +134,7 @@ public final class DebugToolsCommand {
         }
 
         switch (normalize(args[1])) {
+            case "status" -> DebugStatusReport.print(plugin, player);
             case "test" -> test(player, args);
             case "profile" -> profile(player, args);
             case "place" -> place(player, args);
@@ -146,10 +159,13 @@ public final class DebugToolsCommand {
                 case "test" -> complete(withAll(testTargets()), args[2]);
                 case "activate" -> complete(withAll(activationTargets()), args[2]);
                 case "recipe" -> complete(List.of("place", "random", "validate"), args[2]);
-                case "profile" -> complete(List.of("serialization"), args[2]);
+                case "profile" -> complete(PROFILE_FEATURES, args[2]);
                 case "item" -> complete(List.of("offhand"), args[2]);
                 default -> List.of();
             };
+        }
+        if (args.length == 4 && "profile".equals(action) && PROFILE_FEATURES.contains(normalize(args[2]))) {
+            return complete(List.of("200", "600", "1200"), args[3]);
         }
         if ("recipe".equals(action)) {
             String operation = normalize(args[2]);
@@ -163,9 +179,6 @@ public final class DebugToolsCommand {
                 return complete(List.of("1", "4", "16", "64"), args[args.length - 1]);
             }
             return List.of();
-        }
-        if (args.length == 4 && "profile".equals(action) && "serialization".equals(normalize(args[2]))) {
-            return complete(List.of("200", "600", "1200"), args[3]);
         }
         if (args.length == 4 && (("test".equals(action) && withAll(testTargets()).contains(normalize(args[2])))
                 || ("place".equals(action) && withAll(placementTargets()).contains(normalize(args[2]))))) {
@@ -232,13 +245,14 @@ public final class DebugToolsCommand {
     }
 
     private void profile(Player player, String[] args) {
+        String feature = args.length >= 3 ? normalize(args[2]) : "";
         Integer ticks = parseOptionalInt(args, 3, 600);
-        if (args.length < 3 || args.length > 4 || !"serialization".equals(normalize(args[2]))
+        if (args.length < 3 || args.length > 4 || !PROFILE_FEATURES.contains(feature)
                 || ticks == null || ticks < 20 || ticks > 12000) {
             player.sendMessage(I18n.getComponent("command.debug_usage_profile", player));
             return;
         }
-        profiles.start(player, ticks, "serialization");
+        profiles.start(player, ticks, feature);
     }
 
     private void test(Player player, String[] args) {
@@ -1580,7 +1594,7 @@ public final class DebugToolsCommand {
     }
 
     private void sendUsage(CommandSender sender) {
-        for (String topic : List.of("test", "profile", "place", "place_recipe", "place_random", "activate",
+        for (String topic : List.of("status", "test", "profile", "place", "place_recipe", "place_random", "activate",
                 "undo", "stop", "inspect", "item", "recipe", "i18n")) {
             sender.sendMessage(I18n.getComponent("command.debug_usage_" + topic));
         }
