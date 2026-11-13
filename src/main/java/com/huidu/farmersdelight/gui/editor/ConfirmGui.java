@@ -108,4 +108,9 @@ public final class ConfirmGui extends AbstractInventoryGui implements EditorGui 
         // allocating a HashMap per slot on every render.
         return placeholders.isEmpty() ? item.createItem() : item.createItem(new HashMap<>(placeholders));
     }
+
+    @Override
+    protected boolean needsTick() {
+        return false;
+    }
 }

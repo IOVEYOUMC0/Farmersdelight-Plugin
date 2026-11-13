@@ -32,7 +32,6 @@ class StoveSlotRollbackTest {
             "farmersdelight", "manager", "StoveManager.java");
     private static final String[] COMPOSITE_EXCHANGES = {
             "public boolean handleInteract(Player player, Block block, ItemStack itemInHand)",
-            "private boolean retrieveItem(Player player, Location location, StoveData stove)",
             "private void finishCooking(Location location, StoveData stove, int slot)"};
 
     @Test
@@ -126,8 +125,8 @@ class StoveSlotRollbackTest {
     @Test
     void everyCompositeSlotExchangeRunsThroughTheRollbackSeam() throws IOException {
         String source = read(STOVE_MANAGER);
-        assertEquals(4, count(source, "applySlotStep("),
-                "the declaration plus the three composite exchanges are the only sites");
+        assertEquals(3, count(source, "applySlotStep("),
+                "the declaration plus the two remaining composite exchanges are the only sites");
         for (String signature : COMPOSITE_EXCHANGES) {
             assertTrue(methodBody(source, signature).contains("applySlotStep("),
                     signature + " must run its display, persistence and hand-over step through the seam");

@@ -52,18 +52,11 @@ public final class NourishmentEatListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
-        ItemStack item = usedItem(player, event);
-        if (item == null) {
-            return;
-        }
-        FoodProperties food = foodProperties(item);
-        boolean edible = food != null || item.getType().isEdible();
-        // Vanilla already lets always-edible foods be eaten at full hunger; lowering the bar would only churn it.
-        boolean canAlwaysEat = food != null ? food.canAlwaysEat() : metaCanAlwaysEat(item);
+        boolean enabled = plugin.getConfigBoolean(true, CONFIG_PATH);
         boolean hasNourishment = EffectManager.hasNourishment(player);
-        if (!NourishmentEatRules.shouldLower(
-                plugin.getConfigBoolean(true, CONFIG_PATH), itemUseDenied, hasNourishment, player.getFoodLevel(),
-                edible, canAlwaysEat)) {
+        // Cheap gates run before any item component/meta work: this handler sees every right click, while
+        // Nourishment + full hunger is the rare case that needs the item inspection below.
+        if (!enabled || !hasNourishment || player.getFoodLevel() < NourishmentEatRules.FULL_FOOD_LEVEL) {
             return;
         }
         // Creative is invulnerable, so Player.canEat already returns true there; only the two survival modes
@@ -72,13 +65,25 @@ public final class NourishmentEatListener implements Listener {
         if (mode != GameMode.SURVIVAL && mode != GameMode.ADVENTURE) {
             return;
         }
-
-        int original = player.getFoodLevel();
         UUID playerId = player.getUniqueId();
         // A second interaction in the same tick (main hand then off hand) already sees the lowered level.
-        if (!pendingRestore.isEmpty() && pendingRestore.containsKey(playerId)) {
+        if (pendingRestore.containsKey(playerId)) {
             return;
         }
+        ItemStack item = usedItem(player, event);
+        if (item == null) {
+            return;
+        }
+        FoodProperties food = foodProperties(item);
+        boolean edible = food != null || item.getType().isEdible();
+        // Vanilla already lets always-edible foods be eaten at full hunger; lowering the bar would only churn it.
+        boolean canAlwaysEat = food != null ? food.canAlwaysEat() : metaCanAlwaysEat(item);
+        if (!NourishmentEatRules.shouldLower(
+                enabled, itemUseDenied, hasNourishment, player.getFoodLevel(), edible, canAlwaysEat)) {
+            return;
+        }
+
+        int original = player.getFoodLevel();
         player.setFoodLevel(NourishmentEatRules.loweredFoodLevel(original));
         if (player.getFoodLevel() >= original) {
             // Another plugin cancelled the food-level change; nothing to restore.

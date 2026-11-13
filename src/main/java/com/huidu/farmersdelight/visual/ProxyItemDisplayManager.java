@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
@@ -1198,12 +1197,6 @@ public class ProxyItemDisplayManager implements ItemDisplayManager {
                 String.format("viewer pkts: spawn=%d destroy=%d update=%d total=%d (%.1f/s)",
                         vSpawn, vDestroy, vUpdate, totalPackets, totalPackets / seconds)
         );
-    }
-
-    private static void resetCounters(AtomicLong... counters) {
-        for (AtomicLong counter : counters) {
-            counter.set(0);
-        }
     }
 
     private int countByKind(boolean text) {

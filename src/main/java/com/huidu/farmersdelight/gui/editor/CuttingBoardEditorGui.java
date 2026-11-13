@@ -699,4 +699,9 @@ public final class CuttingBoardEditorGui extends AbstractInventoryGui implements
     private static double roundChance(double value) {
         return Math.round(value * 100.0) / 100.0;
     }
+
+    @Override
+    protected boolean needsTick() {
+        return false;
+    }
 }

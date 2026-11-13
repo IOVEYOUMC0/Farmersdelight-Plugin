@@ -62,6 +62,12 @@ class NourishmentEatRulesTest {
         assertFalse(listener.contains("isCancelled()"),
                 "PlayerInteractEvent#isCancelled is deprecated; the handler reads useItemInHand instead");
         assertTrue(listener.contains("useItemInHand() == Event.Result.DENY"));
+        assertTrue(listener.indexOf("EffectManager.hasNourishment(player)")
+                        < listener.indexOf("FoodProperties food = foodProperties(item)"),
+                "cheap Nourishment gate must run before item component inspection");
+        assertTrue(listener.indexOf("player.getFoodLevel() < NourishmentEatRules.FULL_FOOD_LEVEL")
+                        < listener.indexOf("FoodProperties food = foodProperties(item)"),
+                "cheap food-level gate must run before item component inspection");
 
         String registry = read("src/main/java/com/huidu/farmersdelight/ListenerRegistry.java");
         assertTrue(registry.contains("new NourishmentEatListener(plugin)"), "the handler is registered");

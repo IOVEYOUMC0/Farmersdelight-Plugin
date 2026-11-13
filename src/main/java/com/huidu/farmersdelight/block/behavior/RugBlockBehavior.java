@@ -6,8 +6,6 @@ import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.util.Direction;
 import org.bukkit.block.BlockFace;
 
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 // Shared base for ConnectedRugBlockBehavior, which derives frayed edges from same-family neighbors, and
@@ -29,18 +27,6 @@ public abstract class RugBlockBehavior extends FarmersDelightBlockBehavior {
     }
 
     // -- shared helpers ------------------------------------------------------
-
-    protected static Set<String> parseStringList(Object raw) {
-        Set<String> ids = new HashSet<>();
-        if (raw instanceof List<?> list) {
-            for (Object entry : list) {
-                if (entry != null) {
-                    ids.add(String.valueOf(entry));
-                }
-            }
-        }
-        return ids;
-    }
 
     protected static boolean matchesAnyId(ImmutableBlockState state, Set<String> ids) {
         if (state == null || state.isEmpty()) {

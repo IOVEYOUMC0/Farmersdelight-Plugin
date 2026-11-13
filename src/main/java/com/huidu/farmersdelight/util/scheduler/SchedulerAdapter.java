@@ -358,17 +358,6 @@ public final class SchedulerAdapter implements RegionDispatcher {
             }
         }
 
-        private static PluginTask regionRunRepeating(FarmersDelightPlugin plugin, World world, int chunkX, int chunkZ,
-                                                     Runnable task, long delayTicks, long periodTicks) {
-            try {
-                return wrap(Bukkit.getRegionScheduler().runAtFixedRate(plugin, world, chunkX, chunkZ,
-                        ignored -> task.run(), Math.max(1L, delayTicks), Math.max(1L, periodTicks)));
-            } catch (IllegalPluginAccessException | IllegalArgumentException failure) {
-                refused(plugin, failure);
-                return PluginTask.NOOP;
-            }
-        }
-
         private static void entityRun(FarmersDelightPlugin plugin, Entity entity, Runnable task, Runnable retired) {
             try {
                 ScheduledTask scheduled = entity.getScheduler().run(plugin, ignored -> task.run(), retired);

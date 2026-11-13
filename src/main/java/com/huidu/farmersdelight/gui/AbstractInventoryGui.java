@@ -57,6 +57,11 @@ public abstract class AbstractInventoryGui implements InventoryHolder {
     protected void onTick() {
     }
 
+    /** Editors that only render on open override this to avoid a no-op callback every GUI tick. */
+    protected boolean needsTick() {
+        return true;
+    }
+
     protected final void doOpen(Runnable afterRefresh) {
         closed = false;
 
@@ -73,7 +78,9 @@ public abstract class AbstractInventoryGui implements InventoryHolder {
         }
         player.openInventory(inventory);
 
-        GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
+        if (needsTick()) {
+            GuiTickManager.getInstance(plugin).registerCallback(player, tickCallback);
+        }
     }
 
     // ---- Required subclass hooks ----

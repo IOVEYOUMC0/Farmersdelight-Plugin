@@ -476,4 +476,9 @@ public final class TagPickerGui extends AbstractInventoryGui implements EditorGu
         copy.setAmount(1);
         return copy;
     }
+
+    @Override
+    protected boolean needsTick() {
+        return false;
+    }
 }

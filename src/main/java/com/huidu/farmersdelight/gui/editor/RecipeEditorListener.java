@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.gui.editor;
 import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.gui.GuiListenerRegistrar;
+import com.huidu.farmersdelight.gui.GuiTickManager;
 import com.huidu.farmersdelight.i18n.I18n;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -118,6 +119,12 @@ public final class RecipeEditorListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         CHAT_PROMPTS.remove(event.getPlayer().getUniqueId());
         EditorDrafts.clear(event.getPlayer().getUniqueId());
+        // If the server delivers no close event before the quit save, the editor callback would keep this
+        // GUI/inventory reachable and retry every GUI tick. Removal is idempotent with the normal close path.
+        FarmersDelightPlugin plugin = registeredPlugin;
+        if (plugin != null) {
+            GuiTickManager.getInstance(plugin).unregisterPlayer(event.getPlayer());
+        }
         // The editors carry their fabricated template on the real cursor, so quitting (or being kicked) with one
         // open would leave that copy where vanilla hands a carried stack back: a second, real item. The close
         // event covers the normal path; this covers leaving the server while the screen is still open.

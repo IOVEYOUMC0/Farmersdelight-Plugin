@@ -70,6 +70,30 @@ class BlockBreakListenerTest {
         assertTrue(source.contains("void flush(World world, Location dropLocation)"));
     }
 
+    @Test
+    void failedPotPackingFallsBackToDroppingThePlainPotAndContents() throws IOException {
+        String source = read("src/main/java/com/huidu/farmersdelight/listener/BlockBreakListener.java");
+        int packCall = source.indexOf("wrapped = packMealInto(");
+        assertTrue(packCall > 0, "the pot packing call must stay in the base-item helper");
+        int packCatch = source.indexOf("catch (Exception | LinkageError failure)", packCall);
+        assertTrue(packCatch > packCall, "a failed packing must not escape the break cleanup");
+        int plainDrop = source.indexOf("drops.drop(world, dropLocation, potItem);", packCatch);
+        assertTrue(plainDrop > packCatch, "the fallback must drop the plain pot item");
+
+        int preserve = source.indexOf("} else if (preserveContents) {");
+        int guard = source.indexOf("if (!dropCookingPotBaseItem(world, dropLocation, state, entity, drops)) {", preserve);
+        int contentsAfterFailure = source.indexOf(
+                "dropCookingPotContents(world, dropLocation, entity, drops);", guard);
+        assertTrue(guard > preserve && contentsAfterFailure > guard,
+                "the full-pack fallback must spill the contents before the entity is removed");
+
+        int parkCall = source.indexOf("parkExplodedMeal(world, pos, dropLocation, state, entity);");
+        int parkCatch = source.indexOf("catch (Exception | LinkageError failure)", parkCall);
+        int contentsAfterPark = source.indexOf("dropCookingPotContents(world, dropLocation, entity, drops);", parkCatch);
+        assertTrue(parkCatch > parkCall && contentsAfterPark > parkCatch,
+                "an explosion packing failure must still spill the other contents");
+    }
+
     private static String read(String relative) throws IOException {
         for (String prefix : new String[]{"", "FarmersDelight/"}) {
             Path path = Path.of(prefix + relative);

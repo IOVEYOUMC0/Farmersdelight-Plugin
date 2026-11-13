@@ -9,7 +9,6 @@ import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
-import net.momirealms.craftengine.bukkit.util.ItemStackUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.world.BukkitContainer;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
@@ -621,9 +620,9 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             return;
         }
         this.items[slot] = CeItemInterop.normalize(item);
-        if (this.items[slot].isEmpty()) {
-            this.nonCeOriginal[slot] = null;
-        }
+        // A third-party/automation write must not keep the previous non-CE stack as the write-back template:
+        // toBukkitPreserving would otherwise return the old item for a different item in this slot.
+        refreshNonCeOriginal(slot);
         if (!this.items[slot].isEmpty()) {
             int cappedStackSize = Math.min(this.maxStackSize, this.items[slot].maxStackSize());
             if (this.items[slot].count() > cappedStackSize) {
@@ -631,6 +630,15 @@ public final class CookingPotBlockEntityController extends BlockEntityController
             }
         }
         markDirty(slot);
+    }
+
+    private void refreshNonCeOriginal(int slot) {
+        if (this.items[slot].isEmpty()) {
+            this.nonCeOriginal[slot] = null;
+            return;
+        }
+        ItemStack bukkit = CeItemInterop.asBukkitStack(this.items[slot]);
+        this.nonCeOriginal[slot] = bukkit == null || ItemUtils.isCustomItem(bukkit) ? null : bukkit.clone();
     }
 
     @Override

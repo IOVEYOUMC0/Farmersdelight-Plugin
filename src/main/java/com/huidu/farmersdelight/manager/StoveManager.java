@@ -1,6 +1,5 @@
 package com.huidu.farmersdelight.manager;
 
-import com.huidu.farmersdelight.api.util.ItemDelivery;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.StoveCookingBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.StoveBlockEntityController;
@@ -1131,63 +1130,6 @@ public class StoveManager {
         double pz = location.getZ() + 0.5D + zOffset;
         ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, Particle.SMOKE, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
         ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, Particle.FLAME, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
-    }
-
-    private boolean retrieveItem(Player player, Location location, StoveData stove) {
-        ItemStack toReturn;
-        int slot;
-        SlotState previous;
-        // Claim the slot under the per-stove monitor: without it a concurrent tick could clear or refill the
-        // very slot this call just cloned, handing out one item twice (or none at all).
-        synchronized (stove) {
-            slot = findBestRetrievalSlot(stove);
-            if (slot < 0) {
-                return false;
-            }
-
-            ItemStack item = stove.items[slot];
-            if (item == null || item.getType().isAir()) {
-                return false;
-            }
-
-            toReturn = item.clone();
-            previous = captureSlot(stove, slot);
-            clearSlot(stove, slot);
-        }
-
-        // The hand-over is the last thing that happens: the display is dropped and the slot is written away
-        // before the item reaches the hand, so a failure in either of those puts the slot back instead of
-        // leaving the item in the stove and in the hand at the same time.
-        applySlotStep(stove, slot, previous, () -> {
-            visualManager.removeVisual(location, stove, slot);
-
-            // Mark unconditionally: with other slots still occupied the disk copy would otherwise keep the
-            // retrieved slot until the next unrelated write, and a crash would duplicate the taken item.
-            markStoveDirty(location);
-
-            if (player.getInventory().getItemInMainHand().getType().isAir()) {
-                player.getInventory().setItemInMainHand(toReturn);
-            } else {
-                ItemDelivery.giveOrDrop(player, location.clone().add(0.5, 1.0, 0.5), toReturn);
-            }
-        }, () -> repairSlotDisplay(location, stove, slot, previous));
-
-        location.getWorld().playSound(location, Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.0f);
-        return true;
-    }
-
-    private int findBestRetrievalSlot(StoveData stove) {
-        for (int i = 0; i < SLOT_COUNT; i++) {
-            if (stove.items[i] != null && !stove.items[i].getType().isAir() && stove.cookingTime[i] >= stove.maxTime[i]) {
-                return i;
-            }
-        }
-        for (int i = SLOT_COUNT - 1; i >= 0; i--) {
-            if (stove.items[i] != null && !stove.items[i].getType().isAir()) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     private String getCrackleSound(ImmutableBlockState state) {

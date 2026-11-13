@@ -102,6 +102,23 @@ public class GuiTickManager {
         }
     }
 
+    /** Defensive cleanup for a player quitting while a GUI failed to deliver its close event. */
+    public synchronized void unregisterPlayer(Player player) {
+        if (player == null) {
+            return;
+        }
+        playerTickCallbacks.entrySet().removeIf(entry -> {
+            if (player.getUniqueId().equals(entry.getValue().getUniqueId())) {
+                scheduledCallbacks.remove(entry.getKey());
+                return true;
+            }
+            return false;
+        });
+        if (getActiveCallbackCount() == 0) {
+            stop();
+        }
+    }
+
     public int getActiveCallbackCount() {
         return playerTickCallbacks.size();
     }

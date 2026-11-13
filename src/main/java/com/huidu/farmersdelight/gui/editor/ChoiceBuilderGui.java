@@ -273,4 +273,9 @@ public final class ChoiceBuilderGui extends AbstractInventoryGui implements Edit
         copy.setAmount(1);
         return copy;
     }
+
+    @Override
+    protected boolean needsTick() {
+        return false;
+    }
 }

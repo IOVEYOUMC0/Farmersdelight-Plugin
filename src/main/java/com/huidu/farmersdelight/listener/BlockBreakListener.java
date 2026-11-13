@@ -340,10 +340,18 @@ public class BlockBreakListener implements Listener {
                 // here would drop it deterministically instead. The loot cannot carry the pending meal — it is
                 // plugin-side block entity data — so it is parked for the spawned item (see onItemSpawn) while
                 // the rest of the contents, which the loot table never holds, is spilled.
-                parkExplodedMeal(world, pos, dropLocation, state, entity);
+                try {
+                    parkExplodedMeal(world, pos, dropLocation, state, entity);
+                } catch (Exception | LinkageError failure) {
+                    reportPotPackFailure(world, dropLocation, failure);
+                }
                 dropCookingPotContents(world, dropLocation, entity, drops);
             } else if (preserveContents) {
-                dropCookingPotBaseItem(world, dropLocation, state, entity, drops);
+                if (!dropCookingPotBaseItem(world, dropLocation, state, entity, drops)) {
+                    // Packing failed: the helper dropped the plain pot item, salvage the contents too before
+                    // the block entity is removed.
+                    dropCookingPotContents(world, dropLocation, entity, drops);
+                }
             } else {
                 // Contents are scattered, but the pending meal is not: it was already paid for with the
                 // ingredients and has not consumed its serving container, so it is packed into the pot item
@@ -355,26 +363,28 @@ public class BlockBreakListener implements Listener {
         CookingPotBlockBehavior.removeBlockEntity(world, pos);
     }
 
-    private void dropCookingPotBaseItem(World world, Location dropLocation, ImmutableBlockState state,
-                                        CookingPotBlockEntity entity, BreakDrops drops) {
-        dropCookingPotBaseItem(world, dropLocation, state, entity, true, drops);
+    private boolean dropCookingPotBaseItem(World world, Location dropLocation, ImmutableBlockState state,
+                                           CookingPotBlockEntity entity, BreakDrops drops) {
+        return dropCookingPotBaseItem(world, dropLocation, state, entity, true, drops);
     }
 
     /**
      * @param packAll true packs the whole pot (contents, progress, container); false packs only the pending
      *                meal plus the container it still owes, for the path that scatters the other slots.
+     * @return true when the item was dropped with its packed data; false when packing failed and only the
+     *         plain pot item was dropped, so the caller must salvage the entity contents.
      */
-    private void dropCookingPotBaseItem(World world, Location dropLocation, ImmutableBlockState state,
-                                        CookingPotBlockEntity entity, boolean packAll, BreakDrops drops) {
+    private boolean dropCookingPotBaseItem(World world, Location dropLocation, ImmutableBlockState state,
+                                           CookingPotBlockEntity entity, boolean packAll, BreakDrops drops) {
         String itemId = CustomBlockUtils.getId(state);
         ItemStack potItem = ItemUtils.createItem(itemId != null ? itemId : Constants.BLOCK_COOKING_POT);
         if (potItem == null || potItem.getType().isAir()) {
-            return;
+            return false;
         }
         potItem.setAmount(1);
         if (entity == null || !entity.hasStoredContents()) {
             drops.drop(world, dropLocation, potItem);
-            return;
+            return true;
         }
 
         CookingPotBlockBehavior behavior = state != null
@@ -382,7 +392,7 @@ public class BlockBreakListener implements Listener {
                 : CookingPotBlockBehavior.getBlockBehavior(dropLocation);
         if (behavior == null) {
             drops.drop(world, dropLocation, potItem);
-            return;
+            return true;
         }
 
         // Display the stored meal's name, serving count and a fill bar scaled to the count. Server-side can only
@@ -391,10 +401,26 @@ public class BlockBreakListener implements Listener {
         // waiting, while the partial pack reads the pending meal slot (index 6) only.
         ItemStack meal = packAll ? entity.getPackedMealDisplayItem() : entity.getPendingOutputItem();
 
-        Item wrapped = packMealInto(potItem, behavior, packAll
-                ? CookingPotBlockEntityController.saveData(entity)
-                : CookingPotBlockEntityController.savePendingMealData(entity), meal);
+        Item wrapped;
+        try {
+            wrapped = packMealInto(potItem, behavior, packAll
+                    ? CookingPotBlockEntityController.saveData(entity)
+                    : CookingPotBlockEntityController.savePendingMealData(entity), meal);
+        } catch (Exception | LinkageError failure) {
+            // Do not let a serialization failure abort the break cleanup: drop the plain pot first, then let
+            // the caller spill the entity contents instead of deleting them with the block entity.
+            reportPotPackFailure(world, dropLocation, failure);
+            drops.drop(world, dropLocation, potItem);
+            return false;
+        }
         drops.dropCeItem(world, dropLocation, wrapped);
+        return true;
+    }
+
+    private void reportPotPackFailure(World world, Location dropLocation, Throwable failure) {
+        plugin.getLogger().warning("Could not pack a cooking pot at " + world.getName() + " "
+                + dropLocation.getBlockX() + "," + dropLocation.getBlockY() + "," + dropLocation.getBlockZ()
+                + "; dropping its contents instead: " + failure.getMessage());
     }
 
     /**

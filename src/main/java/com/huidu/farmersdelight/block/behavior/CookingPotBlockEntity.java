@@ -303,21 +303,6 @@ public class CookingPotBlockEntity {
         return firstNonEmptySlot(slots) >= 0;
     }
 
-    private boolean consumeOneFromSlots(int[] slots) {
-        int slot = firstNonEmptySlot(slots);
-        if (slot < 0) {
-            return false;
-        }
-        ItemStack item = inventory[slot];
-        if (item.getAmount() > 1) {
-            item.setAmount(item.getAmount() - 1);
-            bumpInventoryVersion();
-        } else {
-            setSlot(slot, null);
-        }
-        return true;
-    }
-
     // Package-private so CookingPotCraftingHandler marks the chunk dirty after consuming ingredients.
     void syncWorldlyContainer() {
         World currentWorld = world;

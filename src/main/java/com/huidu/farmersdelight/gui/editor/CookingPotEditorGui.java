@@ -696,4 +696,9 @@ public final class CookingPotEditorGui extends AbstractInventoryGui implements E
         double seconds = ticks / 20.0;
         return String.valueOf(Math.round(seconds * 10.0) / 10.0);
     }
+
+    @Override
+    protected boolean needsTick() {
+        return false;
+    }
 }
