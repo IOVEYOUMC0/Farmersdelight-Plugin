@@ -7,17 +7,16 @@ import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.ManagerSupport;
+import com.huidu.farmersdelight.util.SoundUtils;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Registry;
 import org.bukkit.Sound;
-import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,7 +40,8 @@ class CookingPotEffectManager {
             0.05D, 0.0D, 0.025D, 0.0D, 0.02D);
 
     // Squared player-proximity radius for gating cooking-pot particle/sound broadcasts. Default 32 blocks =
-    // vanilla particle/sound range upper bound; read from cooking-pot.effects.viewer-distance on reload.
+    // vanilla particle/sound range upper bound; read from cooking-pot.effects.viewer-distance on reload. The
+    // gate is applied on each viewer's own scheduler, never on the pot's region thread.
     private static final double DEFAULT_EFFECT_VIEWER_DISTANCE = 32.0D;
     // Written in reloadConfig, read on Folia region tick threads — volatile for a happens-before edge.
     private volatile double effectViewerDistanceSquared = DEFAULT_EFFECT_VIEWER_DISTANCE * DEFAULT_EFFECT_VIEWER_DISTANCE;
@@ -55,7 +55,6 @@ class CookingPotEffectManager {
     // Per-chunk tracked-player list + budget, so pots sharing a chunk pay one getPlayersSeeingChunk lookup
     // that tick. World-keyed so identical chunk coordinates in different worlds never collide.
     private final Map<UUID, Map<Long, CookingPotFxContext>> chunkFx = new ConcurrentHashMap<>();
-    private static final ThreadLocal<List<Player>> NEARBY_VIEWER_SCRATCH = ThreadLocal.withInitial(ArrayList::new);
 
     private static final class CookingPotFxContext {
         // Bukkit tick this chunk's budget and viewer snapshot belong to. Stamped per chunk instead of
@@ -149,37 +148,23 @@ class CookingPotEffectManager {
             fx.budget.set(0);
             fx.seeing = null;
         }
-        List<Player> seeing = fx.seeing;
-        if (seeing == null) {
-            seeing = world.isChunkLoaded(chunkX, chunkZ)
+        List<Player> viewers = fx.seeing;
+        if (viewers == null) {
+            // Viewers are selected from chunk tracking only. The configured distance gate runs per viewer on
+            // that viewer's own scheduler, so the pot's region thread never reads player coordinates.
+            viewers = world.isChunkLoaded(chunkX, chunkZ)
                     ? List.copyOf(world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk())
                     : List.of();
-            fx.seeing = seeing;
+            fx.seeing = viewers;
         }
-        List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
-        nearbyViewers.clear();
-        double cx = center.getX();
-        double cy = center.getY();
-        double cz = center.getZ();
-        for (Player p : seeing) {
-            if (p.getWorld() != world) {
-                continue;
-            }
-            double dx = p.getX() - cx;
-            double dy = p.getY() - cy;
-            double dz = p.getZ() - cz;
-            if (dx * dx + dy * dy + dz * dz <= effectViewerDistanceSquared) {
-                nearbyViewers.add(p);
-            }
-        }
-        if (nearbyViewers.isEmpty()) {
+        if (viewers.isEmpty()) {
             return;
         }
         AtomicInteger chunkBudget = fx.budget;
         if (chunkBudget.get() >= cookingPotChunkEffectBudgetLimit) {
-            nearbyViewers.clear();
             return;
         }
+        double viewerDistanceSquared = effectViewerDistanceSquared;
 
         EffectSpec bubble = bubbleEffect;
         if (bubble.enabled() && random.nextFloat() < bubble.chance()
@@ -187,14 +172,14 @@ class CookingPotEffectManager {
             double x = center.getX() + (random.nextDouble() * 0.6D - 0.3D);
             double y = center.getY() + bubble.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.6D - 0.3D);
-            ManagerSupport.spawnParticleFor(
-                    plugin.scheduler(), nearbyViewers, bubble.particle(),
-                    x, y, z,
-                    bubble.count(),
-                    bubble.offsetX(),
-                    bubble.offsetY(),
-                    bubble.offsetZ(),
-                    bubble.speed()
+            ManagerSupport.runForViewerWithin(
+                    plugin.scheduler(), world, viewers, center, viewerDistanceSquared,
+                    viewer -> viewer.spawnParticle(bubble.particle(), x, y, z,
+                            bubble.count(),
+                            bubble.offsetX(),
+                            bubble.offsetY(),
+                            bubble.offsetZ(),
+                            bubble.speed(), null, false)
             );
         }
 
@@ -204,29 +189,29 @@ class CookingPotEffectManager {
             double x = center.getX() + (random.nextDouble() * 0.4D - 0.2D);
             double y = center.getY() + steam.yOffset();
             double z = center.getZ() + (random.nextDouble() * 0.4D - 0.2D);
-            ManagerSupport.spawnParticleFor(
-                    plugin.scheduler(), nearbyViewers, steam.particle(),
-                    x, y, z,
-                    steam.count(),
-                    steam.offsetX(),
-                    steam.offsetY(),
-                    steam.offsetZ(),
-                    steam.speed()
+            ManagerSupport.runForViewerWithin(
+                    plugin.scheduler(), world, viewers, center, viewerDistanceSquared,
+                    viewer -> viewer.spawnParticle(steam.particle(), x, y, z,
+                            steam.count(),
+                            steam.offsetX(),
+                            steam.offsetY(),
+                            steam.offsetZ(),
+                            steam.speed(), null, false)
             );
 
             EffectSpec secondary = secondarySteamEffect;
             if (secondary.enabled()
                     && EffectPacketBudget.tryReserve(chunkBudget, cookingPotChunkEffectBudgetLimit, 1)) {
-                ManagerSupport.spawnParticleFor(
-                        plugin.scheduler(), nearbyViewers, secondary.particle(),
-                        x,
-                        y + secondary.yOffset(),
-                        z,
-                        secondary.count(),
-                        secondary.offsetX(),
-                        secondary.offsetY(),
-                        secondary.offsetZ(),
-                        secondary.speed()
+                ManagerSupport.runForViewerWithin(
+                        plugin.scheduler(), world, viewers, center, viewerDistanceSquared,
+                        viewer -> viewer.spawnParticle(secondary.particle(), x,
+                                y + secondary.yOffset(),
+                                z,
+                                secondary.count(),
+                                secondary.offsetX(),
+                                secondary.offsetY(),
+                                secondary.offsetZ(),
+                                secondary.speed(), null, false)
                 );
             }
         }
@@ -254,11 +239,8 @@ class CookingPotEffectManager {
             if (pitchMin < pitchMax) {
                 pitch = pitchMin + random.nextFloat() * (pitchMax - pitchMin);
             }
-            playConfiguredSound(nearbyViewers, center, boilSound, volume, pitch);
+            playConfiguredSound(world, viewers, center, viewerDistanceSquared, boilSound, volume, pitch);
         }
-        // Drop the player references as soon as the emission ends: this scratch list is cached on the region
-        // thread, which outlives the players it last saw.
-        nearbyViewers.clear();
     }
 
     private String firstNonBlank(String primary, String fallback) {
@@ -343,17 +325,17 @@ class CookingPotEffectManager {
         return ResolvedSound.fromBukkit(defaultSound);
     }
 
-    private void playConfiguredSound(List<Player> viewers, Location location, ResolvedSound sound, float volume, float pitch) {
+    private void playConfiguredSound(World world, List<Player> viewers, Location location, double distanceSquared,
+                                     ResolvedSound sound, float volume, float pitch) {
+        // Each packet is sent from the viewer's own scheduler; this pot region only knows the chunk tracking.
         if (sound.bukkitSound() != null) {
-            for (Player viewer : viewers) {
-                viewer.playSound(location, sound.bukkitSound(), volume, pitch);
-            }
+            SoundUtils.playWithin(plugin.scheduler(), world, viewers, location, distanceSquared,
+                    null, sound.bukkitSound(), volume, pitch);
             return;
         }
         if (sound.soundKey() != null && !sound.soundKey().isBlank()) {
-            for (Player viewer : viewers) {
-                viewer.playSound(location, sound.soundKey(), SoundCategory.BLOCKS, volume, pitch);
-            }
+            SoundUtils.playWithin(plugin.scheduler(), world, viewers, location, distanceSquared,
+                    sound.soundKey(), null, volume, pitch);
         }
     }
 

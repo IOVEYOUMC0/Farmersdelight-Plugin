@@ -122,7 +122,11 @@ public class SkilletManager {
     private final SkilletEffectManager effectManager;
     private final Map<Location, SkilletData> skillets = new ConcurrentHashMap<>();
     private final WorldChunkLocationIndex locationIndex = new WorldChunkLocationIndex();
-    private final Set<Location> scheduledSkilletTicks = ConcurrentHashMap.newKeySet();
+    // Ten seconds in nanoseconds. The dispatch loop runs as a Folia global task, where Bukkit.getCurrentTick()
+    // throws "No currently ticking region"; the guard only needs a monotonic clock, so it uses nanoTime.
+    private static final long IN_FLIGHT_TIMEOUT_NANOS = 10_000_000_000L;
+    // Skillets whose tick is already handed to their region; the guard expires a claim whose task never ran.
+    private final InFlightGuard<Location> scheduledSkilletTicks = new InFlightGuard<>(IN_FLIGHT_TIMEOUT_NANOS);
     private final Object visualRefreshLock = new Object();
     private final Deque<SkilletData> pendingVisualRefreshes = new ArrayDeque<>();
     private final AtomicLong tickLocationsVersion = new AtomicLong();
@@ -755,6 +759,11 @@ public class SkilletManager {
             if (skillet == null) {
                 continue;
             }
+            // Folia has no runtime world unload; if a fork delivers one, only the owning region may touch
+            // this skillet's controller.
+            if (plugin.scheduler().isFolia() && !plugin.scheduler().isOwnedByCurrentRegion(location)) {
+                continue;
+            }
             // Unlike the chunk path this runs at NORMAL: CE serializes the world's chunks at
             // WorldUnloadEvent HIGHEST, after this handler. If the unload is cancelled by another plugin,
             // the first interaction re-hydrates from the snapshot via the entry-creation flush.
@@ -772,7 +781,7 @@ public class SkilletManager {
         for (Location location : locations) {
             SkilletData skillet = skillets.remove(location);
             if (skillet != null) {
-                scheduledSkilletTicks.remove(location);
+                scheduledSkilletTicks.complete(location);
                 cleanupVisual(skillet);
             }
         }
@@ -997,7 +1006,7 @@ public class SkilletManager {
         Location normalized = ManagerSupport.normalize(location);
         SkilletData removed = skillets.remove(normalized);
         if (removed != null) {
-            scheduledSkilletTicks.remove(normalized);
+            scheduledSkilletTicks.complete(normalized);
             locationIndex.remove(normalized);
             markTickLocationsDirty();
         }
@@ -1105,7 +1114,10 @@ public class SkilletManager {
             return;
         }
 
-        if (!scheduledSkilletTicks.add(location)) {
+        // The claim is released by the region task itself; the guard also expires it, so a tick the region
+        // accepted but never ran does not leave this skillet marked forever. The global task has no ticking
+        // region, so the clock is nanoTime rather than Bukkit.getCurrentTick().
+        if (!scheduledSkilletTicks.tryAdd(location, System.nanoTime())) {
             return;
         }
         try {
@@ -1113,11 +1125,11 @@ public class SkilletManager {
                 try {
                     tickSkillet(location, skillet);
                 } finally {
-                    scheduledSkilletTicks.remove(location);
+                    scheduledSkilletTicks.complete(location);
                 }
             });
         } catch (RuntimeException e) {
-            scheduledSkilletTicks.remove(location);
+            scheduledSkilletTicks.complete(location);
         }
     }
 

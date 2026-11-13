@@ -47,7 +47,8 @@ public class TickManager {
     // only refreshed every HEAT_SOURCE_CHECK_INTERVAL_TICKS; a block-below heat source rarely changes.
     private final Map<ActiveBlock, Long> heatSourceLastCheckTicks = new ConcurrentHashMap<>();
     private static final int HEAT_SOURCE_CHECK_INTERVAL_TICKS = 10;
-    private final Set<ActiveBlock> scheduledActiveBlocks = ConcurrentHashMap.newKeySet();
+    // Blocks whose pass is already handed to their region; the guard expires a claim whose task never ran.
+    private final InFlightGuard<ActiveBlock> scheduledActiveBlocks = new InFlightGuard<>();
     // Which activation each tracked block is currently on; see ActivationGenerations for why membership alone
     // is not enough to decide whether an already-submitted work pass may still run.
     private final ActivationGenerations<ActiveBlock> activeGenerations = new ActivationGenerations<>();
@@ -382,7 +383,7 @@ public class TickManager {
                     lastProcessedTicks.remove(change.block());
                     progressDisplayLastUpdateTicks.remove(change.block());
                     heatSourceLastCheckTicks.remove(change.block());
-                    scheduledActiveBlocks.remove(change.block());
+                    scheduledActiveBlocks.complete(change.block());
                 }
             }
             if (changed) {
@@ -519,7 +520,9 @@ public class TickManager {
                 // Deactivated between the snapshot being taken and this pass reaching it.
                 return;
             }
-            if (!scheduledActiveBlocks.add(activeBlock)) {
+            // The claim is released by the region task itself; the guard also expires it, so a pass the region
+            // accepted but never ran does not leave this block marked forever.
+            if (!scheduledActiveBlocks.tryAdd(activeBlock, currentTick)) {
                 return;
             }
             int chunkX = activeBlock.posKey().x() >> 4;
@@ -529,11 +532,11 @@ public class TickManager {
                     try {
                         processActiveBlockInRegion(activeBlock, world, getCurrentTick(), generation);
                     } finally {
-                        scheduledActiveBlocks.remove(activeBlock);
+                        scheduledActiveBlocks.complete(activeBlock);
                     }
             });
         } catch (RuntimeException e) {
-            scheduledActiveBlocks.remove(activeBlock);
+            scheduledActiveBlocks.complete(activeBlock);
         }
         return;
         }

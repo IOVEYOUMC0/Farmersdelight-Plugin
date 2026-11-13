@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public final class ManagerSupport {
 
@@ -120,5 +121,47 @@ public final class ManagerSupport {
             scheduler.runForEntity(viewer, () -> viewer.spawnParticle(particle, x, y, z, count,
                     offsetX, offsetY, offsetZ, extra, null, false));
         }
+    }
+
+    /**
+     * Runs one viewer effect on that viewer's own scheduler, after re-checking there that the viewer still
+     * stands within the broadcast radius. The emitting block region therefore never reads another region's
+     * player coordinates, while the per-viewer distance gate is kept.
+     */
+    public static void runForViewerWithin(SchedulerAdapter scheduler, World world, List<Player> viewers,
+                                          Location rangeCenter, double distanceSquared, Consumer<Player> effect) {
+        if (effect == null || rangeCenter == null || viewers.isEmpty()) {
+            return;
+        }
+        double x = rangeCenter.getX();
+        double y = rangeCenter.getY();
+        double z = rangeCenter.getZ();
+        for (Player viewer : viewers) {
+            // The distance read is only safe on the viewer's own scheduler; a null scheduler means the
+            // single-threaded call path.
+            if (scheduler == null) {
+                if (withinViewerRange(viewer, world, x, y, z, distanceSquared)) {
+                    effect.accept(viewer);
+                }
+            } else {
+                scheduler.runForEntity(viewer, () -> {
+                    if (withinViewerRange(viewer, world, x, y, z, distanceSquared)) {
+                        effect.accept(viewer);
+                    }
+                });
+            }
+        }
+    }
+
+    /** True when the viewer is in the broadcast world and within the squared radius of the point. */
+    static boolean withinViewerRange(Player viewer, World world, double x, double y, double z,
+                                     double distanceSquared) {
+        if (viewer.getWorld() != world) {
+            return false;
+        }
+        double dx = viewer.getX() - x;
+        double dy = viewer.getY() - y;
+        double dz = viewer.getZ() - z;
+        return dx * dx + dy * dy + dz * dz <= distanceSquared;
     }
 }

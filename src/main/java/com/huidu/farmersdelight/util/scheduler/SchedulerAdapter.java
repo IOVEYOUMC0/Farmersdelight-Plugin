@@ -24,6 +24,9 @@ public final class SchedulerAdapter implements RegionDispatcher {
     // server with more than this many tasks waiting has a disk problem rather than a burst, and holding the
     // rest would only delay the work while it keeps growing, so the pool refuses it and the caller decides.
     private static final int ASYNC_QUEUE_CAPACITY = 256;
+    // One line per session: the first unattributable dispatch identifies the caller, and a caller in a loop must
+    // not be able to flood the log.
+    private static final AtomicBoolean UNATTRIBUTABLE_LOGGED = new AtomicBoolean();
 
     private final FarmersDelightPlugin plugin;
     private final boolean folia;
@@ -74,11 +77,12 @@ public final class SchedulerAdapter implements RegionDispatcher {
     }
 
     public void runAt(Location location, Runnable task) {
-        if (location == null) {
-            run(task);
+        World world = attributableWorld(location);
+        if (world == null) {
+            refusedUnattributable("runAt");
             return;
         }
-        runAt(location.getWorld(), location.getBlockX() >> 4, location.getBlockZ() >> 4, task);
+        runAt(world, location.getBlockX() >> 4, location.getBlockZ() >> 4, task);
     }
 
     @Override
@@ -91,7 +95,11 @@ public final class SchedulerAdapter implements RegionDispatcher {
      * runs, and neither does its retired callback, so a caller that counts outstanding work has to know.
      */
     public boolean tryRunAt(World world, int chunkX, int chunkZ, Runnable task) {
-        if (!folia || world == null) {
+        if (world == null) {
+            refusedUnattributable("tryRunAt");
+            return false;
+        }
+        if (!folia) {
             run(task);
             return true;
         }
@@ -124,12 +132,12 @@ public final class SchedulerAdapter implements RegionDispatcher {
     }
 
     public void runLaterAt(Location location, Runnable task, long delayTicks) {
-        if (location == null || !folia) {
-            runLater(task, delayTicks);
+        World world = attributableWorld(location);
+        if (world == null) {
+            refusedUnattributable("runLaterAt");
             return;
         }
-        World world = location.getWorld();
-        if (world == null) {
+        if (!folia) {
             runLater(task, delayTicks);
             return;
         }
@@ -247,6 +255,30 @@ public final class SchedulerAdapter implements RegionDispatcher {
             }
         }
         return false;
+    }
+
+    /**
+     * The world a location dispatch targets, or null when the location cannot be attributed to any region: no
+     * world set, or the weakly referenced world was collected after an unload. Such a dispatch is dropped; running
+     * it on the global scheduler would execute it on a thread that does not own the location.
+     */
+    static World attributableWorld(Location location) {
+        if (location == null) {
+            return null;
+        }
+        try {
+            return location.getWorld();
+        } catch (RuntimeException unloaded) {
+            // Location.getWorld() throws IllegalArgumentException once its weak world reference was collected.
+            return null;
+        }
+    }
+
+    private void refusedUnattributable(String operation) {
+        if (UNATTRIBUTABLE_LOGGED.compareAndSet(false, true)) {
+            plugin.getLogger().fine("Dropped a " + operation + " task because its location has no attributable"
+                    + " world; an unattributable dispatch is never run on the global scheduler.");
+        }
     }
 
     private static final class NamedThreadFactory implements ThreadFactory {

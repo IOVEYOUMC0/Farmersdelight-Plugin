@@ -71,7 +71,11 @@ public class StoveManager {
     // Blocked-above freshness lives on StoveData (tick-stamp TTL + event invalidation); this constant
     // is the recheck period for non-event shape changes (pistons, falling blocks), ~30s at 20 TPS.
     private static final long BLOCKED_RECHECK_TICKS = 600L;
-    private final Set<Location> scheduledStoveTicks = ConcurrentHashMap.newKeySet();
+    // Ten seconds in nanoseconds. The dispatch loop runs as a Folia global task, where Bukkit.getCurrentTick()
+    // throws "No currently ticking region"; the guard only needs a monotonic clock, so it uses nanoTime.
+    private static final long IN_FLIGHT_TIMEOUT_NANOS = 10_000_000_000L;
+    // Stoves whose tick is already handed to their region; the guard expires a claim whose task never ran.
+    private final InFlightGuard<Location> scheduledStoveTicks = new InFlightGuard<>(IN_FLIGHT_TIMEOUT_NANOS);
     private final AtomicLong tickLocationsVersion = new AtomicLong();
     private volatile List<Location> tickLocationsSnapshot = List.of();
     private volatile long tickLocationsSnapshotVersion = -1L;
@@ -384,6 +388,11 @@ public class StoveManager {
             if (stove == null) {
                 continue;
             }
+            // Folia has no runtime world unload; if a fork delivers one, only the owning region may touch
+            // this stove's controller.
+            if (plugin.scheduler().isFolia() && !plugin.scheduler().isOwnedByCurrentRegion(location)) {
+                continue;
+            }
             // Same contract as saveAndUnloadChunk: snapshot into the controller, then drop the live entry.
             // CE serializes the world's chunks at WorldUnloadEvent HIGHEST (after this NORMAL handler and
             // its cleanup), so a removed entry without a snapshot would export nothing and wipe the data.
@@ -425,7 +434,7 @@ public class StoveManager {
             StoveData stove = stoves.remove(location);
             if (stove != null) {
                 removedAny = true;
-                scheduledStoveTicks.remove(location);
+                scheduledStoveTicks.complete(location);
                 visualManager.cleanupAllVisuals(stove);
             }
         }
@@ -628,7 +637,7 @@ public class StoveManager {
         Location normalized = ManagerSupport.normalize(location);
         StoveData removed = stoves.remove(normalized);
         if (removed != null) {
-            scheduledStoveTicks.remove(normalized);
+            scheduledStoveTicks.complete(normalized);
             locationIndex.remove(normalized);
             markTickLocationsDirty();
         }
@@ -716,7 +725,10 @@ public class StoveManager {
             return;
         }
 
-        if (!scheduledStoveTicks.add(location)) {
+        // The claim is released by the region task itself; the guard also expires it, so a tick the region
+        // accepted but never ran does not leave this stove marked forever. The global task has no ticking
+        // region, so the clock is nanoTime rather than Bukkit.getCurrentTick().
+        if (!scheduledStoveTicks.tryAdd(location, System.nanoTime())) {
             return;
         }
         try {
@@ -724,11 +736,11 @@ public class StoveManager {
                 try {
                     tickStove(location, stove);
                 } finally {
-                    scheduledStoveTicks.remove(location);
+                    scheduledStoveTicks.complete(location);
                 }
             });
         } catch (RuntimeException e) {
-            scheduledStoveTicks.remove(location);
+            scheduledStoveTicks.complete(location);
         }
     }
 

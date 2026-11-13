@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.FarmersDelightApi;
 import com.huidu.farmersdelight.api.block.FarmersDelightStation;
+import com.huidu.farmersdelight.api.block.SkilletSnapshot;
 import com.huidu.farmersdelight.api.event.FarmersDelightStationBrokenEvent;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
@@ -21,6 +22,7 @@ import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.Text;
 import com.huidu.farmersdelight.util.compat.ProtectionChecks;
+import com.huidu.farmersdelight.util.scheduler.RegionTasks;
 import com.huidu.farmersdelight.api.util.TooltipUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -131,26 +133,81 @@ public class BlockBreakListener implements Listener {
             return;
         }
         FarmersDelightStation station = StationTypes.of(state);
+        Player breaker = event.getPlayer();
+        if (breaker != null && !plugin.scheduler().isOwnedByCurrentRegion(breaker)) {
+            handleCrossRegionBreak(event, state, station, breaker);
+            return;
+        }
         if (station != null) {
-            Player breaker = event.getPlayer();
             ItemStack tool = breaker == null ? null : breaker.getInventory().getItemInMainHand();
             Bukkit.getPluginManager().callEvent(new FarmersDelightStationBrokenEvent(
                     breaker, station, event.bukkitBlock().getLocation(), tool));
         }
+        boolean creative = breaker != null && breaker.getGameMode() == GameMode.CREATIVE;
+        cleanupManagedBreak(event, state, creative);
+    }
+
+    private void cleanupManagedBreak(CustomBlockBreakEvent event, ImmutableBlockState state, boolean creative) {
+        boolean platformDrops = event.dropItems();
         if (isCookingPotBlock(state)) {
-            boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
+            boolean shouldDropItems = platformDrops && !creative;
             event.setDropItems(false);
             boolean preserveContents = plugin.isCookingPotPackContentsOnBreak();
             cleanupBlockAt(event.bukkitBlock(), state, preserveContents, shouldDropItems);
             return;
         }
         if (!isSkilletBlock(state)) {
-            cleanupBlockAt(event.bukkitBlock(), state, false, event.dropItems());
+            cleanupBlockAt(event.bukkitBlock(), state, false, platformDrops);
             return;
         }
-        boolean shouldDropItems = event.dropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
+        boolean shouldDropItems = platformDrops && !creative;
         event.setDropItems(false);
         cleanupBlockAt(event.bukkitBlock(), state, false, shouldDropItems);
+    }
+
+    // Folia only: the breaker's inventory and game mode belong to the player's scheduler, so the station event
+    // and the creative-gated drops settle one hop later; CraftEngine's removal callbacks have already dropped
+    // the plugin-side station data by then, so the cleanup itself stays synchronous.
+    private void handleCrossRegionBreak(CustomBlockBreakEvent event, ImmutableBlockState state,
+                                        FarmersDelightStation station, Player breaker) {
+        Block block = event.bukkitBlock();
+        World world = block.getWorld();
+        Location blockLocation = block.getLocation();
+        boolean platformDrops = event.dropItems();
+        CapturedBreakDrops creativeGatedDrops = platformDrops ? new CapturedBreakDrops() : null;
+        if (isCookingPotBlock(state)) {
+            event.setDropItems(false);
+            boolean preserveContents = plugin.isCookingPotPackContentsOnBreak();
+            cleanupBlockAt(block, state, preserveContents, creativeGatedDrops, platformDrops, false);
+        } else if (isSkilletBlock(state)) {
+            event.setDropItems(false);
+            cleanupBlockAt(block, state, false, creativeGatedDrops, platformDrops, false);
+        } else {
+            cleanupBlockAt(block, state, false, platformDrops, false);
+        }
+        settleBrokenStationLater(world, blockLocation, station, breaker, creativeGatedDrops);
+    }
+
+    private void settleBrokenStationLater(World world, Location blockLocation, FarmersDelightStation station,
+                                          Player breaker, CapturedBreakDrops creativeGatedDrops) {
+        plugin.scheduler().runForEntity(breaker, () -> {
+            ItemStack tool = breaker.getInventory().getItemInMainHand();
+            boolean creative = breaker.getGameMode() == GameMode.CREATIVE;
+            // On a Folia region border this event arrives one player-scheduler hop late.
+            RegionTasks.runAtLoadedChunk(plugin.scheduler(), world,
+                    blockLocation.getBlockX() >> 4, blockLocation.getBlockZ() >> 4, () -> {
+                        if (!plugin.isEnabled() || !plugin.scheduler().isOwnedByCurrentRegion(blockLocation)) {
+                            return;
+                        }
+                        if (station != null) {
+                            Bukkit.getPluginManager().callEvent(new FarmersDelightStationBrokenEvent(
+                                    breaker, station, blockLocation, tool));
+                        }
+                        if (!creative && creativeGatedDrops != null) {
+                            creativeGatedDrops.flush(world, blockLocation.clone().add(0.5, 0.5, 0.5));
+                        }
+                    });
+        });
     }
 
     private static boolean isProtectedBlock(ImmutableBlockState state) {
@@ -220,23 +277,36 @@ public class BlockBreakListener implements Listener {
         cleanupBlockAt(block, state, preserveCookingPotContents, shouldDropItems, false);
     }
 
-    private void cleanupBlockAt(Block block, ImmutableBlockState state, boolean preserveCookingPotContents, boolean shouldDropItems, boolean explosion) {
+    private void cleanupBlockAt(Block block, ImmutableBlockState state, boolean preserveCookingPotContents,
+                                boolean shouldDropItems, boolean explosion) {
+        cleanupBlockAt(block, state, preserveCookingPotContents,
+                shouldDropItems ? ImmediateBreakDrops.INSTANCE : null, shouldDropItems, explosion);
+    }
+
+    /**
+     * @param creativeGatedDrops sink for the cooking pot and skillet drops, which the breaker's game mode gates;
+     *                           null drops nothing. Cutting board and stove drops are not creative-gated and keep
+     *                           using {@code shouldDropItems}.
+     */
+    private void cleanupBlockAt(Block block, ImmutableBlockState state, boolean preserveCookingPotContents,
+                                BreakDrops creativeGatedDrops, boolean shouldDropItems, boolean explosion) {
         World world = block.getWorld();
         Location blockLocation = block.getLocation();
         Location dropLocation = blockLocation.clone().add(0.5, 0.5, 0.5);
         BlockPos pos = new BlockPos(block.getX(), block.getY(), block.getZ());
 
         if (isCookingPotBlock(state)) {
-            cleanupCookingPot(pos, world, dropLocation, state, preserveCookingPotContents, shouldDropItems, explosion);
+            cleanupCookingPot(pos, world, dropLocation, state, preserveCookingPotContents, creativeGatedDrops, explosion);
         } else if (CookingPotBlockBehavior.getBlockEntity(world, pos) != null) {
             CookingPotBlockBehavior.removeBlockEntity(world, pos);
         }
-        cleanupSkillet(blockLocation, dropLocation, shouldDropItems, explosion);
+        cleanupSkillet(blockLocation, dropLocation, creativeGatedDrops, explosion);
         cleanupCuttingBoard(pos, world, dropLocation, shouldDropItems);
         cleanupStove(blockLocation, dropLocation, shouldDropItems);
     }
 
-    private void cleanupCookingPot(BlockPos pos, World world, Location dropLocation, ImmutableBlockState state, boolean preserveContents, boolean shouldDropItems, boolean explosion) {
+    private void cleanupCookingPot(BlockPos pos, World world, Location dropLocation, ImmutableBlockState state,
+                                   boolean preserveContents, BreakDrops drops, boolean explosion) {
         // Force-close any open viewers of this pot BEFORE dropping/removing. This runs inside the
         // CustomBlockBreakEvent (and explosion) path, which removes the block entity below; the removal-lifecycle
         // close (CookingPotBlockBehavior.handleStateRemoval) would then early-return on the now-null entity and
@@ -254,8 +324,8 @@ public class BlockBreakListener implements Listener {
         if (entity == null) {
             // On explosion the block's own loot table drops the pot item (like vanilla / the keg); only the
             // player-break path (where that loot is suppressed via setDropItems(false)) drops it manually.
-            if (shouldDropItems && !explosion) {
-                dropCookingPotBaseItem(world, dropLocation, state, null);
+            if (drops != null && !explosion) {
+                dropCookingPotBaseItem(world, dropLocation, state, null, drops);
             }
             CookingPotBlockBehavior.removeBlockEntity(world, pos);
             return;
@@ -263,7 +333,7 @@ public class BlockBreakListener implements Listener {
 
         // Settle before packing so a recovered pot cannot award the same recipes again.
         entity.dropUsedRecipeExperience(dropLocation);
-        if (shouldDropItems) {
+        if (drops != null) {
             if (explosion) {
                 // The loot table drops the pot item on explosion (with its survives_explosion roll, like the
                 // mod); dropping it manually too would duplicate it, and suppressing that loot to build the item
@@ -271,22 +341,23 @@ public class BlockBreakListener implements Listener {
                 // plugin-side block entity data — so it is parked for the spawned item (see onItemSpawn) while
                 // the rest of the contents, which the loot table never holds, is spilled.
                 parkExplodedMeal(world, pos, dropLocation, state, entity);
-                dropCookingPotContents(world, dropLocation, entity);
+                dropCookingPotContents(world, dropLocation, entity, drops);
             } else if (preserveContents) {
-                dropCookingPotBaseItem(world, dropLocation, state, entity);
+                dropCookingPotBaseItem(world, dropLocation, state, entity, drops);
             } else {
                 // Contents are scattered, but the pending meal is not: it was already paid for with the
                 // ingredients and has not consumed its serving container, so it is packed into the pot item
                 // instead of being deleted or spilled without its serving container.
-                dropCookingPotBaseItem(world, dropLocation, state, entity, false);
-                dropCookingPotContents(world, dropLocation, entity);
+                dropCookingPotBaseItem(world, dropLocation, state, entity, false, drops);
+                dropCookingPotContents(world, dropLocation, entity, drops);
             }
         }
         CookingPotBlockBehavior.removeBlockEntity(world, pos);
     }
 
-    private void dropCookingPotBaseItem(World world, Location dropLocation, ImmutableBlockState state, CookingPotBlockEntity entity) {
-        dropCookingPotBaseItem(world, dropLocation, state, entity, true);
+    private void dropCookingPotBaseItem(World world, Location dropLocation, ImmutableBlockState state,
+                                        CookingPotBlockEntity entity, BreakDrops drops) {
+        dropCookingPotBaseItem(world, dropLocation, state, entity, true, drops);
     }
 
     /**
@@ -294,7 +365,7 @@ public class BlockBreakListener implements Listener {
      *                meal plus the container it still owes, for the path that scatters the other slots.
      */
     private void dropCookingPotBaseItem(World world, Location dropLocation, ImmutableBlockState state,
-                                        CookingPotBlockEntity entity, boolean packAll) {
+                                        CookingPotBlockEntity entity, boolean packAll, BreakDrops drops) {
         String itemId = CustomBlockUtils.getId(state);
         ItemStack potItem = ItemUtils.createItem(itemId != null ? itemId : Constants.BLOCK_COOKING_POT);
         if (potItem == null || potItem.getType().isAir()) {
@@ -302,7 +373,7 @@ public class BlockBreakListener implements Listener {
         }
         potItem.setAmount(1);
         if (entity == null || !entity.hasStoredContents()) {
-            world.dropItemNaturally(dropLocation, potItem);
+            drops.drop(world, dropLocation, potItem);
             return;
         }
 
@@ -310,7 +381,7 @@ public class BlockBreakListener implements Listener {
                 ? CustomBlockUtils.getBehavior(state, CookingPotBlockBehavior.class)
                 : CookingPotBlockBehavior.getBlockBehavior(dropLocation);
         if (behavior == null) {
-            world.dropItemNaturally(dropLocation, potItem);
+            drops.drop(world, dropLocation, potItem);
             return;
         }
 
@@ -323,8 +394,7 @@ public class BlockBreakListener implements Listener {
         Item wrapped = packMealInto(potItem, behavior, packAll
                 ? CookingPotBlockEntityController.saveData(entity)
                 : CookingPotBlockEntityController.savePendingMealData(entity), meal);
-        net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(world);
-        ceWorld.dropItemNaturally(new WorldPosition(ceWorld, dropLocation.getX(), dropLocation.getY(), dropLocation.getZ()), wrapped);
+        drops.dropCeItem(world, dropLocation, wrapped);
     }
 
     /**
@@ -472,7 +542,8 @@ public class BlockBreakListener implements Listener {
         return "farmersdelight:meal_" + vanillaItemId.substring("minecraft:".length());
     }
 
-    private void dropCookingPotContents(World world, Location dropLocation, CookingPotBlockEntity entity) {
+    private void dropCookingPotContents(World world, Location dropLocation, CookingPotBlockEntity entity,
+                                        BreakDrops drops) {
         var layout = entity.getLayout();
         ItemStack[] inventory = entity.getInventory();
         for (int slot = 0; slot < inventory.length; slot++) {
@@ -483,13 +554,38 @@ public class BlockBreakListener implements Listener {
             }
             ItemStack item = inventory[slot];
             if (item != null && !item.getType().isAir()) {
-                world.dropItemNaturally(dropLocation, item);
+                drops.drop(world, dropLocation, item);
             }
         }
     }
 
-    private void cleanupSkillet(Location blockLocation, Location dropLocation, boolean shouldDropItems, boolean explosion) {
-        plugin.getSkilletManager().breakSkillet(blockLocation, dropLocation, shouldDropItems, explosion);
+    private void cleanupSkillet(Location blockLocation, Location dropLocation, BreakDrops drops, boolean explosion) {
+        if (drops == null) {
+            plugin.getSkilletManager().breakSkillet(blockLocation, dropLocation, false, explosion);
+            return;
+        }
+        if (drops.capturing()) {
+            // Mirror breakSkillet's drops — the stored food and the skillet item itself — before the manager
+            // removes its tracked data; the captured sink settles them on the block's region later.
+            SkilletSnapshot snapshot = plugin.getSkilletManager().snapshot(blockLocation);
+            if (snapshot != null) {
+                ItemStack storedItem = snapshot.storedItem();
+                if (storedItem != null && !storedItem.getType().isAir()) {
+                    drops.drop(blockLocation.getWorld(), dropLocation, storedItem);
+                }
+                ItemStack skilletItem = snapshot.skilletItem();
+                ItemStack skilletDrop = skilletItem != null && !skilletItem.getType().isAir()
+                        ? skilletItem
+                        : ItemUtils.createItem(Constants.ITEM_SKILLET);
+                if (skilletDrop != null && !skilletDrop.getType().isAir()) {
+                    skilletDrop.setAmount(1);
+                    drops.drop(blockLocation.getWorld(), dropLocation, skilletDrop);
+                }
+            }
+            plugin.getSkilletManager().breakSkillet(blockLocation, dropLocation, false, explosion);
+            return;
+        }
+        plugin.getSkilletManager().breakSkillet(blockLocation, dropLocation, true, explosion);
     }
 
     private void cleanupCuttingBoard(BlockPos pos, World world, Location dropLocation, boolean shouldDropItems) {
@@ -525,5 +621,69 @@ public class BlockBreakListener implements Listener {
 
     private boolean isCookingPotBlock(ImmutableBlockState state) {
         return CustomBlockUtils.hasBehavior(state, CookingPotBlockBehavior.class);
+    }
+
+    /** Where a station break puts its drops; the captured variant defers them to the block's region. */
+    private interface BreakDrops {
+        void drop(World world, Location dropLocation, ItemStack item);
+
+        void dropCeItem(World world, Location dropLocation, Item item);
+
+        default boolean capturing() {
+            return false;
+        }
+    }
+
+    private static final class ImmediateBreakDrops implements BreakDrops {
+        private static final ImmediateBreakDrops INSTANCE = new ImmediateBreakDrops();
+
+        @Override
+        public void drop(World world, Location dropLocation, ItemStack item) {
+            world.dropItemNaturally(dropLocation, item);
+        }
+
+        @Override
+        public void dropCeItem(World world, Location dropLocation, Item item) {
+            net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(world);
+            ceWorld.dropItemNaturally(
+                    new WorldPosition(ceWorld, dropLocation.getX(), dropLocation.getY(), dropLocation.getZ()), item);
+        }
+    }
+
+    private final class CapturedBreakDrops implements BreakDrops {
+        private final List<ItemStack> items = new ArrayList<>();
+        private final List<Item> ceItems = new ArrayList<>();
+
+        @Override
+        public boolean capturing() {
+            return true;
+        }
+
+        @Override
+        public void drop(World world, Location dropLocation, ItemStack item) {
+            items.add(item);
+        }
+
+        @Override
+        public void dropCeItem(World world, Location dropLocation, Item item) {
+            ceItems.add(item);
+        }
+
+        void flush(World world, Location dropLocation) {
+            if (!plugin.isEnabled() || world == null || dropLocation == null) {
+                return;
+            }
+            for (ItemStack item : items) {
+                world.dropItemNaturally(dropLocation, item);
+            }
+            if (ceItems.isEmpty()) {
+                return;
+            }
+            net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(world);
+            for (Item item : ceItems) {
+                ceWorld.dropItemNaturally(
+                        new WorldPosition(ceWorld, dropLocation.getX(), dropLocation.getY(), dropLocation.getZ()), item);
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.block.behavior;
 
+import com.huidu.farmersdelight.api.item.FarmersDelightItems;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.RiceCropRules;
@@ -9,6 +10,7 @@ import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.block.property.Property;
 import net.momirealms.craftengine.core.block.property.type.DoubleBlockHalf;
@@ -17,11 +19,13 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.listener.RicePlantListener;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -30,7 +34,9 @@ import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.proxy.minecraft.world.level.ScheduledTickAccessProxy;
 import net.momirealms.craftengine.proxy.minecraft.world.level.material.FluidsProxy;
 
-public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
+public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior implements BonemealableBlock {
+    // Wild rice gives one plant item per successful bone meal, matching the drop count of the source mod.
+    private static final double BONEMEAL_SUCCESS_CHANCE = 0.3;
     // Vanilla's water tick delay; Fluids.WATER.getTickDelay returns this in every dimension.
     private static final int WATER_TICK_DELAY = 5;
 
@@ -38,6 +44,34 @@ public class WildRiceBlockBehavior extends FarmersDelightBlockBehavior {
     @Override
     public boolean isPathFindable(Object thisBlock, Object[] args) {
         return false;
+    }
+
+    @Override
+    public boolean isValidBonemealTarget(Object thisBlock, Object[] args) {
+        return true;
+    }
+
+    @Override
+    public boolean isBonemealSuccess(Object thisBlock, Object[] args) {
+        return ThreadLocalRandom.current().nextDouble() < BONEMEAL_SUCCESS_CHANCE;
+    }
+
+    @Override
+    public void performBonemeal(Object thisBlock, Object[] args) {
+        if (args == null || args.length < 4) {
+            return;
+        }
+        World world = CraftEngineAdapter.toWorld(args[0]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        if (world == null || pos == null) {
+            return;
+        }
+        ItemStack drop = FarmersDelightItems.create(blockDefinition.id().toString());
+        if (drop == null || drop.getType().isAir()) {
+            return;
+        }
+        Block block = world.getBlockAt(pos.x(), pos.y(), pos.z());
+        world.dropItem(block.getLocation().add(0.5, 0.5, 0.5), drop);
     }
 
     // Rice validates its own support when something changes next to it. These are the NMS hooks vanilla

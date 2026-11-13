@@ -41,11 +41,16 @@ final class WorldDataPersistence {
         if (world == null) {
             return;
         }
+        boolean folia = plugin.scheduler().isFolia();
         for (BlockPosKey posKey : CookingPotBlockBehavior.getAllBlockEntities(world).keySet()) {
-            CookingPotBlockBehavior.saveBlockEntityData(world, posKey);
+            if (mayWriteInline(folia, plugin, world, posKey)) {
+                CookingPotBlockBehavior.saveBlockEntityData(world, posKey);
+            }
         }
         for (BlockPosKey posKey : CuttingBoardBlockBehavior.getAllBlockEntities(world).keySet()) {
-            CuttingBoardBlockBehavior.saveBlockEntityData(world, posKey);
+            if (mayWriteInline(folia, plugin, world, posKey)) {
+                CuttingBoardBlockBehavior.saveBlockEntityData(world, posKey);
+            }
         }
         if (plugin.getSkilletManager() != null) {
             plugin.getSkilletManager().saveWorldData(world);
@@ -53,6 +58,21 @@ final class WorldDataPersistence {
         if (plugin.getStoveManager() != null) {
             plugin.getStoveManager().saveWorldData(world);
         }
+    }
+
+    /**
+     * A block's CraftEngine data may only be read or marked from the thread that owns its region. Folia has no
+     * runtime world unloading (CraftServer.createWorld/unloadWorld throw), so this only guards a forked or
+     * future server that delivers WorldUnloadEvent from a different region thread.
+     */
+    static boolean mayWriteInline(boolean folia, FarmersDelightPlugin plugin, World world, BlockPosKey posKey) {
+        if (!folia) {
+            return true;
+        }
+        if (plugin == null || world == null || posKey == null) {
+            return false;
+        }
+        return CustomBlockUtils.ownsBlockRegion(plugin, world, posKey.toBlockPos());
     }
 
     private static void flushCraftEngineWorldData(FarmersDelightPlugin plugin) {

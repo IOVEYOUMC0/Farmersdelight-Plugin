@@ -3,13 +3,16 @@ package com.huidu.farmersdelight.block.behavior;
 import com.huidu.farmersdelight.util.BehaviorArgParser;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import com.huidu.farmersdelight.util.ItemUtils;
+import com.huidu.farmersdelight.util.compat.CraftEngineAdapter;
 import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.SoilRuleSupport;
 import com.huidu.farmersdelight.util.SoilRuleSupport.SoilRules;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
+import net.momirealms.craftengine.bukkit.util.BlockStateUtils;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.behavior.BlockBehaviorFactory;
+import net.momirealms.craftengine.core.block.behavior.BonemealableBlock;
 import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.entity.player.InteractionResult;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -27,7 +30,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
+public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior implements BonemealableBlock {
 
     private final boolean isBoneMealTarget;
     private final double successChance;
@@ -74,7 +77,7 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         }
 
         // Vanilla consumes bone meal on a valid target; the spread itself only happens on a successful roll.
-        if (ThreadLocalRandom.current().nextDouble() < successChance) {
+        if (rollBonemealSuccess()) {
             spread(world, origin, state, player);
         }
         playBonemealEffect(world, pos.x(), pos.y(), pos.z());
@@ -83,6 +86,36 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
         }
         ItemUtils.swingHand(player, context.getHand());
         return InteractionResult.SUCCESS_AND_CANCEL;
+    }
+
+    // Dispensers and other bonemeal sources bypass useOnBlock, so the same spread is exposed through the
+    // bonemeal interface as well.
+    @Override
+    public boolean isValidBonemealTarget(Object thisBlock, Object[] args) {
+        return isBoneMealTarget;
+    }
+
+    @Override
+    public boolean isBonemealSuccess(Object thisBlock, Object[] args) {
+        return rollBonemealSuccess();
+    }
+
+    @Override
+    public void performBonemeal(Object thisBlock, Object[] args) {
+        if (args == null || args.length < 4) {
+            return;
+        }
+        World world = CraftEngineAdapter.toWorld(args[0]);
+        BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[3]).orElse(null);
+        if (world == null || pos == null || state == null || state.isEmpty()) {
+            return;
+        }
+        spread(world, world.getBlockAt(pos.x(), pos.y(), pos.z()), state, null);
+    }
+
+    private boolean rollBonemealSuccess() {
+        return ThreadLocalRandom.current().nextDouble() < successChance;
     }
 
     // Stop spreading when the 9x3x9 area contains spreadLimit identical plants.
@@ -115,7 +148,9 @@ public class WildPlantBlockBehavior extends FarmersDelightBlockBehavior {
             target = randomNeighbor(origin, random);
         }
         // Check the placement destination too; an adjacent claim may have different build permissions.
-        if (canPlaceAt(target) && ProtectionChecks.canBuild(player, target)) {
+        // The dispenser path has no player, so it has no per-player claim to consult; Paper's
+        // BlockFertilizeEvent remains the cancellation point for that path.
+        if (canPlaceAt(target) && (player == null || ProtectionChecks.canBuild(player, target))) {
             CraftEngineBlocks.place(target.getLocation(), state, false);
         }
     }

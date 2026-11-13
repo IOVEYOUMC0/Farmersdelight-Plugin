@@ -50,6 +50,11 @@ public final class PumpkinCarveListener implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
+        // Ownership before any block read: the event runs on the player's region, and a pumpkin on the other
+        // side of a region border is not the current thread's to read or carve.
+        if (!ownsRegion(block)) {
+            return;
+        }
         if (block.getType() != Material.PUMPKIN) {
             return;
         }
@@ -65,7 +70,7 @@ public final class PumpkinCarveListener implements Listener {
             return;
         }
         if (player.getGameMode() == GameMode.SPECTATOR || player.getGameMode() == GameMode.ADVENTURE
-                || !ownsRegion(block) || !ProtectionChecks.canUse(player, block, (String) null)) {
+                || !ProtectionChecks.canUse(player, block, (String) null)) {
             return;
         }
 

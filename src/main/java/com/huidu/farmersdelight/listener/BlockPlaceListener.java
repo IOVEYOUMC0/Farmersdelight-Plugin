@@ -21,6 +21,7 @@ import com.huidu.farmersdelight.storage.PackedCarrierCodec;
 import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.VanillaAdvancements;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
+import com.huidu.farmersdelight.util.scheduler.RegionTasks;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockAttemptPlaceEvent;
 import net.momirealms.craftengine.bukkit.api.event.CustomBlockPlaceEvent;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
@@ -40,6 +41,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
@@ -113,6 +115,9 @@ public class BlockPlaceListener implements Listener {
             return;
         }
 
+        // Snapshot the placed item from the event instead of the player's inventory; the custom place event that
+        // follows consumes it without reading player state from the block's region thread.
+        cachePlacedItem(player, event.getHand(), customBlockId, event.getItemInHand());
         awardForCustomBlock(player, customBlockId, event.getBlock().getLocation(), event.getItemInHand());
     }
 
@@ -120,13 +125,34 @@ public class BlockPlaceListener implements Listener {
     public void onCustomBlockPlace(CustomBlockPlaceEvent event) {
         String customBlockId = event.customBlock().id().toString();
         syncTraysAroundSupportChange(event.location());
-        ItemStack placedItem = consumePendingPlacedItem(event.player(), event.hand(), customBlockId);
-        if (placedItem == null) {
-            placedItem = event.hand() == InteractionHand.OFF_HAND
-                    ? event.player().getInventory().getItemInOffHand()
-                    : event.player().getInventory().getItemInMainHand();
+        Player player = event.player();
+        ItemStack placedItem = consumePendingPlacedItem(player, event.hand(), customBlockId);
+        if (player == null || plugin.scheduler().isOwnedByCurrentRegion(player)) {
+            if (placedItem == null && player != null) {
+                placedItem = heldItem(player, event.hand());
+            }
+            awardForCustomBlock(player, customBlockId, event.location(), placedItem);
+            return;
         }
-        awardForCustomBlock(event.player(), customBlockId, event.location(), placedItem);
+        if (placedItem != null) {
+            awardForCustomBlock(player, customBlockId, event.location(), placedItem);
+            return;
+        }
+        // Folia only: the held item belongs to the player's scheduler. Capture it there, then finish the
+        // block's region work once the placed item is known.
+        InteractionHand hand = event.hand();
+        Location blockLocation = event.location();
+        plugin.scheduler().runForEntity(player, () -> {
+            ItemStack held = heldItem(player, hand);
+            RegionTasks.runAtLoadedChunk(plugin.scheduler(), blockLocation.getWorld(),
+                    blockLocation.getBlockX() >> 4, blockLocation.getBlockZ() >> 4, () -> {
+                        if (!plugin.isEnabled()
+                                || !plugin.scheduler().isOwnedByCurrentRegion(blockLocation)) {
+                            return;
+                        }
+                        awardForCustomBlock(player, customBlockId, blockLocation, held);
+                    });
+        });
     }
 
     private void syncTraysAroundSupportChange(Location location) {
@@ -147,8 +173,14 @@ public class BlockPlaceListener implements Listener {
             event.setCancelled(true);
             return;
         }
-        
-        cacheAttemptedPlaceItem(event.player(), event.hand(), customBlockId);
+
+        Player player = event.player();
+        if (player != null && !plugin.scheduler().isOwnedByCurrentRegion(player)) {
+            // Folia only: skip the inventory snapshot here; the vanilla BlockPlaceEvent that follows supplies the
+            // same placed-item snapshot from its own item field.
+            return;
+        }
+        cacheAttemptedPlaceItem(player, event.hand(), customBlockId);
     }
 
     private static final Set<String> MUSHROOM_COLONY_IDS = Set.of(
@@ -297,18 +329,35 @@ public class BlockPlaceListener implements Listener {
         if (player == null || hand == null || customBlockId == null) {
             return;
         }
+        putPendingPlacedItem(player, hand, customBlockId, heldItem(player, hand));
+    }
 
-        ItemStack itemInHand = hand == InteractionHand.OFF_HAND
-                ? player.getInventory().getItemInOffHand()
-                : player.getInventory().getItemInMainHand();
-        if (itemInHand == null || itemInHand.getType().isAir()) {
+    private void cachePlacedItem(Player player, EquipmentSlot slot, String customBlockId, ItemStack placedItem) {
+        if (player == null || slot == null || customBlockId == null || placedItem == null) {
             return;
         }
+        putPendingPlacedItem(player, slot == EquipmentSlot.OFF_HAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND,
+                customBlockId, placedItem);
+    }
 
+    private void putPendingPlacedItem(Player player, InteractionHand hand, String customBlockId, ItemStack itemInHand) {
+        if (player == null || hand == null || customBlockId == null
+                || itemInHand == null || itemInHand.getType().isAir()) {
+            return;
+        }
         ItemStack snapshot = itemInHand.clone();
         snapshot.setAmount(1);
         pendingPlacedItems.put(new PlacedItemKey(player.getUniqueId(), hand, customBlockId), snapshot);
         ensureCleanupTask();
+    }
+
+    private static ItemStack heldItem(Player player, InteractionHand hand) {
+        if (player == null || hand == null) {
+            return null;
+        }
+        return hand == InteractionHand.OFF_HAND
+                ? player.getInventory().getItemInOffHand()
+                : player.getInventory().getItemInMainHand();
     }
 
     private ItemStack consumePendingPlacedItem(Player player, InteractionHand hand, String customBlockId) {

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public final class SoundUtils {
 
@@ -81,6 +82,31 @@ public final class SoundUtils {
                 }
             }
         }
+    }
+
+    /**
+     * Sends one sound packet per viewer from that viewer's own scheduler, after re-checking there that the
+     * viewer is still within the broadcast radius. The emitting block region never reads another region's
+     * player coordinates.
+     */
+    public static void playWithin(SchedulerAdapter scheduler, World world, List<Player> viewers, Location location,
+                                  double distanceSquared, String soundKey, Sound fallback, float volume, float pitch) {
+        if (viewers.isEmpty() || location == null) {
+            return;
+        }
+        Consumer<Player> packet;
+        if (soundKey == null || soundKey.isBlank()) {
+            packet = viewer -> viewer.playSound(location, fallback, volume, pitch);
+        } else {
+            Object resolved = resolveCached(soundKey);
+            if (resolved instanceof Sound sound) {
+                packet = viewer -> viewer.playSound(location, sound, volume, pitch);
+            } else {
+                String soundName = (String) resolved;
+                packet = viewer -> viewer.playSound(location, soundName, SoundCategory.BLOCKS, volume, pitch);
+            }
+        }
+        ManagerSupport.runForViewerWithin(scheduler, world, viewers, location, distanceSquared, packet);
     }
 
     public static void play(Player player, Location location, String soundKey, Sound fallback, SoundCategory category, float volume, float pitch) {

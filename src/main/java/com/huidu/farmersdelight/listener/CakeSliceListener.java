@@ -59,9 +59,14 @@ public final class CakeSliceListener implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
+        // Ownership before any block read: the event runs on the player's region, and a cake on the other side
+        // of a region border is not the current thread's to read or slice.
+        if (!ownsRegion(block)) {
+            return;
+        }
         Material type = block.getType();
-        // Material first: this listener sees every right-click in the world, and the CraftEngine state
-        // lookup behind isCustomBlock is the expensive part. Only cake clicks pay for it.
+        // Material next: this listener sees every right-click in the world, and the CraftEngine state lookup
+        // behind isCustomBlock is the expensive part. Only cake clicks pay for it.
         if (type != Material.CAKE && CakeSliceRules.candleFor(type) == null) {
             return;
         }
@@ -77,7 +82,7 @@ public final class CakeSliceListener implements Listener {
         }
         if (player.getGameMode() == org.bukkit.GameMode.SPECTATOR
                 || player.getGameMode() == org.bukkit.GameMode.ADVENTURE
-                || !ownsRegion(block) || !ProtectionChecks.canUse(player, block, (String) null)) {
+                || !ProtectionChecks.canUse(player, block, (String) null)) {
             return;
         }
         CakeSliceRules.Click click = new CakeSliceRules.Click(block.getWorld().getUID(), block.getX(), block.getY(),
@@ -104,7 +109,8 @@ public final class CakeSliceListener implements Listener {
             return;
         }
 
-        if (!ownsRegion(block) || !before.equals(block.getBlockData())) return;
+        // Another plugin's harvest handling may have changed the cake; only the state we inspected is sliced.
+        if (!before.equals(block.getBlockData())) return;
         if (next < 0) {
             block.setType(Material.AIR, false);
         } else if (candle != null) {
