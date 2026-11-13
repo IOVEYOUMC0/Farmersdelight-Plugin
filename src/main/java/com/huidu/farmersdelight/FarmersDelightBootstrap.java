@@ -17,17 +17,30 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public final class FarmersDelightBootstrap implements PluginBootstrap {
+    private static final String DEFAULT_PLUGIN_NAME = "FarmersDelight";
+
     @Override
     public void bootstrap(BootstrapContext context) {
+        String pluginName = context.getPluginMeta().getName();
         context.getLifecycleManager().registerEventHandler(LifecycleEvents.DATAPACK_DISCOVERY, event -> {
             try {
-                prepare(context.getDataDirectory(), ServerBuildInfo.buildInfo().minecraftVersionId(), event.registrar());
-            } catch (Exception failure) {
+                Map<String, String> discovered = prepare(context.getDataDirectory(),
+                        ServerBuildInfo.buildInfo().minecraftVersionId(), event.registrar(), pluginName);
+                if (!discovered.isEmpty()) {
+                    StringBuilder summary = new StringBuilder();
+                    discovered.forEach((pack, id) -> {
+                        if (!summary.isEmpty()) summary.append(", ");
+                        summary.append(id);
+                    });
+                    context.getLogger().info("FarmersDelight datapacks discovered: " + summary);
+                }
+            } catch (Exception | LinkageError failure) {
                 // Registry data is prepared before the plugin enables, so throwing here prevents the whole
                 // server from starting. Report the exact failure and let the server boot; onEnable validates
                 // the same files again and disables only this plugin if they are still unusable.
@@ -38,7 +51,13 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
         });
     }
 
-    static void prepare(Path directory, String version, DatapackRegistrar registrar) throws Exception {
+    /** Test/compatibility overload: the bootstrap path always passes the real plugin name. */
+    static Map<String, String> prepare(Path directory, String version, DatapackRegistrar registrar) throws Exception {
+        return prepare(directory, version, registrar, DEFAULT_PLUGIN_NAME);
+    }
+
+    static Map<String, String> prepare(Path directory, String version, DatapackRegistrar registrar,
+                                       String pluginName) throws Exception {
         YamlConfiguration config = DatapackSupport.startupConfiguration(directory.resolve("config.yml"),
                 FarmersDelightBootstrap.class.getResourceAsStream("/config.yml"));
         boolean tagsEnabled = config.getBoolean("datapacks.tags-enabled", true);
@@ -50,6 +69,7 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
         boolean tagsPrepared = false;
         boolean enchantsPrepared = false;
         boolean damagePrepared = false;
+        Map<String, String> discovered = new LinkedHashMap<>();
         // Each pack is prepared on its own: a broken file in one of them used to abort this whole method, so
         // the other two packs were never written for that boot (and the failure surfaced as one ERROR line).
         if (tagsEnabled) {
@@ -73,7 +93,7 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
                             "Invalid common tag references: " + problems);
                 }
                 tagsPrepared = true;
-            } catch (Exception tagFailure) {
+            } catch (Exception | LinkageError tagFailure) {
                 reportPackFailure("tags", tagFailure);
             }
         }
@@ -83,7 +103,7 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
                         DatapackSupport.managedPack(directory, FarmersDelightDatapacks.ENCHANT_PACK),
                         EnchantmentSettings.load(config.getConfigurationSection("enchantments")), version);
                 enchantsPrepared = true;
-            } catch (Exception enchantFailure) {
+            } catch (Exception | LinkageError enchantFailure) {
                 reportPackFailure("enchantments", enchantFailure);
             }
         }
@@ -94,29 +114,50 @@ public final class FarmersDelightBootstrap implements PluginBootstrap {
                         DatapackSupport.managedPack(directory, FarmersDelightDatapacks.DAMAGE_PACK),
                         "FarmersDelight damage types", version);
                 damagePrepared = true;
-            } catch (Exception damageFailure) {
+            } catch (Exception | LinkageError damageFailure) {
                 reportPackFailure("damage types", damageFailure);
             }
         }
         // One discover failure must not stop the other two packs from being discovered.
         try {
             DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.TAG_PACK, tagsPrepared);
-        } catch (Exception discoverFailure) {
+            recordDiscovery(registrar, pluginName, FarmersDelightDatapacks.TAG_PACK, tagsPrepared, discovered);
+        } catch (Exception | LinkageError discoverFailure) {
             reportPackFailure("tags (discovery)", discoverFailure);
         }
         try {
             DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.ENCHANT_PACK, enchantsPrepared);
-        } catch (Exception discoverFailure) {
+            recordDiscovery(registrar, pluginName, FarmersDelightDatapacks.ENCHANT_PACK, enchantsPrepared, discovered);
+        } catch (Exception | LinkageError discoverFailure) {
             reportPackFailure("enchantments (discovery)", discoverFailure);
         }
         try {
             DatapackSupport.discoverPack(registrar, directory, FarmersDelightDatapacks.DAMAGE_PACK, damagePrepared);
-        } catch (Exception discoverFailure) {
+            recordDiscovery(registrar, pluginName, FarmersDelightDatapacks.DAMAGE_PACK, damagePrepared, discovered);
+        } catch (Exception | LinkageError discoverFailure) {
             reportPackFailure("damage types (discovery)", discoverFailure);
+        }
+        return discovered;
+    }
+
+    private static void recordDiscovery(DatapackRegistrar registrar, String pluginName, String name,
+                                        boolean prepared, Map<String, String> discovered) {
+        if (!prepared) {
+            return;
+        }
+        String own = pluginName + "/" + name;
+        if (registrar.hasPackDiscovered(own)) {
+            discovered.put(name, own);
+            return;
+        }
+        // The legacy world-folder pack is not yet migrated and stays visible for this boot.
+        String legacy = "file/" + name;
+        if (registrar.hasPackDiscovered(legacy)) {
+            discovered.put(name, legacy);
         }
     }
 
-    private static void reportPackFailure(String pack, Exception failure) {
+    private static void reportPackFailure(String pack, Throwable failure) {
         System.getLogger(FarmersDelightBootstrap.class.getName()).log(System.Logger.Level.ERROR,
                 "Could not prepare the FarmersDelight " + pack + " datapack; the other packs are unaffected: "
                         + failure.getMessage(), failure);

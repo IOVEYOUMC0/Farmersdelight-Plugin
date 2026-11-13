@@ -64,7 +64,10 @@ class FarmersDelightBootstrapTest {
     @Test
     void firstInstallLoadsAllDefinitionsAndDistributionTagsWithoutBukkit() throws Exception {
         Discovery discovery = new Discovery();
-        FarmersDelightBootstrap.prepare(directory, "1.21.5", discovery.registrar());
+        var discovered = FarmersDelightBootstrap.prepare(directory, "1.21.5", discovery.registrar());
+        assertEquals("FarmersDelight/farmersdelight_tags", discovered.get("farmersdelight_tags"));
+        assertEquals("FarmersDelight/farmersdelight_enchant", discovered.get("farmersdelight_enchant"));
+        assertEquals("FarmersDelight/farmersdelight_damage", discovered.get("farmersdelight_damage"));
         assertEquals(Set.of("farmersdelight_tags", "farmersdelight_enchant", "farmersdelight_damage"), discovery.added);
         Path enchants = directory.resolve("datapacks/farmersdelight_enchant");
         assertTrue(Files.isRegularFile(enchants.resolve("data/farmersdelight/enchantment/backstabbing.json")));
@@ -230,10 +233,23 @@ class FarmersDelightBootstrapTest {
         assertTrue(Files.exists(directory.resolve("datapacks")), "the other managed packs are still prepared");
     }
 
+    @Test
+    void linkageErrorInOnePackDoesNotStopTheOthers() throws Exception {
+        Discovery discovery = new Discovery();
+        discovery.throwLinkageOn.add("farmersdelight_tags");
+        var discovered = assertDoesNotThrow(
+                () -> FarmersDelightBootstrap.prepare(directory, "26.2", discovery.registrar()));
+        assertFalse(discovered.containsKey("farmersdelight_tags"));
+        assertEquals("FarmersDelight/farmersdelight_enchant", discovered.get("farmersdelight_enchant"));
+        assertEquals("FarmersDelight/farmersdelight_damage", discovered.get("farmersdelight_damage"));
+    }
+
     static final class Discovery {
         final Set<String> added = new HashSet<>();
         final List<String> removed = new ArrayList<>();
         final Set<String> legacy = new HashSet<>();
+        final Set<String> discoveredPackIds = new HashSet<>();
+        final Set<String> throwLinkageOn = new HashSet<>();
         int autoEnabled;
 
         DatapackRegistrar registrar() {
@@ -241,11 +257,20 @@ class FarmersDelightBootstrapTest {
                     (proxy, method, args) -> {
                         if (method.getName().equals("removeDiscoveredPack")) {
                             removed.add((String) args[0]);
+                            discoveredPackIds.remove(args[0]);
                             return legacy.remove(args[0]);
                         }
-                        if (method.getName().equals("hasPackDiscovered")) return legacy.contains(args[0]);
+                        if (method.getName().equals("hasPackDiscovered")) {
+                            return legacy.contains(args[0]) || discoveredPackIds.contains(args[0]);
+                        }
                         if (method.getName().equals("discoverPack")) {
-                            added.add((String) args[1]);
+                            String name = (String) args[1];
+                            if (throwLinkageOn.contains(name)) {
+                                throw new NoClassDefFoundError("simulated missing datapack API type");
+                            }
+                            added.add(name);
+                            String fullId = "FarmersDelight/" + name;
+                            discoveredPackIds.add(fullId);
                             DatapackRegistrar.Configurer options = (DatapackRegistrar.Configurer) Proxy.newProxyInstance(
                                     getClass().getClassLoader(), new Class<?>[]{DatapackRegistrar.Configurer.class},
                                     (config, setting, values) -> {
@@ -256,7 +281,7 @@ class FarmersDelightBootstrapTest {
                             Consumer<DatapackRegistrar.Configurer> configure = (Consumer<DatapackRegistrar.Configurer>) args[2];
                             configure.accept(options);
                             return Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{DiscoveredDatapack.class},
-                                    (result, accessor, values) -> accessor.getName().equals("getName") ? args[1] : null);
+                                    (result, accessor, values) -> accessor.getName().equals("getName") ? fullId : null);
                         }
                         throw new UnsupportedOperationException(method.getName());
                     });
