@@ -13,6 +13,7 @@ import com.huidu.farmersdelight.api.event.ProfessionCookingExperienceEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
@@ -266,17 +267,49 @@ final class CuttingBoardCutter {
 
         Location effectLocation = posKey.toLocation(world).add(0.5, 0.1, 0.5);
         // Priority: the recipe's own sound, then the tool table (shears shear, knives cut), then the
-        // configured fallback. A recipe that names a sound always wins, so this only fills the gap.
+        // ingredient's own block break sound, then the configured fallback. A recipe that names a sound
+        // always wins, so the later steps only fill the gap.
         String recipeSound = recipe.getSound();
         if (recipeSound != null && !recipeSound.isBlank()) {
             SoundUtils.play(world, effectLocation, recipeSound, Sound.BLOCK_WOOD_BREAK, 1.0f, 1.0f);
         } else {
             CuttingBoardSounds sounds = plugin.getCuttingBoardSounds();
-            ToolSoundTable.Entry entry = sounds.resolve(tool);
-            SoundUtils.play(world, effectLocation, entry.soundKey(), Sound.BLOCK_WOOD_BREAK,
-                    entry.volume(), entry.pitch());
+            ToolSoundTable.Entry toolEntry = sounds.matchTool(tool);
+            if (toolEntry != null) {
+                SoundUtils.play(world, effectLocation, toolEntry.soundKey(), Sound.BLOCK_WOOD_BREAK,
+                        toolEntry.volume(), toolEntry.pitch());
+            } else {
+                Sound ingredientSound = ingredientBreakSound(storedItem);
+                if (ingredientSound != null) {
+                    SoundUtils.play(world, effectLocation, null, ingredientSound, 1.0f, 0.8f);
+                } else {
+                    ToolSoundTable.Entry fallback = sounds.fallback();
+                    SoundUtils.play(world, effectLocation, fallback.soundKey(), Sound.BLOCK_WOOD_BREAK,
+                            fallback.volume(), fallback.pitch());
+                }
+            }
         }
         world.spawnParticle(Particle.ITEM, effectLocation, 5, 0.1, 0.1, 0.1, 0.0, storedItem);
+    }
+
+    /**
+     * The break sound of the ingredient's block, matching the upstream board's third sound tier. Custom items
+     * without a block form have none, and a server that cannot build the block data simply falls through to
+     * the configured fallback.
+     */
+    private static Sound ingredientBreakSound(ItemStack storedItem) {
+        if (storedItem == null) {
+            return null;
+        }
+        Material type = storedItem.getType();
+        if (type.isAir() || !type.isBlock()) {
+            return null;
+        }
+        try {
+            return type.createBlockData().getSoundGroup().getBreakSound();
+        } catch (RuntimeException unsupported) {
+            return null;
+        }
     }
 
     private void spawnItemEntity(World world, BlockPosKey posKey, ItemStack item, BlockFace facing) {

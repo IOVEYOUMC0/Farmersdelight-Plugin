@@ -119,17 +119,11 @@ public class AdvancementManager {
             // Crafting/smithing exactly farmersdelight:netherite_knife.
             node("obtain_netherite_knife", "use_cutting_board", "farmersdelight:netherite_knife", Material.NETHERITE_SWORD, AdvancementFrameType.CHALLENGE, 3, 7,
                     ContentRequirement.anyItem(Constants.ITEM_NETHERITE_KNIFE)).experience(200),
-            // Crafting or picking up the compost item.
-            node("get_organic_compost", "harvest_straw", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 3, 6,
-                    ContentRequirement.anyItem(Constants.ITEM_ORGANIC_COMPOST)),
             // Placing any block carrying OrganicCompostBlockBehavior.
-            node("place_organic_compost", "get_organic_compost", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 4, 6),
+            node("place_organic_compost", "harvest_straw", "farmersdelight:organic_compost", Material.DIRT, AdvancementFrameType.TASK, 4, 6),
             // Picking up the rich soil item.
             node("get_rich_soil", "place_organic_compost", "farmersdelight:rich_soil", Material.DIRT, AdvancementFrameType.GOAL, 5, 6,
-                    ContentRequirement.anyItem(Constants.ITEM_RICH_SOIL)),
-            // RichSoilHoeListener places the farmland block and bails out when it is not registered.
-            node("hoe_rich_soil", "get_rich_soil", "farmersdelight:rich_soil_farmland", Material.FARMLAND, AdvancementFrameType.CHALLENGE, 6, 6,
-                    ContentRequirement.anyBlock(Constants.BLOCK_RICH_SOIL_FARMLAND)));
+                    ContentRequirement.anyItem(Constants.ITEM_RICH_SOIL)));
 
     private final FarmersDelightPlugin plugin;
     private final Map<String, Advancement> byId = new ConcurrentHashMap<>();

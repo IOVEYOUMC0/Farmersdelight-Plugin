@@ -1,7 +1,6 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.block.behavior.RichSoilBlockBehavior;
 import com.huidu.farmersdelight.util.Constants;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
@@ -69,10 +68,6 @@ public final class RichSoilHoeListener implements Listener {
                 Sound.ITEM_HOE_TILL, 1.0F, 1.0F);
         if (player.getGameMode() != GameMode.CREATIVE && item.getType() != Material.AIR) {
             item.damage(1, player);
-        }
-        AdvancementManager am = plugin.getAdvancementManager();
-        if (am != null) {
-            am.award(player, "hoe_rich_soil");
         }
     }
 }

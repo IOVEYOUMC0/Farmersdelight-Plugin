@@ -164,7 +164,6 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: has_player
-            - type: farmersdelight:is_adult
             - type: farmersdelight:is_knife
             - type: inverted
               terms:
@@ -191,7 +190,6 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: has_player
-            - type: farmersdelight:is_adult
             - type: farmersdelight:is_knife
             - type: farmersdelight:is_burning
             - type: table_bonus
@@ -216,7 +214,6 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: has_player
-            - type: farmersdelight:is_adult
             - type: farmersdelight:is_knife
             - type: inverted
               terms:
@@ -236,7 +233,6 @@ vanilla_loots:
         - rolls: 1
           conditions:
             - type: has_player
-            - type: farmersdelight:is_adult
             - type: farmersdelight:is_knife
             - type: farmersdelight:is_burning
           entries:

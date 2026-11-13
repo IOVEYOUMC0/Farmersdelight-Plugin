@@ -107,9 +107,6 @@ public class AchievementListener implements Listener {
             // EntityPickupItemEvent runs before the item enters the player's inventory.
             am.award(player, "get_mushroom_colony");
         }
-        if (Constants.ITEM_ORGANIC_COMPOST.equals(pickedId)) {
-            am.award(player, "get_organic_compost");
-        }
         if (Constants.ITEM_RICH_SOIL.equals(pickedId)) {
             am.award(player, "get_rich_soil");
         }
@@ -166,10 +163,6 @@ public class AchievementListener implements Listener {
         if (customItemId.equals(Constants.ITEM_SMOKED_HAM) ||
                 customItemId.equals(Constants.ITEM_HAM)) {
             am.award(player, "get_ham");
-        }
-
-        if (customItemId.equals(Constants.ITEM_ORGANIC_COMPOST)) {
-            am.award(player, "get_organic_compost");
         }
 
         if (customItemId.equals(Constants.BLOCK_BROWN_MUSHROOM_COLONY)

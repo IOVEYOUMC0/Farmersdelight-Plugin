@@ -66,6 +66,30 @@ public class OrganicCompostBlockBehavior extends FarmersDelightBlockBehavior imp
         this.config = config;
     }
 
+    /**
+     * Comparator signal for the configured stage range, mirroring the upstream block: a fresh heap reads
+     * maxStage + 1 and the last stage before rich soil reads 1. Clamped to the vanilla 1..15 output range.
+     */
+    static int signalFor(int maxStage, int stage) {
+        int clampedMax = Math.max(0, maxStage);
+        int clampedStage = Math.min(Math.max(0, stage), clampedMax);
+        return Math.min(15, Math.max(1, clampedMax + 1 - clampedStage));
+    }
+
+    @Override
+    public boolean hasAnalogOutputSignal(Object thisBlock, Object[] args) {
+        return true;
+    }
+
+    @Override
+    public int getAnalogOutputSignal(Object thisBlock, Object[] args) {
+        if (args.length == 0) return 0;
+        ImmutableBlockState state = BlockStateUtils.getOptionalCustomBlockState(args[0]).orElse(null);
+        if (state == null || state.isEmpty()) return 0;
+        Integer stage = state.get(config.compostingProperty());
+        return stage == null ? 0 : signalFor(config.maxStage(), stage);
+    }
+
     public Key getBrownMushroomColonyId() {
         return config.brownMushroomColonyId();
     }

@@ -303,7 +303,7 @@ cutting-board:
         volume: 0.8
         pitch-min: 0.9
         pitch-max: 1.1
-    # Used when neither the recipe nor tool-sounds matched.
+    # Used when neither the recipe, the tool-sounds table nor the ingredient block provided a sound.
     fallback:
       sound: minecraft:block.wood.break
       volume: 1.0
@@ -742,6 +742,12 @@ buff:
     heal-interval-ticks: 80
     # How much health (in HP; 1.0 = half a heart) each comfort heal tick restores.
     heal-amount: 1.0
+
+  # Nourishment mechanics. Upstream makes every food edible while Nourishment is active, even at full
+  # hunger. Paper has no Player#canEat hook, so FD lowers the food level by one for the interaction tick
+  # and restores it on the next tick; the consumed food still settles through the normal vanilla path.
+  # Set false to keep only Nourishment's exhaustion prevention and display.
+  nourishment-always-eat: true
 
 # Built-in Nourishment food assignments and durations live in the CraftEngine item configuration.
 # Use farmersdelight:nourishment as an on-consume function to add it to another CE food.

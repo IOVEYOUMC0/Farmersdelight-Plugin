@@ -23,6 +23,7 @@ import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
 import com.huidu.farmersdelight.listener.KnifeHarvestListener;
+import com.huidu.farmersdelight.listener.NourishmentEatListener;
 import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RicePlantListener;
@@ -107,6 +108,9 @@ final class ListenerRegistry {
                 new PetFoodListener(plugin),
                 new HorseFeedTemptListener(plugin),
                 new EffectListener(plugin),
+                // Paper has no canEat hook: this listener briefly lowers the food level so Nourishment
+                // keeps the upstream always-eat behavior, then restores it on the next tick.
+                new NourishmentEatListener(plugin),
                 // Rewrites addon-declared legacy ids in stacks that are already in the world; its id table is
                 // empty until an addon registers one, so it does nothing on its own.
                 new LegacyIdMigrationHooks(plugin),

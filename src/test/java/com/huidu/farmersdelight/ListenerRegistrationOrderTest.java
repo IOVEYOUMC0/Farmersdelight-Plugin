@@ -16,6 +16,7 @@ import com.huidu.farmersdelight.listener.FoodEatListener;
 import com.huidu.farmersdelight.listener.HorseFeedTemptListener;
 import com.huidu.farmersdelight.listener.KnifeEnchantFilter;
 import com.huidu.farmersdelight.listener.KnifeHarvestListener;
+import com.huidu.farmersdelight.listener.NourishmentEatListener;
 import com.huidu.farmersdelight.listener.PetFoodListener;
 import com.huidu.farmersdelight.listener.RecipeDiscoveryListener;
 import com.huidu.farmersdelight.listener.RichSoilHoeListener;
@@ -67,6 +68,7 @@ class ListenerRegistrationOrderTest {
             PetFoodListener.class,
             HorseFeedTemptListener.class,
             EffectListener.class,
+            NourishmentEatListener.class,
             LegacyIdMigrationHooks.class,
             // Registered last: it must not see a right-click before the skillet handlers.
             HandCookedSkewerHooks.class);

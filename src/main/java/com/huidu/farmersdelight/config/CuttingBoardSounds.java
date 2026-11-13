@@ -50,9 +50,16 @@ public final class CuttingBoardSounds {
         return new ToolSoundTable.Entry(DEFAULT_FALLBACK_SOUND, DEFAULT_VOLUME, DEFAULT_PITCH, DEFAULT_PITCH);
     }
 
-    /** Never null: an unmatched tool falls back to the configured default. */
-    public ToolSoundTable.Entry resolve(ItemStack tool) {
-        ToolSoundTable.Entry entry = table.resolve(tool);
-        return entry != null ? entry : fallback;
+    /**
+     * The tool-sounds row for this tool, or null when no row matches. The caller can then fall back to the
+     * ingredient's own block sound before the configured last-resort entry, like the upstream board does.
+     */
+    public ToolSoundTable.Entry matchTool(ItemStack tool) {
+        return table.resolve(tool);
+    }
+
+    /** The configured last-resort entry, used when the recipe, tool and ingredient all provide no sound. */
+    public ToolSoundTable.Entry fallback() {
+        return fallback;
     }
 }
