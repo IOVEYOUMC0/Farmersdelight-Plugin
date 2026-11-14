@@ -214,16 +214,28 @@ public final class RecipeBookGui implements InventoryHolder {
         progressItem = null;
     }
 
-    private static RecipeBookGuiConfig config() {
+    /** Resolves the parsed config and static/animated items during startup warmup. */
+    public static void warmUp(FarmersDelightPlugin plugin) {
+        if (plugin == null) {
+            return;
+        }
+        config(plugin).warmItems();
+        progressFrameItem();
+    }
+
+    private static RecipeBookGuiConfig config(FarmersDelightPlugin plugin) {
         RecipeBookGuiConfig cached = cachedConfig;
         if (cached != null) {
             return cached;
         }
-        FarmersDelightPlugin plugin = FarmersDelightPlugin.getInstance();
         ConfigurationSection section = plugin != null ? plugin.getRecipeBookGuiSection() : null;
         cached = RecipeBookGuiConfig.fromConfig(section);
         cachedConfig = cached;
         return cached;
+    }
+
+    private static RecipeBookGuiConfig config() {
+        return config(FarmersDelightPlugin.getInstance());
     }
 
     View view() {

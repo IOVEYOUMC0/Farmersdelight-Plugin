@@ -6,6 +6,8 @@ import com.huidu.farmersdelight.block.behavior.TomatoVineBlockBehavior;
 import com.huidu.farmersdelight.compat.CraftEngineStateUsageMonitor;
 import com.huidu.farmersdelight.gui.CookingPotGui;
 import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
+import com.huidu.farmersdelight.gui.RecipeViewGui;
+import com.huidu.farmersdelight.gui.recipebook.RecipeBookGui;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.listener.RopeBlockListener;
 import com.huidu.farmersdelight.recipe.CookingPotRecipeManager;
@@ -470,6 +472,15 @@ final class CraftEngineReadinessCoordinator {
             long mark = System.nanoTime();
             TomatoVineBlockBehavior.warmAll();
             CookingPotGui.warm(plugin);
+            try {
+                plugin.warmCookingPotGuiConfigs();
+                RecipeBookGui.warmUp(plugin);
+                RecipeViewGui.warmUp(plugin);
+            } catch (RuntimeException | LinkageError guiFailure) {
+                // GUI items are a convenience cache; a broken optional item must not abort the rest of warmup.
+                plugin.getLogger().warning(I18n.formatConsole("plugin.warmup_gui_failed",
+                        "error", String.valueOf(guiFailure.getMessage())));
+            }
             long guiNanos = System.nanoTime() - mark;
             mark = System.nanoTime();
             warmRecipeIngredientIcons();

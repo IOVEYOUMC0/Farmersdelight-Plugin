@@ -1474,6 +1474,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         return customConfig != null ? customConfig : getCookingPotGuiConfig();
     }
 
+    /** Resolves cooking-pot GUI items during warmup so the first open does not build them on the main thread. */
+    public void warmCookingPotGuiConfigs() {
+        getCookingPotGuiConfig().warmItems();
+        for (GuiConfig config : customCookingPotGuiConfigs.values()) {
+            config.warmItems();
+        }
+    }
+
     public ConfigurationSection getRecipeViewGuiSection() {
         if (guiConfig == null) {
             guiConfig = configFiles.loadGui();

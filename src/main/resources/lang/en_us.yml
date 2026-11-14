@@ -122,6 +122,7 @@ console:
     recipes_loaded_timing: "Recipe files loaded: cooking pot {pot}ms, cutting board {board}ms, total {total}ms."
     warmup_breakdown: "Warmup split: items {items}ms, GUI/behavior {gui}ms, ingredient icons {icons}ms, recipe index {index}ms."
     warmup_failed: "Cache warmup failed; the first interaction may briefly lag."
+    warmup_gui_failed: "GUI item warmup failed ({error}); the first GUI open may build those items lazily."
     reload_breakdown: "Reload split (synchronous, on the server thread): {total}ms total - config {config}ms, tools+language {tools}ms, cache invalidation {caches}ms, managers {managers}ms, listeners {listeners}ms."
     reload_addons: "Addon reload event took {ms}ms (addons rebuild synchronously on the server thread; not included in the split above)."
     reload_breakdown_config: "Config split: read config.yml {read}ms, key migration {migrate}ms, type validation {validate}ms, load other yml {load}ms."

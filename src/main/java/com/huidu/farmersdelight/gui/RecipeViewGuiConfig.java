@@ -90,6 +90,20 @@ public class RecipeViewGuiConfig {
         return specialRecipeDetailBasic;
     }
 
+    /** Resolves every configured static item once during startup warmup. */
+    public void warmItems() {
+        mainMenu.warmItems();
+        recipeList.warmItems();
+        cookingPotDetail.warmItems();
+        for (RecipeDetailConfig detail : customCookingPotDetails.values()) {
+            detail.warmItems();
+        }
+        cuttingBoardDetail.warmItems();
+        if (specialRecipeList != null) specialRecipeList.warmItems();
+        if (specialRecipeDetail != null) specialRecipeDetail.warmItems();
+        if (specialRecipeDetailBasic != null) specialRecipeDetailBasic.warmItems();
+    }
+
     public boolean isBackgroundItemsEnabled() {
         return backgroundItemsEnabled;
     }
@@ -196,6 +210,12 @@ public class RecipeViewGuiConfig {
 
         public Map<String, GuiConfig.GuiItem> getItems() {
             return items;
+        }
+
+        public void warmItems() {
+            for (GuiConfig.GuiItem item : items.values()) {
+                item.createItem();
+            }
         }
 
         public GuiConfig.GuiItem getItem(String key) {

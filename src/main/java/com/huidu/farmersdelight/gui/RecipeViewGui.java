@@ -190,12 +190,20 @@ public class RecipeViewGui extends AbstractInventoryGui {
     }
 
     private RecipeViewGuiConfig getOrCreateConfig() {
-        return RecipeViewCache.config(this::loadConfig);
+        return RecipeViewCache.config(() -> loadConfig(plugin));
     }
 
-    private RecipeViewGuiConfig loadConfig() {
-        var section = plugin.getRecipeViewGuiSection();
+    static RecipeViewGuiConfig loadConfig(FarmersDelightPlugin plugin) {
+        var section = plugin != null ? plugin.getRecipeViewGuiSection() : null;
         return section != null ? RecipeViewGuiConfig.fromConfig(section) : createDefaultConfig();
+    }
+
+    /** Parses the config and resolves static items during startup warmup. */
+    public static void warmUp(FarmersDelightPlugin plugin) {
+        if (plugin == null) {
+            return;
+        }
+        RecipeViewCache.config(() -> loadConfig(plugin)).warmItems();
     }
 
     public static void clearConfigCache() {
@@ -213,7 +221,7 @@ public class RecipeViewGui extends AbstractInventoryGui {
         ToolPreviewRenderer.clearToolPreviewCache();
     }
 
-    private RecipeViewGuiConfig createDefaultConfig() {
+    private static RecipeViewGuiConfig createDefaultConfig() {
         RecipeViewGuiConfig.MainMenuConfig mainMenu = RecipeViewGuiConfig.MainMenuConfig.fromConfig(null);
         RecipeViewGuiConfig.RecipeListConfig recipeList = RecipeViewGuiConfig.RecipeListConfig.fromConfig(null);
         RecipeViewGuiConfig.RecipeDetailConfig cookingPotDetail = RecipeViewGuiConfig.RecipeDetailConfig.createCookingPotDefault();

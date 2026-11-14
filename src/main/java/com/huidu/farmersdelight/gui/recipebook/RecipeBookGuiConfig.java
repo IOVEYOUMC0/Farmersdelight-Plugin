@@ -42,6 +42,13 @@ public final class RecipeBookGuiConfig {
         return detail;
     }
 
+    /** Resolves every static chrome item once during warmup, not on the first open. */
+    public void warmItems() {
+        menu.warmItems();
+        list.warmItems();
+        detail.warmItems();
+    }
+
     public static RecipeBookGuiConfig fromConfig(ConfigurationSection section) {
         ConfigurationSection menuSection = section == null ? null : section.getConfigurationSection("menu");
         ConfigurationSection listSection = section == null ? null : section.getConfigurationSection("list");
@@ -102,6 +109,12 @@ public final class RecipeBookGuiConfig {
 
         public GuiConfig.GuiItem item(String key) {
             return items.get(key);
+        }
+
+        public void warmItems() {
+            for (GuiConfig.GuiItem item : items.values()) {
+                item.createItem();
+            }
         }
 
         /** Slots whose legend role equals the given type; empty when the layout defines no such role. */

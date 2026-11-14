@@ -122,6 +122,7 @@ console:
     recipes_loaded_timing: "配方文件加载完成：厨锅 {pot}ms、砧板 {board}ms，合计 {total}ms。"
     warmup_breakdown: "预热分项：物品 {items}ms、GUI/行为 {gui}ms、材料图标 {icons}ms、配方索引 {index}ms。"
     warmup_failed: "缓存预热失败；首次交互可能会短暂卡顿。"
+    warmup_gui_failed: "GUI 物品预热失败（{error}）；首次打开 GUI 时可能临时懒加载。"
     reload_breakdown: "重载分项（主线程同步执行）：合计 {total}ms——配置 {config}ms、工具与语言 {tools}ms、缓存失效 {caches}ms、管理器刷新 {managers}ms、监听器 {listeners}ms。"
     reload_addons: "附属重载事件耗时 {ms}ms（附属在主线程同步重建，不包含在上面的分项里）。"
     reload_breakdown_config: "配置分项：读 config.yml {read}ms、键迁移 {migrate}ms、类型校验 {validate}ms、加载其余 yml {load}ms。"

@@ -302,6 +302,16 @@ public class GuiConfig implements GuiLayout {
         return items;
     }
 
+    /** Resolves the base items once during warmup so the first GUI open does not pay for it. */
+    public void warmItems() {
+        for (GuiItem item : items.values()) {
+            item.createItem();
+        }
+        for (GuiItem item : progressItems) {
+            item.createItem();
+        }
+    }
+
     public int[] getIngredientSlots() {
         return ingredientSlots;
     }
