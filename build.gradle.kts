@@ -159,12 +159,16 @@ tasks.test {
     // parent locally, under wiki/ in CI). Declaring them as inputs keeps the task from staying "up to date"
     // when only a page changed, which is exactly the drift the test exists to catch. Only a checkout that
     // is actually present can be declared: a directory input has to exist.
+    //
+    // The property name has to be unique across the declared inputs. Every candidate is a directory named
+    // "api-docs", so a name derived from the directory alone collides as soon as two checkouts are present, and
+    // Gradle rejects the task instead of running it. The path relative to this project is unique.
     listOf(
         file("api-docs"),
         file("wiki/api-docs"),
         file("../../FarmersDelightPluginWiKi/api-docs"),
     ).filter { it.isDirectory }.forEach { docs ->
-        inputs.dir(docs).withPropertyName("apiDocs:${docs.name}")
+        inputs.dir(docs).withPropertyName("apiDocs:${docs.relativeTo(projectDir).invariantSeparatorsPath}")
     }
     doLast {
         // Incomplete JUnit reports must not turn a test-listener failure into a successful build.
