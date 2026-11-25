@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.advancement;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.ShutdownGate;
 import com.huidu.farmersdelight.api.advancement.AdvancementAvailability;
 import com.huidu.farmersdelight.api.advancement.FarmersDelightAdvancements;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -97,6 +98,11 @@ public final class AdvancementSystem {
             return;
         }
         plugin.scheduler().runLater(() -> {
+            // The resync fires after a resource-pack rebuild, and a shutdown can land inside the delay: touching
+            // the advancement tabs then would reach a plugin that is already tearing its state down.
+            if (ShutdownGate.isClosing(plugin)) {
+                return;
+            }
             if (manager != null) {
                 manager.forceResyncOnlinePlayers();
             }

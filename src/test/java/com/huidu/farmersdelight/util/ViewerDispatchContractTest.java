@@ -28,15 +28,17 @@ class ViewerDispatchContractTest {
 
     @Test
     void effectManagersPassTheirSchedulerToViewerEffects() throws IOException {
+        // The call may sit at any nesting depth, so the indentation between the opening parenthesis and the
+        // scheduler argument is matched as whitespace rather than as a fixed number of spaces.
+        java.util.regex.Pattern dispatched = java.util.regex.Pattern.compile(
+                "ManagerSupport\\.(spawnParticleFor|runForViewerWithin)\\(\\s*plugin\\.scheduler\\(\\)");
         for (String relative : new String[]{
                 "src/main/java/com/huidu/farmersdelight/manager/CookingPotEffectManager.java",
                 "src/main/java/com/huidu/farmersdelight/manager/SkilletEffectManager.java",
                 "src/main/java/com/huidu/farmersdelight/manager/StoveManager.java"}) {
             String source = read(relative);
-            assertTrue(source.contains("ManagerSupport.spawnParticleFor(\n                    plugin.scheduler()")
-                    || source.contains("ManagerSupport.spawnParticleFor(plugin.scheduler()")
-                    || source.contains("ManagerSupport.runForViewerWithin(\n                    plugin.scheduler()")
-                    || source.contains("ManagerSupport.runForViewerWithin(plugin.scheduler()"), relative);
+            assertTrue(dispatched.matcher(source).find(),
+                    relative + " must route its viewer effects through the viewer scheduler");
         }
     }
 

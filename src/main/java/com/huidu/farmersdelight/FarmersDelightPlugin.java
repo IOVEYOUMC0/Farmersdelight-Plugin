@@ -12,6 +12,7 @@ import com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
 import com.huidu.farmersdelight.api.event.FarmersDelightReloadEvent;
 import com.huidu.farmersdelight.api.util.ShutdownBudget;
+import com.huidu.farmersdelight.api.util.ShutdownGate;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CuttingBoardBlockBehavior;
@@ -738,6 +739,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onCraftEngineReload(CraftEngineReloadEvent event) {
+        // CraftEngine also fires this while it disables. At that point its item registry is already empty, so a
+        // queued recipe pass would report every result item and tag ingredient as invalid and then have nothing
+        // to publish. The server is going down (or this plugin already is), so there is no reload work to do.
+        if (ShutdownGate.isClosing(this)) {
+            return;
+        }
         // A CraftEngine reload is the only event that makes the CE-derived reload work stale.
         ceDerivedReloadGate.bumpRevision();
         // The reload can also have removed every custom item, so the remembered "custom items exist" answer

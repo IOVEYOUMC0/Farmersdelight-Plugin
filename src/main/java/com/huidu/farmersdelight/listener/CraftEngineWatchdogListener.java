@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.listener;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.ShutdownGate;
 import com.huidu.farmersdelight.i18n.I18n;
 import com.huidu.farmersdelight.util.ItemUtils;
 import com.huidu.farmersdelight.util.scheduler.PluginTask;
@@ -74,7 +75,7 @@ public final class CraftEngineWatchdogListener implements Listener {
         if (!CRAFT_ENGINE.equals(event.getPlugin().getName())) {
             return;
         }
-        if (plugin.getServer().isStopping() || !plugin.isEnabled()) {
+        if (ShutdownGate.isClosing(plugin)) {
             return; // normal shutdown, or FD is already going down; nothing to do
         }
         I18n.logSevere("plugin.missing_dependency", "name", "FarmersDelight",

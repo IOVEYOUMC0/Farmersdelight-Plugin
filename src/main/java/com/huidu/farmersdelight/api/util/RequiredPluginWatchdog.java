@@ -60,7 +60,7 @@ public final class RequiredPluginWatchdog implements Listener {
         if (event == null || event.getPlugin() == null || !requires(required, event.getPlugin().getName())) {
             return;
         }
-        if (addon.getServer().isStopping() || !addon.isEnabled()) {
+        if (ShutdownGate.isClosing(addon)) {
             return; // normal shutdown, or this addon is already going down
         }
         addon.getLogger().severe(FarmersDelightApi.consoleMessage("plugin.missing_dependency",

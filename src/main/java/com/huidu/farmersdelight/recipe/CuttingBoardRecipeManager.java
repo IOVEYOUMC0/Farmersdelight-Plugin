@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.ShutdownGate;
 import com.huidu.farmersdelight.api.config.ConfigSectionReader;
 import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
 import com.huidu.farmersdelight.api.recipe.IngredientMatchMemo;
@@ -839,6 +840,13 @@ public class CuttingBoardRecipeManager {
         externalRepublishScheduled = true;
         plugin.scheduler().runLater(() -> {
             externalRepublishScheduled = false;
+            // An addon unregisters its recipes while it disables, and CraftEngine disables first on a normal stop:
+            // by the time this deferred pass runs its item registry is empty, so every result item and tag
+            // ingredient would fail validation and flood the console with warnings no one can act on. There is
+            // nothing to republish while the server goes down, so the pass is dropped.
+            if (ShutdownGate.isClosing(plugin)) {
+                return;
+            }
             loadRecipes();
             // Same as the cooking pot republish: the summary was already printed by the CraftEngine
             // readiness pass, so the cutting board count would stay a batch behind the addon recipes
