@@ -104,6 +104,8 @@ console:
     folia_scheduler: "Folia scheduler detected; FarmersDelight will route scheduled work through region/global schedulers."
     proxy_display_enabled: "CraftEngine proxy item displays enabled for stove and skillet."
     proxy_display_unavailable: "CraftEngine proxy item display pipeline unavailable, stove and skillet visuals will be disabled."
+    rice_state_write_failed: "Could not update a rice block at %world% %x%, %y%, %z%: the half may now show the wrong state. The failure was %error%. This message repeats at most once every ten minutes."
+    block_entity_removal_failed: "Could not remove a station's stored data at %world% %x%, %y%, %z%: the block is gone but its contents may still be attached to that position. The failure was %error%. This message repeats at most once every ten minutes."
     enabled: "FarmersDelight plugin has been enabled."
     disabled: "FarmersDelight plugin has been disabled."
     reload_failed: "Reload failed: {error} - see the console for details."

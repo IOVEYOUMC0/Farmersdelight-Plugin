@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.util;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.util.WarningThrottle;
 import com.huidu.farmersdelight.i18n.I18n;
 import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.world.BukkitWorldManager;
@@ -235,9 +236,22 @@ public final class CustomBlockUtils {
             }
             chunk.removeBlockEntity(posKey.toBlockPos());
             chunk.setUnsaved(true);
-        } catch (Exception ignored) {
+        } catch (Exception failure) {
+            // A refused removal leaves the station's stored contents behind in CraftEngine while the block itself is
+            // gone, so the next placement at this position would read the previous occupant's data.
+            if (BLOCK_ENTITY_REMOVAL_WARNINGS.allow("ce_block_entity_removal", world.getName())) {
+                I18n.logWarning("plugin.block_entity_removal_failed",
+                        "world", world.getName(),
+                        "x", String.valueOf(posKey.x()),
+                        "y", String.valueOf(posKey.y()),
+                        "z", String.valueOf(posKey.z()),
+                        "error", String.valueOf(failure.getMessage()));
+            }
         }
     }
+
+    /** Once per cooldown per world, so a position that always fails cannot flood the console. */
+    private static final WarningThrottle BLOCK_ENTITY_REMOVAL_WARNINGS = new WarningThrottle();
 
     public static <T extends BlockEntityController> boolean notifyControllerChanged(World world,
                                                                                    BlockPosKey posKey,

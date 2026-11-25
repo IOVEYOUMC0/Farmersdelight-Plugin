@@ -3,6 +3,7 @@ package com.huidu.farmersdelight.listener;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
+import com.huidu.farmersdelight.api.util.WarningThrottle;
 import com.huidu.farmersdelight.block.behavior.TallCropBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -50,6 +51,13 @@ public class RicePlantListener implements Listener {
     private static final String WILD_RICE_BLOCK_ID = Constants.BLOCK_WILD_RICE;
     private static final Key RICE_BLOCK_KEY = Key.of(RICE_BLOCK_ID);
     private static final Key WILD_RICE_BLOCK_KEY = Key.of(WILD_RICE_BLOCK_ID);
+
+    /**
+     * A refused state write leaves the half at the wrong supporting/half value, which reads as a broken stalk in
+     * game and leaves no trace anywhere else. Reported once per cooldown so a continuously failing block cannot
+     * flood the console.
+     */
+    private static final WarningThrottle STATE_WRITE_WARNINGS = new WarningThrottle();
 
     private final FarmersDelightPlugin plugin;
     // Mutated inside runLaterAt callbacks on region threads (different regions map to different threads on Folia),
@@ -377,7 +385,20 @@ public class RicePlantListener implements Listener {
             }
 
             TallCropBlockBehavior.placeKeepingSibling(block, state.with(supportingProperty, shouldSupport));
-        } catch (Exception ignored) {
+        } catch (Exception failure) {
+            warnStateWriteFailed(block, failure);
+        }
+    }
+
+    private static void warnStateWriteFailed(Block block, Exception failure) {
+        String worldId = block.getWorld().getName();
+        if (STATE_WRITE_WARNINGS.allow("rice_state_write", worldId)) {
+            I18n.logWarning("plugin.rice_state_write_failed",
+                    "world", worldId,
+                    "x", String.valueOf(block.getX()),
+                    "y", String.valueOf(block.getY()),
+                    "z", String.valueOf(block.getZ()),
+                    "error", String.valueOf(failure.getMessage()));
         }
     }
 
@@ -708,7 +729,8 @@ public class RicePlantListener implements Listener {
             }
 
             TallCropBlockBehavior.placeKeepingSibling(lowerBlock, resetState);
-        } catch (Exception ignored) {
+        } catch (Exception failure) {
+            warnStateWriteFailed(lowerBlock, failure);
         }
     }
 
