@@ -63,6 +63,11 @@ public final class BackstabListener implements Listener {
         if (combat.playersOnly() && !(attacker instanceof Player)) {
             return;
         }
+        // A damage event can run on the victim's region while the attacker belongs to another. Both entities
+        // must be owned here before reading either one's equipment/position or modifying the damage.
+        if (!owns(attacker) || !owns(target)) {
+            return;
+        }
 
         ItemStack weapon = attacker.getEquipment() == null
                 ? null
@@ -88,6 +93,10 @@ public final class BackstabListener implements Listener {
         event.setDamage(event.getDamage() * combat.multiplier(level));
         // Always play the sound at the target's location.
         target.getWorld().playSound(target.getLocation(), SOUND, SOUND_VOLUME, SOUND_PITCH);
+    }
+
+    private boolean owns(LivingEntity entity) {
+        return plugin.scheduler() == null || plugin.scheduler().isOwnedByCurrentRegion(entity);
     }
 
     private Enchantment resolveEnchantment(String id) {

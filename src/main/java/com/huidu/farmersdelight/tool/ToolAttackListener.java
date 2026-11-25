@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.tool;
 
+import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.SoundUtils;
 import com.huidu.farmersdelight.api.tag.FarmersDelightTags;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -25,6 +26,12 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public final class ToolAttackListener implements Listener {
 
+    private final FarmersDelightPlugin plugin;
+
+    public ToolAttackListener(FarmersDelightPlugin plugin) {
+        this.plugin = plugin;
+    }
+
     /**
      * Reduces the knockback of a hit made with a knife by 0.1 strength, matching the mod: a knife trades
      * knockback for damage. The event only exposes the resulting acceleration vector, so the strength is
@@ -33,6 +40,11 @@ public final class ToolAttackListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onKnockback(EntityKnockbackByEntityEvent event) {
         if (!(event.getHitBy() instanceof Player player)) {
+            return;
+        }
+        // On Folia the damage event may run on the victim's region; the attacker inventory/state belongs to
+        // another region and must not be read here.
+        if (!owns(player)) {
             return;
         }
         ItemStack weapon = player.getInventory().getItemInMainHand();
@@ -56,6 +68,16 @@ public final class ToolAttackListener implements Listener {
         if (!(event.getDamager() instanceof Player player)) return;
         if (!(event.getEntity() instanceof LivingEntity)) return;
 
+        // Sound + durability are attacker-owned state. If the event runs on the victim's region, hop to the
+        // player's scheduler instead of touching the player's inventory from a foreign region.
+        if (!owns(player)) {
+            plugin.scheduler().runForEntity(player, () -> applyAttack(player));
+            return;
+        }
+        applyAttack(player);
+    }
+
+    private void applyAttack(Player player) {
         ItemStack weapon = player.getInventory().getItemInMainHand();
         ToolData data = resolveToolData(weapon);
         if (data == null) return;
@@ -65,6 +87,10 @@ public final class ToolAttackListener implements Listener {
         if (player.getGameMode() != GameMode.CREATIVE) {
             consumeDurability(weapon, player.getLocation());
         }
+    }
+
+    private boolean owns(Player player) {
+        return plugin.scheduler() == null || plugin.scheduler().isOwnedByCurrentRegion(player);
     }
 
     private void playAttackSound(Player player, ToolData data) {

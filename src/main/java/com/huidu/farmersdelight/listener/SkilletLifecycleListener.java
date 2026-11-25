@@ -78,7 +78,14 @@ public final class SkilletLifecycleListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onAttack(EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof Player player) stop(player);
+        if (!(event.getDamager() instanceof Player player)) return;
+        // The damage event may run on the victim's region; stopHandheldUse writes the attacker's inventory,
+        // so hop to the player's scheduler when it is not owned here.
+        if (plugin.scheduler() != null && !plugin.scheduler().isOwnedByCurrentRegion(player)) {
+            plugin.scheduler().runForEntity(player, () -> stop(player));
+            return;
+        }
+        stop(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
