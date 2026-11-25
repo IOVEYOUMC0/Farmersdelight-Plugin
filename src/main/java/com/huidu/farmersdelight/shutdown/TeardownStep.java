@@ -1,6 +1,6 @@
 package com.huidu.farmersdelight.shutdown;
 
-/** One ordered teardown action; {@link #id()} is the language key the failure report uses. */
+/** One ordered teardown action; id is the language key the failure report uses. */
 public record TeardownStep(String id, Runnable action) implements Runnable {
 
     public TeardownStep {

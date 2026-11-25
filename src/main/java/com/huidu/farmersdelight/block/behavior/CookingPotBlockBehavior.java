@@ -566,7 +566,13 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
 
             for (Map.Entry<BlockPosKey, CookingPotBlockEntity> posEntry : worldEntry.getValue().entrySet()) {
                 BlockPosKey posKey = posEntry.getKey();
-                saveBlockEntityData(world, posKey);
+                try {
+                    saveBlockEntityData(world, posKey);
+                } catch (RuntimeException | LinkageError failure) {
+                    // One broken pot must not abort the rest of the shutdown batch.
+                    org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
+                            "Failed to save FarmersDelight cooking pot at " + posKey, failure);
+                }
             }
         }
     }
@@ -577,7 +583,12 @@ public class CookingPotBlockBehavior extends FarmersDelightBlockBehavior impleme
             if (world == null) continue;
 
             for (BlockPosKey posKey : worldEntry.getValue().keySet()) {
-                markBlockEntityDirty(world, posKey);
+                try {
+                    markBlockEntityDirty(world, posKey);
+                } catch (RuntimeException | LinkageError failure) {
+                    org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
+                            "Failed to mark FarmersDelight cooking pot dirty at " + posKey, failure);
+                }
             }
         }
     }

@@ -13,14 +13,14 @@ import java.util.List;
 /**
  * Ordered teardown of the behavior-side caches: every step drops the behavior's world references and pending
  * display state before the plugin class loader goes away. The order is behavior, not preference, so it is pinned
- * by {@code TeardownOrderTest}.
+ * by TeardownOrderTest.
  */
 public final class BehaviorTeardown {
 
     private BehaviorTeardown() {
     }
 
-    /** The canonical order; adding a behavior appends here and to {@link #steps(boolean)}. */
+    /** The canonical order; adding a behavior appends here and to steps(boolean). */
     public static List<String> ids() {
         return List.of(
                 "plugin.disable_step_cleanup_cooking_pot_block_entities",

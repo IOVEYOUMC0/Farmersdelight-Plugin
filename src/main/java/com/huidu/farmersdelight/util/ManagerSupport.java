@@ -12,6 +12,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class ManagerSupport {
 
@@ -45,7 +47,13 @@ public final class ManagerSupport {
 
     public static <T> void saveAllData(Map<Location, T> entries, BiConsumer<Location, T> saver) {
         for (Map.Entry<Location, T> entry : entries.entrySet()) {
-            saver.accept(entry.getKey(), entry.getValue());
+            try {
+                saver.accept(entry.getKey(), entry.getValue());
+            } catch (RuntimeException | LinkageError failure) {
+                // Shutdown is best-effort: one bad block must not skip the remaining entries.
+                Logger.getLogger("FarmersDelight").log(Level.WARNING,
+                        "Failed to save FarmersDelight block data at " + formatLocation(entry.getKey()), failure);
+            }
         }
     }
 
@@ -85,7 +93,12 @@ public final class ManagerSupport {
         return Math.max(0.0D, Math.min(1.0D, value));
     }
 
-    public static List<Player> collectNearbyPlayers(World world, Location center, double distanceSquared, List<Player> out) {
+    /**
+     * Copies the players tracking the center block's chunk into out, without reading any player
+     * coordinate. The caller must pass this list to runForViewerWithin so the distance gate runs on each
+     * viewer's own scheduler instead of the emitting block's region thread.
+     */
+    public static List<Player> playersSeeingChunk(World world, Location center, List<Player> out) {
         out.clear();
         if (world == null || center == null) {
             return out;
@@ -95,31 +108,8 @@ public final class ManagerSupport {
         if (!world.isChunkLoaded(chunkX, chunkZ)) {
             return out;
         }
-        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
-        // already guaranteed below, so this is equivalent to distanceSquared.
-        double cx = center.getX();
-        double cy = center.getY();
-        double cz = center.getZ();
-        for (Player p : world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk()) {
-            if (p.getWorld() != world) {
-                continue;
-            }
-            double dx = p.getX() - cx;
-            double dy = p.getY() - cy;
-            double dz = p.getZ() - cz;
-            if (dx * dx + dy * dy + dz * dz <= distanceSquared) {
-                out.add(p);
-            }
-        }
+        out.addAll(world.getChunkAt(chunkX, chunkZ).getPlayersSeeingChunk());
         return out;
-    }
-
-    public static void spawnParticleFor(SchedulerAdapter scheduler, List<Player> viewers, Particle particle, double x, double y, double z,
-                                        int count, double offsetX, double offsetY, double offsetZ, double extra) {
-        for (Player viewer : viewers) {
-            scheduler.runForEntity(viewer, () -> viewer.spawnParticle(particle, x, y, z, count,
-                    offsetX, offsetY, offsetZ, extra, null, false));
-        }
     }
 
     /**

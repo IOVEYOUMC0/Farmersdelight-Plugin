@@ -315,7 +315,13 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
 
             for (Map.Entry<BlockPosKey, CuttingBoardBlockEntity> posEntry : worldEntry.getValue().entrySet()) {
                 BlockPosKey posKey = posEntry.getKey();
-                saveBlockEntityData(world, posKey);
+                try {
+                    saveBlockEntityData(world, posKey);
+                } catch (RuntimeException | LinkageError failure) {
+                    // One broken board must not abort the rest of the shutdown batch.
+                    org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
+                            "Failed to save FarmersDelight cutting board at " + posKey, failure);
+                }
             }
         }
     }
@@ -326,7 +332,12 @@ public class CuttingBoardBlockBehavior extends FarmersDelightBlockBehavior imple
             if (world == null) continue;
 
             for (BlockPosKey posKey : worldEntry.getValue().keySet()) {
-                markBlockEntityDirty(world, posKey);
+                try {
+                    markBlockEntityDirty(world, posKey);
+                } catch (RuntimeException | LinkageError failure) {
+                    org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
+                            "Failed to mark FarmersDelight cutting board dirty at " + posKey, failure);
+                }
             }
         }
     }

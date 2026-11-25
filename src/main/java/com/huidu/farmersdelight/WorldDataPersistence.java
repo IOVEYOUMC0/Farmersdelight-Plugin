@@ -76,9 +76,9 @@ final class WorldDataPersistence {
     }
 
     private static void flushCraftEngineWorldData(FarmersDelightPlugin plugin) {
-        // CraftEngine loads after this plugin, so at shutdown it is disabled first and its classloader is
-        // closed by the time this runs. It has already saved its own world data on the way down; touching
-        // its classes here would throw NoClassDefFoundError. Flush only when it is still enabled.
+        // CraftEngine declares BEFORE FarmersDelight, so CE loads first and therefore disables last: it is
+        // normally still alive here. The check stays because a runtime disable of CraftEngine (watchdog,
+        // plugin manager) must not be turned into a NoClassDefFoundError from this shutdown step.
         if (!plugin.getServer().getPluginManager().isPluginEnabled("CraftEngine")) {
             return;
         }
