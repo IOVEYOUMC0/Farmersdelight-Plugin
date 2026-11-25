@@ -8,7 +8,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The experience declaration is what turns the original mod's {@code rewards.experience} into an actual grant, so the
+ * The experience declaration is what turns the original mod's rewards.experience into an actual grant, so the
  * builder has to carry it into the definitions the tab is built from.
  */
 class AdvancementTreeExperienceTest {

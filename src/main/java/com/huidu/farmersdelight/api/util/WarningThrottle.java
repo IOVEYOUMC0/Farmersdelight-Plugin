@@ -9,7 +9,7 @@ import java.util.function.LongSupplier;
 /**
  * Per-feature cooldown for console warnings about repeated failures.
  *
- * <p>A feature that fails for every block or on every tick keeps its fallback and reports once per cooldown, so
+ * A feature that fails for every block or on every tick keeps its fallback and reports once per cooldown, so
  * the log stays readable. The clock is injectable for tests.
  */
 @ApiStatus.AvailableSince("6")

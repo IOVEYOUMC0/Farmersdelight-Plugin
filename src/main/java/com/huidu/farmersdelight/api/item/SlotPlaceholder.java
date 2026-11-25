@@ -3,9 +3,9 @@ package com.huidu.farmersdelight.api.item;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Compatibility delegate for {@link com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder}.
+ * Compatibility delegate for ce.SlotPlaceholder.
  *
- * @deprecated use the CraftEngine-pinned {@code api.compat.ce} class for new code.
+ * @deprecated use the CraftEngine-pinned api.compat.ce class for new code.
  */
 @Deprecated
 public final class SlotPlaceholder {

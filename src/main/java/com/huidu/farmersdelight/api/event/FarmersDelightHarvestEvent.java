@@ -15,6 +15,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Read-only notification fired after a harvest was accepted and before the crop is removed. It is not
+ * cancellable and must not be used to change the outcome. The drop list is a snapshot for observation
+ * only: when the actual loot is produced inside CraftEngine (for example the tall-crop harvest path) it
+ * is empty, so it is not an authoritative list of what the player will receive.
+ */
 @ApiStatus.NonExtendable
 public class FarmersDelightHarvestEvent extends Event {
 
@@ -100,6 +106,7 @@ public class FarmersDelightHarvestEvent extends Event {
         return tool == null ? null : tool.clone();
     }
 
+    /** Read-only snapshot; empty when the real loot is generated inside CraftEngine. */
     public List<ItemStack> getDrops() {
         return drops;
     }

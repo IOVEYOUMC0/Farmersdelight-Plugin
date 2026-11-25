@@ -10,9 +10,9 @@ import java.util.Set;
 /**
  * Registry for addon working-station rules.
  *
- * <p>Registration is additive and duplicate ids are rejected; call {@link #unregister(ContentId)}
+ * Registration is additive and duplicate ids are rejected; call unregister(ContentId)
  * before replacing a rule. Rules registered after content is loaded are visible immediately, and
- * a reload does not clear them.</p>
+ * a reload does not clear them.
  */
 @ApiStatus.Experimental
 public final class StationRules {

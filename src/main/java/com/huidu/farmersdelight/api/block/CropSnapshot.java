@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Immutable read-only snapshot of a live FarmersDelight crop.
  *
- * <p>This is a query value; mutations must go through the owning FD/CE behavior.</p>
+ * This is a query value; mutations must go through the owning FD/CE behavior.
  */
 public record CropSnapshot(
         String blockId,

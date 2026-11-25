@@ -15,7 +15,7 @@ import org.bukkit.block.BlockFace;
  * World resolution handles registry readiness and CE return-type compatibility.
  * Callers must own a block's region before accessing its live state or controller.
  *
- * @deprecated advanced CE access lives in {@code api.compat.ce}; this location stays as a
+ * @deprecated advanced CE access lives in api.compat.ce; this location stays as a
  *             compatibility delegate for existing addons.
  */
 @Deprecated

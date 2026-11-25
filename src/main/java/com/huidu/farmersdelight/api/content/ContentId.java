@@ -6,14 +6,14 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * A CraftEngine-independent namespaced content id ({@code namespace:path}).
+ * A CraftEngine-independent namespaced content id (namespace:path).
  *
- * <p>This is the neutral counterpart of CraftEngine's {@code Key}: ordinary addon code can pass
+ * This is the neutral counterpart of CraftEngine's Key: ordinary addon code can pass
  * content ids around, store them in config and compare them without importing CraftEngine. The
- * conversion to a CraftEngine key stays inside FarmersDelight's implementation.</p>
+ * conversion to a CraftEngine key stays inside FarmersDelight's implementation.
  *
- * <p>Namespaces and paths follow Minecraft resource-location rules: lowercase letters, digits,
- * {@code _}, {@code -}, {@code .}; paths additionally allow {@code /}.</p>
+ * Namespaces and paths follow Minecraft resource-location rules: lowercase letters, digits,
+ * '_', '-', '.'; paths additionally allow '/'.
  */
 @ApiStatus.Experimental
 public final class ContentId implements Comparable<ContentId> {
@@ -29,7 +29,7 @@ public final class ContentId implements Comparable<ContentId> {
         this.path = path;
     }
 
-    /** Parses a {@code namespace:path} string. */
+    /** Parses a namespace:path string. */
     public static ContentId parse(String value) {
         if (value == null) {
             throw new IllegalArgumentException("content id must not be null");
@@ -73,7 +73,7 @@ public final class ContentId implements Comparable<ContentId> {
         return this.path;
     }
 
-    /** The canonical {@code namespace:path} representation. */
+    /** The canonical namespace:path representation. */
     public String value() {
         return this.namespace + ":" + this.path;
     }

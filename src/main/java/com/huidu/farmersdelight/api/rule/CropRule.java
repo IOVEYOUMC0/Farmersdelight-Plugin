@@ -9,8 +9,8 @@ import org.jetbrains.annotations.ApiStatus;
  * built-in crop behaviors, so addon crops can answer the same harvest/age questions without
  * exposing CraftEngine block-state types to callers.
  *
- * <p>Growth, bonemeal and block behavior remain the addon's/CE's responsibility. Rules must be
- * thread-safe and must not mutate the world.</p>
+ * Growth, bonemeal and block behavior remain the addon's/CE's responsibility. Rules must be
+ * thread-safe and must not mutate the world.
  */
 @ApiStatus.Experimental
 public interface CropRule {

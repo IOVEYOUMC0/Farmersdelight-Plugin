@@ -60,9 +60,9 @@ public final class AdvancementTree {
 
     /**
      * Gives the player this much experience when the advancement is completed, mirroring the original mod's
-     * {@code rewards.experience}. Zero or a negative amount clears any earlier declaration.
+     * rewards.experience. Zero or a negative amount clears any earlier declaration.
      *
-     * @param advancementId The advancement id, as declared with {@link #advancement} or {@link #multiTask}.
+     * @param advancementId The advancement id, as declared with advancement or multiTask.
      * @param experience The experience to grant on completion.
      * @return This builder.
      */

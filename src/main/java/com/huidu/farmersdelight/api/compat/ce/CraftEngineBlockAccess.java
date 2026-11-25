@@ -12,9 +12,9 @@ import org.jetbrains.annotations.ApiStatus;
 /**
  * CraftEngine-pinned block/world access for advanced addon behaviour code.
  *
- * <p>This package is deliberately separate from the neutral API: it exposes CraftEngine types and
+ * This package is deliberately separate from the neutral API: it exposes CraftEngine types and
  * follows the deployed CraftEngine version. Addons that only need content ids, recipes, events or
- * station/crop queries should not need it.</p>
+ * station/crop queries should not need it.
  */
 @ApiStatus.Experimental
 public final class CraftEngineBlockAccess {

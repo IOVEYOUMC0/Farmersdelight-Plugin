@@ -6,8 +6,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * CraftEngine-pinned knife-mineable query. The neutral addon path is
- * {@code FarmersDelightTags} plus {@code KnifeMineableBlocks.isKnifeMineableId(ContentId)}; this
- * facade exists for callers that already hold a CraftEngine {@link Key}.
+ * FarmersDelightTags plus KnifeMineableBlocks.isKnifeMineableId(ContentId); this
+ * facade exists for callers that already hold a CraftEngine Key.
  */
 @ApiStatus.Experimental
 public final class KnifeMineableBlocks {

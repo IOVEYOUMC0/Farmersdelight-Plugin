@@ -4,9 +4,9 @@ import net.momirealms.craftengine.core.item.Item;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Compatibility delegate for {@link com.huidu.farmersdelight.api.compat.ce.CeItemInterop}.
+ * Compatibility delegate for ce.CeItemInterop.
  *
- * @deprecated use the CraftEngine-pinned {@code api.compat.ce} class for new code.
+ * @deprecated use the CraftEngine-pinned api.compat.ce class for new code.
  */
 @Deprecated
 public final class CeItemInterop {

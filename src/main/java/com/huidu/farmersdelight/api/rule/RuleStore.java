@@ -49,6 +49,11 @@ final class RuleStore<T> {
         return Collections.unmodifiableSet(Set.copyOf(this.entries.keySet()));
     }
 
+    /** Registered rules in registration order, for callers whose contract promises that order. */
+    List<T> ordered() {
+        return List.copyOf(this.ordered);
+    }
+
     /** First rule whose predicate accepts the value; a broken rule is skipped rather than aborting the scan. */
     T firstMatching(Predicate<T> predicate) {
         if (predicate == null) {

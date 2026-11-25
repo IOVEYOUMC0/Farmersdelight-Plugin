@@ -94,10 +94,10 @@ public final class AddonPackSections extends AbstractConfigParser {
 
     /**
      * The same entries, read straight out of a file the plugin ships (a jar resource), for the window in which
-     * CraftEngine has not dispatched the claimed sections yet: a plugin loaded before CraftEngine (its
-     * load: BEFORE dependency) enables before CraftEngine loads packs, so reading only the claim would
-     * silently see nothing at startup. The file is the pack's own configuration file, so its root key and body
-     * are exactly what the claim would have handed over.
+     * CraftEngine has not dispatched the claimed sections yet: CraftEngine declares itself BEFORE the addons
+     * but hands the claimed sections over while it loads packs in its own enable pass, so a claim read during
+     * onLoad can still be empty. Reading only the claim would silently see nothing at startup. The file is the
+     * pack's own configuration file, so its root key and body are exactly what the claim would have handed over.
      *
      * @param plugin       owning plugin, used to resolve the bundled resource
      * @param resourcePath jar path of the pack file, e.g. craftengine/keg/configuration/recipes/keg_recipes.yml

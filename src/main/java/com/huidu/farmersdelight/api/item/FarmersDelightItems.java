@@ -28,7 +28,7 @@ public final class FarmersDelightItems {
         return ItemUtils.resolveItemId(item);
     }
 
-    /** Neutral-id counterpart of {@link #idOf(ItemStack)}; null when the stack has no resolvable id. */
+    /** Neutral-id counterpart of idOf(ItemStack); null when the stack has no resolvable id. */
     public static ContentId contentIdOf(ItemStack item) {
         return ContentId.parseOrNull(idOf(item));
     }

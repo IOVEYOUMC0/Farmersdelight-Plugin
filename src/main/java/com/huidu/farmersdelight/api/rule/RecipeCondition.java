@@ -8,8 +8,8 @@ import org.jetbrains.annotations.Nullable;
  * A composable condition for FarmersDelight recipe matching. The condition is a read-only predicate:
  * it may inspect the player, station location and input stacks, but must not mutate any of them.
  *
- * <p>The callback runs on the region thread owning the station. Exceptions are isolated by the
- * registry and treated as "condition not satisfied".</p>
+ * The callback runs on the region thread owning the station. Exceptions are isolated by the
+ * registry and treated as "condition not satisfied".
  */
 @ApiStatus.Experimental
 public interface RecipeCondition {
@@ -20,7 +20,7 @@ public interface RecipeCondition {
 
     /**
      * Optional scope. Return false to leave unrelated recipes untouched; the default applies the
-     * condition to every FD recipe path. Scope by recipe type/id (e.g. only {@code myaddon:*} ids)
+     * condition to every FD recipe path. Scope by recipe type/id (e.g. only myaddon:* ids)
      * when the condition is addon-specific.
      */
     default boolean appliesTo(@Nullable String recipeType, @Nullable String recipeId) {

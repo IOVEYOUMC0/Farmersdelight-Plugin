@@ -53,7 +53,9 @@ import java.util.function.Function;
 
 public final class FarmersDelightApi {
 
-    private static final int API_VERSION = 5;
+    // Owner decision 2026-11-15: keep the API revision at 4 for the unreleased 1.0.4 tree.
+    // The additive 1.0.4 surfaces are tracked by feature ids; no revision 5/6 is introduced.
+    private static final int API_VERSION = 4;
 
     private static final Set<String> FEATURES = Set.of(
             // Runtime recipe registration + the generic recipe book / editor (registerRecipeType,
@@ -190,6 +192,23 @@ public final class FarmersDelightApi {
 
     public Set<String> addonBlockNamespaces() {
         return Set.copyOf(addonBlockNamespaces);
+    }
+
+    /**
+     * Removes a namespace registered by registerAddonBlockNamespace. An addon should call this from
+     * onDisable so a later reload does not keep treating a disabled addon's blocks as that plugin's content.
+     */
+    public void unregisterAddonBlockNamespace(String namespace) {
+        if (namespace == null) {
+            return;
+        }
+        String trimmed = namespace.trim().toLowerCase(Locale.ROOT);
+        if (trimmed.endsWith(":")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        if (!trimmed.isEmpty()) {
+            addonBlockNamespaces.remove(trimmed);
+        }
     }
 
     /** Fast membership check for block event listeners; unlike addonBlockNamespaces(), this does not copy. */
@@ -590,9 +609,10 @@ public final class FarmersDelightApi {
     }
 
     public void openRecipeBook(Player player, RecipeFiller filler) {
-        if (player != null) {
-            RecipeBookGui.openMenu(player, filler);
+        if (player == null) {
+            return;
         }
+        dispatchPlayerGui(player, () -> RecipeBookGui.openMenu(player, filler));
     }
 
     public void openRecipeBook(Player player, String typeId, RecipeFiller filler) {
@@ -600,17 +620,41 @@ public final class FarmersDelightApi {
             return;
         }
         RecipeType type = recipeType(typeId);
-        if (type == null) {
-            RecipeBookGui.openMenu(player, filler);
-        } else {
-            RecipeBookGui.openType(player, type, filler);
-        }
+        dispatchPlayerGui(player, () -> {
+            if (type == null) {
+                RecipeBookGui.openMenu(player, filler);
+            } else {
+                RecipeBookGui.openType(player, type, filler);
+            }
+        });
     }
 
     public void openRecipeEditor(Player player, String typeId, String recipeId) {
         RecipeType type = recipeType(typeId);
-        if (player != null && type != null && type.editor() != null) {
-            RecipeBookGui.openEditor(player, type, recipeId);
+        if (player == null || type == null || type.editor() == null) {
+            return;
+        }
+        dispatchPlayerGui(player, () -> RecipeBookGui.openEditor(player, type, recipeId));
+    }
+
+    /**
+     * Opens a recipe GUI on the player's owning region. Addons may call the public entry points from any thread;
+     * an openInventory from a foreign region is an entity write and would otherwise be a Folia violation.
+     */
+    private static void dispatchPlayerGui(Player player, Runnable action) {
+        if (player == null || action == null) {
+            return;
+        }
+        FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
+        if (plugin == null || plugin.scheduler() == null) {
+            action.run();
+            return;
+        }
+        var scheduler = plugin.scheduler();
+        if (scheduler.isOwnedByCurrentRegion(player)) {
+            action.run();
+        } else {
+            scheduler.runForEntity(player, action);
         }
     }
 
@@ -944,7 +988,7 @@ public final class FarmersDelightApi {
      * True when the calling thread owns this entity's region. Off Folia this answers true while the plugin is
      * enabled, and false while it is unavailable or disabling (the call fails closed).
      *
-     * <p>Use it to decide between running inline and {@link #runForEntity}: reading or writing a player's or
+     * Use it to decide between running inline and runForEntity: reading or writing a player's or
      * villager's state from another region's thread throws on Folia.
      */
     public boolean isOwnedByCurrentRegion(Entity entity) {
@@ -952,7 +996,7 @@ public final class FarmersDelightApi {
         return plugin != null && plugin.scheduler().isOwnedByCurrentRegion(entity);
     }
 
-    /** Like {@link #isOwnedByCurrentRegion(Entity)} for a block/entity position. */
+    /** Like isOwnedByCurrentRegion(Entity) for a block/entity position. */
     public boolean isOwnedByCurrentRegion(Location location) {
         FarmersDelightPlugin plugin = PluginAccess.pluginOrNull();
         return plugin != null && plugin.scheduler().isOwnedByCurrentRegion(location);

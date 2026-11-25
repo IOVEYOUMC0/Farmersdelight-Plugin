@@ -32,7 +32,7 @@ public final class FarmersDelightBlocks {
         return CustomBlockUtils.getId(state(block));
     }
 
-    /** Neutral-id counterpart of {@link #blockIdOf(Block)}. */
+    /** Neutral-id counterpart of blockIdOf(Block). */
     public static ContentId blockId(Block block) {
         return ContentId.parseOrNull(blockIdOf(block));
     }
@@ -70,7 +70,7 @@ public final class FarmersDelightBlocks {
         return rule == null ? null : rule.id().value();
     }
 
-    /** Neutral-id counterpart of {@link #stationIdOf(Block)}; null for non-stations. */
+    /** Neutral-id counterpart of stationIdOf(Block); null for non-stations. */
     public static ContentId stationId(Block block) {
         return ContentId.parseOrNull(stationIdOf(block));
     }

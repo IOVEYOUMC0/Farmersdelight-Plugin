@@ -10,8 +10,8 @@ import java.util.Set;
  * Registry for composable recipe conditions. Conditions are evaluated in registration order and
  * fail closed: a broken condition rejects the recipe instead of silently allowing it.
  *
- * <p>This is the first-phase contract: FD exposes the registry and evaluates conditions on its
- * built-in recipe paths. It does not replace CE recipe matchers or third-party station execution.</p>
+ * This is the first-phase contract: FD exposes the registry and evaluates conditions on its
+ * built-in recipe paths. It does not replace CE recipe matchers or third-party station execution.
  */
 @ApiStatus.Experimental
 public final class RecipeConditions {
@@ -51,11 +51,7 @@ public final class RecipeConditions {
         if (context == null) {
             return false;
         }
-        for (ContentId id : STORE.ids()) {
-            RecipeCondition condition = STORE.find(id).orElse(null);
-            if (condition == null) {
-                continue;
-            }
+        for (RecipeCondition condition : STORE.ordered()) {
             try {
                 if (!condition.appliesTo(context.recipeType(), context.recipeId())) {
                     continue;

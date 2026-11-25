@@ -8,7 +8,7 @@ import java.util.function.Supplier;
 /**
  * Bounded striped locks keyed by an arbitrary string, e.g. a block position key.
  *
- * <p>Two calls with equal keys use the same monitor, so a station's state is only touched by one thread at a
+ * Two calls with equal keys use the same monitor, so a station's state is only touched by one thread at a
  * time even when callbacks arrive from different regions. Different keys may share a monitor; the footprint stays
  * constant no matter how many keys a session visits.
  */
@@ -29,7 +29,7 @@ public final class KeyLocks {
     }
 
     /** @param stripes requested monitor count, rounded up to the next power of two; below 1 becomes 1, above
-     *                 {@link #MAX_STRIPES} is capped at that value */
+     *                 MAX_STRIPES is capped at that value */
     public KeyLocks(int stripes) {
         int target = Math.min(stripes, MAX_STRIPES);
         int size = 1;

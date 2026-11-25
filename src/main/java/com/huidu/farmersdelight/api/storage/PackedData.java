@@ -18,7 +18,7 @@ public interface PackedData {
     /** The keys currently present, in insertion order. */
     Set<String> keys();
 
-    /** The nested tree under {@code key}, or null when absent or not a tree. */
+    /** The nested tree under key, or null when absent or not a tree. */
     @Nullable
     PackedData compound(String key);
 
@@ -32,7 +32,7 @@ public interface PackedData {
 
     boolean bool(String key, boolean fallback);
 
-    /** A defensive copy of the stack under {@code key}, or null when absent. */
+    /** A defensive copy of the stack under key, or null when absent. */
     @Nullable
     ItemStack item(String key);
 

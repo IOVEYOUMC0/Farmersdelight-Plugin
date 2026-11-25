@@ -9,8 +9,8 @@ import org.jetbrains.annotations.ApiStatus;
  * recipe-book association and optional heat-source querying; the addon keeps ownership of the
  * station's inventory, GUI and execution.
  *
- * <p>Rules are read-only and must be safe to call from the region thread that owns the block.
- * Exceptions are isolated by the registry and treated as "no match".</p>
+ * Rules are read-only and must be safe to call from the region thread that owns the block.
+ * Exceptions are isolated by the registry and treated as "no match".
  */
 @ApiStatus.Experimental
 public interface StationRule {

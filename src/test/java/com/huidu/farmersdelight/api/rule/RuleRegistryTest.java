@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -230,6 +231,29 @@ class RuleRegistryTest {
                 RecipeContext.of(null, null, List.of(), null, null, "cooking_pot", "farmersdelight:stew")));
         assertFalse(RecipeConditions.allMatch(
                 RecipeContext.of(null, null, List.of(), null, null, "myaddon:keg", "myaddon:booze")));
+    }
+
+    @Test
+    void recipeConditionsEvaluateInRegistrationOrder() {
+        List<ContentId> evaluated = new ArrayList<>();
+        for (String id : List.of("testaddon:first", "testaddon:second")) {
+            ContentId contentId = ContentId.parse(id);
+            assertTrue(RecipeConditions.register(new RecipeCondition() {
+                @Override
+                public ContentId id() {
+                    return contentId;
+                }
+
+                @Override
+                public boolean test(RecipeContext context) {
+                    evaluated.add(contentId);
+                    return true;
+                }
+            }));
+        }
+
+        assertTrue(RecipeConditions.allMatch(context()));
+        assertEquals(List.of(ContentId.parse("testaddon:first"), ContentId.parse("testaddon:second")), evaluated);
     }
 
     @Test

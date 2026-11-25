@@ -17,9 +17,11 @@ import org.jetbrains.annotations.Nullable;
 
 // Read-only crop gating queries for addons that hook custom crop logic: whether a block (or a block id)
 // is one of FarmersDelight's managed crops, whether it is mature enough to harvest right now, and the
-// harvest tool rules. All queries are pure registry lookups -- they never mutate the world or the crop --
-// so they are safe to call from a region thread. Unknown / non-crop blocks resolve to sensible defaults
-// (false / empty) rather than throwing.
+// harvest tool rules. The Block overloads read the live world and therefore require the caller to be on
+// the region thread that owns the block; they use the resident-chunk state variant, so an unloaded chunk
+// is reported as "not a crop" instead of being loaded synchronously. The ContentId/Key overloads are pure
+// registry lookups. Unknown / non-crop blocks resolve to sensible defaults (false / empty) rather than
+// throwing.
 public final class FarmersDelightCrops {
 
     private FarmersDelightCrops() {
@@ -59,7 +61,7 @@ public final class FarmersDelightCrops {
         if (block == null) {
             return null;
         }
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState state = CustomBlockUtils.getStateIfResident(block);
         if (state == null || state.isEmpty()) {
             CropRule rule = CropRules.matching(block);
             return rule == null ? null : new CropSnapshot(rule.id().value(), rule.age(block), -1,
@@ -99,7 +101,7 @@ public final class FarmersDelightCrops {
         if (block == null) {
             return false;
         }
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState state = CustomBlockUtils.getStateIfResident(block);
         if (state == null || state.isEmpty()) {
             CropRule rule = CropRules.matching(block);
             return rule != null && rule.isHarvestReady(block);
@@ -128,8 +130,8 @@ public final class FarmersDelightCrops {
             CropRule rule = CropRules.matching(block);
             return rule == null ? -1 : rule.age(block);
         }
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
-        return behavior.getAge(state);
+        ImmutableBlockState state = CustomBlockUtils.getStateIfResident(block);
+        return state == null ? -1 : behavior.getAge(state);
     }
 
     // Whether the given block id was declared with reset-on-harvest (the top is harvested and the crop
@@ -188,7 +190,7 @@ public final class FarmersDelightCrops {
         if (block == null) {
             return null;
         }
-        ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+        ImmutableBlockState state = CustomBlockUtils.getStateIfResident(block);
         return state == null || state.isEmpty() ? null : state.owner().value().id();
     }
 }

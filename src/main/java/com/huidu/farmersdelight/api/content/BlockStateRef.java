@@ -14,8 +14,8 @@ import java.util.TreeMap;
  * properties. It mirrors the state syntax used by CraftEngine content, but deliberately exposes no
  * CraftEngine types.
  *
- * <p>Properties are kept in a case-insensitive map and rendered in sorted order so the canonical
- * {@link #value()} is stable across calls and suitable for config keys and logging.</p>
+ * Properties are kept in a case-insensitive map and rendered in sorted order so the canonical
+ * value is stable across calls and suitable for config keys and logging.
  */
 @ApiStatus.Experimental
 public final class BlockStateRef {
@@ -48,7 +48,7 @@ public final class BlockStateRef {
     }
 
     /**
-     * Parses {@code namespace:path} or {@code namespace:path[key=value,key2=value]}. Malformed
+     * Parses namespace:path or namespace:path[key=value,key2=value]. Malformed
      * properties are rejected rather than silently ignored.
      */
     public static BlockStateRef parse(String value) {
@@ -106,7 +106,7 @@ public final class BlockStateRef {
         return this.properties;
     }
 
-    /** The canonical {@code namespace:path[key=value,...]} representation. */
+    /** The canonical namespace:path[key=value,...] representation. */
     public String value() {
         if (this.properties.isEmpty()) {
             return this.blockId.value();

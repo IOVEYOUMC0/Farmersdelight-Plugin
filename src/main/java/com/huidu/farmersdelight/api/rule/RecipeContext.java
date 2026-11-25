@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable read-only context passed to a {@link RecipeCondition}. Stacks and the station location
+ * Immutable read-only context passed to a RecipeCondition. Stacks and the station location
  * are defensive copies, so a condition cannot mutate the live cooking pot or cutting board.
  */
 @ApiStatus.Experimental
@@ -94,7 +94,7 @@ public final class RecipeContext {
         return this.tool == null ? null : this.tool.clone();
     }
 
-    /** Matched station/recipe type, e.g. {@code cooking_pot}; null in a generic context. */
+    /** Matched station/recipe type, e.g. cooking_pot; null in a generic context. */
     @Nullable
     public String recipeType() {
         return this.recipeType;
