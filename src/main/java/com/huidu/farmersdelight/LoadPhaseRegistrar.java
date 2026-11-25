@@ -33,7 +33,7 @@ final class LoadPhaseRegistrar {
 
         BehaviorRegistrar.registerBlockBehaviors();
         BehaviorRegistrar.registerItemBehaviors();
-        BehaviorRegistrar.registerFunctions();
+        BehaviorRegistrar.registerFunctions(plugin);
         BehaviorRegistrar.registerConditions();
         BehaviorRegistrar.registerLootFunctions();
         // Register the farmersdelight:sword settings modifier before CraftEngine parses item YAML files.

@@ -164,7 +164,8 @@ items:
     events:
       - on: consume 
         functions:
-          - type: farmersdelight:hot_cocoa
+          - type: farmersdelight:remove_random_effect
+            harmful_only: true
     settings:
       tags:
         - farmersdelight:drinks

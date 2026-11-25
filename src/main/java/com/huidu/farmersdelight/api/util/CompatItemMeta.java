@@ -14,4 +14,14 @@ public final class CompatItemMeta {
     public static void setItemModel(ItemMeta meta, NamespacedKey key) {
         if (meta != null && key != null) meta.setItemModel(key);
     }
+
+    /** The item model key, or null when the stack carries none or has no meta. */
+    public static NamespacedKey getItemModel(ItemMeta meta) {
+        return meta == null ? null : meta.getItemModel();
+    }
+
+    /** Whether the stack declares its own item model. */
+    public static boolean hasItemModel(ItemMeta meta) {
+        return getItemModel(meta) != null;
+    }
 }

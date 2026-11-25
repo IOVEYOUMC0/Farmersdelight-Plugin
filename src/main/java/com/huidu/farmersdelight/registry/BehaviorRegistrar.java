@@ -23,8 +23,9 @@ import com.huidu.farmersdelight.block.behavior.WildRiceBlockBehavior;
 import com.huidu.farmersdelight.condition.IsAdultCondition;
 import com.huidu.farmersdelight.condition.IsBurningCondition;
 import com.huidu.farmersdelight.condition.IsKnifeCondition;
+import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.effect.ContentEffectFunction;
 import com.huidu.farmersdelight.effect.FoodBuffFunction;
-import com.huidu.farmersdelight.effect.HotCocoaFunction;
 import com.huidu.farmersdelight.loot.UniformBonusCount;
 import net.momirealms.craftengine.core.loot.function.formula.Formulas;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -91,12 +92,15 @@ public final class BehaviorRegistrar {
         ContentRegistration.apply(ContentRegistration.Kind.ITEM_BEHAVIOR);
     }
 
-    public static void registerFunctions() {
+    /** Effect functions resolve the owning plugin from the caller, never from a static lookup. */
+    public static void registerFunctions(FarmersDelightPlugin plugin) {
         registerFunction("farmersdelight:comfort",
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.COMFORT, CommonConditions::fromConfig));
         registerFunction("farmersdelight:nourishment",
                 FoodBuffFunction.factory(FoodBuffFunction.Kind.NOURISHMENT, CommonConditions::fromConfig));
-        registerFunction("farmersdelight:hot_cocoa", HotCocoaFunction.factory(CommonConditions::fromConfig));
+        // Effect mutations a pack can declare on a food instead of the plugin hard-coding the dish.
+        ContentEffectFunction.factories(plugin)
+                .forEach((suffix, factory) -> registerFunction("farmersdelight:" + suffix, factory));
         ContentRegistration.apply(ContentRegistration.Kind.FUNCTION);
     }
 
@@ -126,10 +130,11 @@ public final class BehaviorRegistrar {
      * registries for the whole class-loader lifetime, so the pass is defence in depth: it covers a
      * CraftEngine that rebuilds them later, and any entry that goes missing for another reason.
      */
-    public static void replayContentRegistrations() {
+    /** The plugin-side replay passes the live instance; there is no static fallback. */
+    public static void replayContentRegistrations(FarmersDelightPlugin plugin) {
         registerBlockBehaviors();
         registerItemBehaviors();
-        registerFunctions();
+        registerFunctions(plugin);
         registerConditions();
         registerLootFunctions();
         I18n.logDetail(DebugCategory.STARTUP, "plugin.replayed_content_registrations",

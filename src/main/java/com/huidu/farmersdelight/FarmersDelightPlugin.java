@@ -794,7 +794,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // reads the fresh pack content. CraftEngine keeps its built-in type registries for the whole
         // class-loader lifetime, so this is defence in depth; it is idempotent either way, because ids
         // CraftEngine already reports are skipped.
-        BehaviorRegistrar.replayContentRegistrations();
+        BehaviorRegistrar.replayContentRegistrations(this);
         ReloadCacheInvalidator.clear();
         if (specialRecipeRegistry != null) {
             specialRecipeRegistry.invalidateIndex();
@@ -828,7 +828,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private void reloadCommon(boolean reloadLanguages) {
         // Registration is idempotent and skips ids CraftEngine already reports, so re-applying it here keeps
         // another plugin's registrations alive across /fd reload without re-registering the plugin's own content.
-        BehaviorRegistrar.replayContentRegistrations();
+        BehaviorRegistrar.replayContentRegistrations(this);
         long reloadStart = System.nanoTime();
         // One parse per user file for this whole pass: validation and the load pass read the same four files,
         // and a reload could not see two different contents anyway. Closed in the finally below, so a later
