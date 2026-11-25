@@ -3,3 +3,6 @@
 *.yml   text eol=lf
 *.yaml  text eol=lf
 *.json  text eol=lf
+# The api signature baseline is compared line by line, so a CRLF rewrite would look like a full removal.
+*.txt   text eol=lf
+# *.java is deliberately absent: 121 tracked sources are CRLF blobs, so an eol rule would rewrite them.
