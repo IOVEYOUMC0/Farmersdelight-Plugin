@@ -25,8 +25,9 @@ public final class SchedulerMigrationDispatch implements MigrationDispatch {
             return scheduler.isOwnedByCurrentRegion(location);
         }
         if (owner instanceof Entity entity) {
-            // An entity is owned by the region holding its position; the adapter answers for that location.
-            return scheduler.isOwnedByCurrentRegion(entity.getLocation());
+            // Use the entity overload: reading Entity#getLocation from a thread that does not own the
+            // entity's region is itself a cross-region read.
+            return scheduler.isOwnedByCurrentRegion(entity);
         }
         return false;
     }

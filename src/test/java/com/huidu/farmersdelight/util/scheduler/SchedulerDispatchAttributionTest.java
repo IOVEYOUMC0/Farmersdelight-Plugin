@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.util.scheduler;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Entity;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -62,6 +63,15 @@ class SchedulerDispatchAttributionTest {
         assertTrue(source.contains("refusedUnattributable(\"tryRunAt\")"));
         assertFalse(source.contains("if (!folia || world == null)"),
                 "a missing world must be refused, never handed to the global scheduler");
+    }
+
+    @Test
+    void aNullEntityIsRefusedOnFoliaInsteadOfFallingBackToTheGlobalScheduler() {
+        assertTrue(SchedulerAdapter.refusesEntityDispatch(true, null));
+        assertFalse(SchedulerAdapter.refusesEntityDispatch(false, null), "off Folia the main-thread dispatch stays");
+        Entity entity = (Entity) Proxy.newProxyInstance(
+                Entity.class.getClassLoader(), new Class<?>[]{Entity.class}, (proxy, method, args) -> null);
+        assertFalse(SchedulerAdapter.refusesEntityDispatch(true, entity));
     }
 
     /** A world handle for location construction; nothing on it is called, so no server is needed. */

@@ -27,6 +27,8 @@ public final class SchedulerAdapter implements RegionDispatcher {
     // One line per session: the first unattributable dispatch identifies the caller, and a caller in a loop must
     // not be able to flood the log.
     private static final AtomicBoolean UNATTRIBUTABLE_LOGGED = new AtomicBoolean();
+    // One line per session for the null-entity refusal; a caller in a loop must not flood the log.
+    private static final AtomicBoolean ENTITY_REFUSED_LOGGED = new AtomicBoolean();
 
     private final FarmersDelightPlugin plugin;
     private final boolean folia;
@@ -108,7 +110,11 @@ public final class SchedulerAdapter implements RegionDispatcher {
 
     @Override
     public void runForEntity(Entity entity, Runnable task) {
-        if (!folia || entity == null) {
+        if (refusesEntityDispatch(folia, entity)) {
+            refusedEntity();
+            return;
+        }
+        if (!folia) {
             run(task);
             return;
         }
@@ -117,7 +123,11 @@ public final class SchedulerAdapter implements RegionDispatcher {
 
     @Override
     public void runForEntity(Entity entity, Runnable task, Runnable retired) {
-        if (!folia || entity == null) {
+        if (refusesEntityDispatch(folia, entity)) {
+            refusedEntity();
+            return;
+        }
+        if (!folia) {
             run(task);
             return;
         }
@@ -152,7 +162,11 @@ public final class SchedulerAdapter implements RegionDispatcher {
     }
 
     public void runLaterForEntity(Entity entity, Runnable task, long delayTicks) {
-        if (entity == null || !folia) {
+        if (refusesEntityDispatch(folia, entity)) {
+            refusedEntity();
+            return;
+        }
+        if (!folia) {
             runLater(task, delayTicks);
             return;
         }
@@ -278,6 +292,21 @@ public final class SchedulerAdapter implements RegionDispatcher {
         if (UNATTRIBUTABLE_LOGGED.compareAndSet(false, true)) {
             plugin.getLogger().fine("Dropped a " + operation + " task because its location has no attributable"
                     + " world; an unattributable dispatch is never run on the global scheduler.");
+        }
+    }
+
+    /**
+     * On Folia a null entity has no owning region; running its task on the global scheduler would touch state
+     * that no thread necessarily owns. Off Folia main-thread dispatch stays available.
+     */
+    static boolean refusesEntityDispatch(boolean folia, Entity entity) {
+        return folia && entity == null;
+    }
+
+    private void refusedEntity() {
+        if (ENTITY_REFUSED_LOGGED.compareAndSet(false, true)) {
+            plugin.getLogger().fine("Dropped an entity task because the entity was null; a null entity cannot"
+                    + " be attributed to a region, so it is never run on the global scheduler.");
         }
     }
 
