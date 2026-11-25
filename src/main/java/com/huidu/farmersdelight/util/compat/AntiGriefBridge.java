@@ -13,7 +13,7 @@ import java.util.logging.Level;
 
 // Routes the non-WorldGuard land-plugin checks through CraftEngine's own AntiGriefLib provider, so both
 // plugins enforce the same claim rules instead of this plugin bundling a second copy of the library.
-// CraftEngine finishes enabling after this plugin, so the provider is resolved on first use.
+// CraftEngine loads before this plugin, but it registers the AntiGriefLib provider during its own enable pass, so the provider is resolved lazily on first use.
 final class AntiGriefBridge {
 
     private static volatile AntiGriefLib provider;

@@ -48,7 +48,7 @@ public final class ProtectionChecks {
     }
 
     public static void init(JavaPlugin plugin) {
-        // The provider resolves lazily on first use (CraftEngine enables after this plugin) and is retried
+        // The provider resolves lazily on first use (CraftEngine registers it during its own enable) and is retried
         // through reset() on every CraftEngine reload, so no eager snapshot is taken here.
     }
 

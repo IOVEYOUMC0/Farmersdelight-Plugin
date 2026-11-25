@@ -46,7 +46,7 @@ class BlockBreakListenerTest {
     @Test
     void theOwnedPathKeepsTheSynchronousOrderAndTheCreativeGate() throws IOException {
         String source = read("src/main/java/com/huidu/farmersdelight/listener/BlockBreakListener.java");
-        int ownedCheck = source.indexOf("!plugin.scheduler().isOwnedByCurrentRegion(breaker)");
+        int ownedCheck = source.indexOf("boolean owned = owns(breaker)");
         assertTrue(ownedCheck > 0);
 
         int event = source.indexOf("callEvent(new FarmersDelightStationBrokenEvent(", ownedCheck);

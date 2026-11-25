@@ -81,12 +81,21 @@ public class BlockBreakListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
         ImmutableBlockState state = CustomBlockUtils.getState(block);
+        // ProtectionChecks.isOp()/canBreak read the player's world/position, which is a cross-region read if the
+        // breaker is on the far side of a Folia region border. Do the ownership check first; a protected block
+        // is failed closed, while the block-owned cleanup below still runs for unprotected blocks.
+        Player breaker = event.getPlayer();
+        boolean owned = owns(breaker);
+        if (!owned && isProtectedWorkstation(state)) {
+            event.setCancelled(true);
+            return;
+        }
         // Deliberate: an operator breaking a FarmersDelight workstation is allowed through even when another
         // plugin cancelled the event, so a mis-configured region flag or claim cannot lock operators out of
         // their own blocks. ProtectionChecks.canBreak answers true for operators by design.
-        if (event.isCancelled() && event.getPlayer().isOp()
+        if (owned && event.isCancelled() && breaker != null && breaker.isOp()
                 && isProtectedBlock(state)
-                && ProtectionChecks.canBreak(event.getPlayer(), block, featureFor(state))) {
+                && ProtectionChecks.canBreak(breaker, block, featureFor(state))) {
             event.setCancelled(false);
         }
         if (event.isCancelled()) {
@@ -97,8 +106,8 @@ public class BlockBreakListener implements Listener {
         plugin.getStoveManager()
                 .invalidateBlockedAboveCache(block.getLocation().add(0, -1, 0));
         syncTraysAroundSupportChange(block);
-        if (isProtectedBlock(state)
-                && !ProtectionChecks.canBreak(event.getPlayer(), block, featureFor(state))) {
+        if (owned && isProtectedBlock(state)
+                && !ProtectionChecks.canBreak(breaker, block, featureFor(state))) {
             event.setCancelled(true);
             return;
         }
@@ -111,9 +120,17 @@ public class BlockBreakListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onCustomBlockBreak(CustomBlockBreakEvent event) {
         ImmutableBlockState state = event.blockState();
-        if (event.isCancelled() && event.getPlayer().isOp()
+        Player breaker = event.getPlayer();
+        boolean owned = owns(breaker);
+        // Same rule as onBlockBreak: never let ProtectionChecks read a foreign-region player. A protected
+        // workstation is failed closed; an unprotected one still uses the block-owned cleanup path.
+        if (!owned && isProtectedWorkstation(state)) {
+            event.setCancelled(true);
+            return;
+        }
+        if (owned && event.isCancelled() && breaker != null && breaker.isOp()
                 && isProtectedBlock(state)
-                && ProtectionChecks.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
+                && ProtectionChecks.canBreak(breaker, event.bukkitBlock(), featureFor(state))) {
             event.setCancelled(false);
         }
         if (event.isCancelled()) {
@@ -124,8 +141,8 @@ public class BlockBreakListener implements Listener {
         syncTraysAroundSupportChange(event.bukkitBlock());
         // Resolve the block state once and reuse it across the managed-type checks and cleanup, avoiding
         // the repeated lookups the per-call event.blockState() would otherwise perform.
-        if (isProtectedBlock(state)
-                && !ProtectionChecks.canBreak(event.getPlayer(), event.bukkitBlock(), featureFor(state))) {
+        if (owned && isProtectedBlock(state)
+                && !ProtectionChecks.canBreak(breaker, event.bukkitBlock(), featureFor(state))) {
             event.setCancelled(true);
             return;
         }
@@ -133,13 +150,12 @@ public class BlockBreakListener implements Listener {
             return;
         }
         FarmersDelightStation station = StationTypes.of(state);
-        Player breaker = event.getPlayer();
-        if (breaker != null && !plugin.scheduler().isOwnedByCurrentRegion(breaker)) {
+        if (!owned) {
             handleCrossRegionBreak(event, state, station, breaker);
             return;
         }
+        ItemStack tool = breaker == null ? null : breaker.getInventory().getItemInMainHand();
         if (station != null) {
-            ItemStack tool = breaker == null ? null : breaker.getInventory().getItemInMainHand();
             Bukkit.getPluginManager().callEvent(new FarmersDelightStationBrokenEvent(
                     breaker, station, event.bukkitBlock().getLocation(), tool));
         }
@@ -210,6 +226,19 @@ public class BlockBreakListener implements Listener {
         });
     }
 
+    private boolean owns(Player player) {
+        return player == null || plugin.scheduler() == null || plugin.scheduler().isOwnedByCurrentRegion(player);
+    }
+
+    /**
+     * Only the workstations have a ProtectionChecks feature. Other custom blocks (crops, trays, ...) are still
+     * in the protected namespace for same-region checks, but a cross-region breaker must not be cancelled just
+     * for being on the far side of a region border.
+     */
+    private static boolean isProtectedWorkstation(ImmutableBlockState state) {
+        return isProtectedBlock(state) && featureFor(state) != null;
+    }
+
     private static boolean isProtectedBlock(ImmutableBlockState state) {
         return isProtectedBlockId(CustomBlockUtils.getId(state));
     }
@@ -243,7 +272,9 @@ public class BlockBreakListener implements Listener {
         return null;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    // MONITOR: another plugin may still cancel the explosion; doing the cleanup at HIGHEST would drop the
+    // workstation contents before that cancellation can restore the block. ignoreCancelled skips it safely.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
         for (var block : event.blockList()) {
             syncTraysAroundSupportChange(block);
@@ -251,7 +282,7 @@ public class BlockBreakListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
         for (var block : event.blockList()) {
             syncTraysAroundSupportChange(block);
@@ -286,7 +317,7 @@ public class BlockBreakListener implements Listener {
     /**
      * @param creativeGatedDrops sink for the cooking pot and skillet drops, which the breaker's game mode gates;
      *                           null drops nothing. Cutting board and stove drops are not creative-gated and keep
-     *                           using {@code shouldDropItems}.
+     *                           using shouldDropItems.
      */
     private void cleanupBlockAt(Block block, ImmutableBlockState state, boolean preserveCookingPotContents,
                                 BreakDrops creativeGatedDrops, boolean shouldDropItems, boolean explosion) {
