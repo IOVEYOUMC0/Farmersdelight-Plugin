@@ -781,7 +781,7 @@ public class SkilletManager {
         for (Location location : locations) {
             SkilletData skillet = skillets.remove(location);
             if (skillet != null) {
-                scheduledSkilletTicks.complete(location);
+                scheduledSkilletTicks.release(location);
                 cleanupVisual(skillet);
             }
         }
@@ -1006,7 +1006,7 @@ public class SkilletManager {
         Location normalized = ManagerSupport.normalize(location);
         SkilletData removed = skillets.remove(normalized);
         if (removed != null) {
-            scheduledSkilletTicks.complete(normalized);
+            scheduledSkilletTicks.release(normalized);
             locationIndex.remove(normalized);
             markTickLocationsDirty();
         }
@@ -1117,7 +1117,8 @@ public class SkilletManager {
         // The claim is released by the region task itself; the guard also expires it, so a tick the region
         // accepted but never ran does not leave this skillet marked forever. The global task has no ticking
         // region, so the clock is nanoTime rather than Bukkit.getCurrentTick().
-        if (!scheduledSkilletTicks.tryAdd(location, System.nanoTime())) {
+        long claim = scheduledSkilletTicks.tryAdd(location, System.nanoTime());
+        if (claim == 0L) {
             return;
         }
         try {
@@ -1125,11 +1126,11 @@ public class SkilletManager {
                 try {
                     tickSkillet(location, skillet);
                 } finally {
-                    scheduledSkilletTicks.complete(location);
+                    scheduledSkilletTicks.complete(location, claim);
                 }
             });
         } catch (RuntimeException e) {
-            scheduledSkilletTicks.complete(location);
+            scheduledSkilletTicks.complete(location, claim);
         }
     }
 

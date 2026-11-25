@@ -383,7 +383,7 @@ public class TickManager {
                     lastProcessedTicks.remove(change.block());
                     progressDisplayLastUpdateTicks.remove(change.block());
                     heatSourceLastCheckTicks.remove(change.block());
-                    scheduledActiveBlocks.complete(change.block());
+                    scheduledActiveBlocks.release(change.block());
                 }
             }
             if (changed) {
@@ -522,7 +522,8 @@ public class TickManager {
             }
             // The claim is released by the region task itself; the guard also expires it, so a pass the region
             // accepted but never ran does not leave this block marked forever.
-            if (!scheduledActiveBlocks.tryAdd(activeBlock, currentTick)) {
+            long claim = scheduledActiveBlocks.tryAdd(activeBlock, currentTick);
+            if (claim == 0L) {
                 return;
             }
             int chunkX = activeBlock.posKey().x() >> 4;
@@ -532,11 +533,11 @@ public class TickManager {
                     try {
                         processActiveBlockInRegion(activeBlock, world, getCurrentTick(), generation);
                     } finally {
-                        scheduledActiveBlocks.complete(activeBlock);
+                        scheduledActiveBlocks.complete(activeBlock, claim);
                     }
             });
         } catch (RuntimeException e) {
-            scheduledActiveBlocks.complete(activeBlock);
+            scheduledActiveBlocks.complete(activeBlock, claim);
         }
         return;
         }

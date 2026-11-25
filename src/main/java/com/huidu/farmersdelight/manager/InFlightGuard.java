@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.manager;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tracks the blocks whose work pass has been handed to a region scheduler but has not reported back yet, so the
@@ -14,6 +14,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * the caller passes to tryAdd: station loops driven by a tick pass use ticks, loops that run as a Folia global
  * task pass nanoTime.
  *
+ * Every successful claim carries a token. complete(Object, long) only releases the marker when that
+ * token is still the current one, so a task belonging to an expired claim cannot clear the claim that replaced it.
+ * Lifecycle paths (block removed, world unloaded) use release(Object), which drops the marker regardless.
+ *
  * @param <K> the tracked-block key
  */
 final class InFlightGuard<K> {
@@ -21,7 +25,11 @@ final class InFlightGuard<K> {
     /** Ten seconds at 20 TPS, i.e. fifty passes of the four-tick station loops (tick clock). */
     static final long DEFAULT_TIMEOUT_TICKS = 200L;
 
-    private final Map<K, Long> submittedAt = new ConcurrentHashMap<>();
+    private record Claim(long submittedAt, long token) {
+    }
+
+    private final Map<K, Claim> submitted = new ConcurrentHashMap<>();
+    private final AtomicLong claimSequence = new AtomicLong();
     private final long timeout;
 
     InFlightGuard() {
@@ -33,28 +41,37 @@ final class InFlightGuard<K> {
     }
 
     /**
-     * Claims the key for one submission. Returns true when the caller may submit: nothing is in flight, or the
-     * existing marker is past the timeout and is replaced by this claim.
+     * Claims the key for one submission. Returns the claim token (always non-zero), or 0 when another claim is
+     * still outstanding. A marker past the timeout is replaced by this claim.
      */
-    boolean tryAdd(K key, long now) {
+    long tryAdd(K key, long now) {
         if (key == null) {
-            return false;
+            return 0L;
         }
-        AtomicBoolean claimed = new AtomicBoolean();
-        submittedAt.compute(key, (ignored, previous) -> {
-            if (previous == null || now - previous >= timeout) {
-                claimed.set(true);
-                return now;
+        long token = claimSequence.incrementAndGet();
+        AtomicLong claimed = new AtomicLong();
+        submitted.compute(key, (ignored, previous) -> {
+            if (previous == null || now - previous.submittedAt() >= timeout) {
+                claimed.set(token);
+                return new Claim(now, token);
             }
             return previous;
         });
         return claimed.get();
     }
 
-    /** Releases the key once its task ran or its submission was refused. */
-    void complete(K key) {
+    /** Releases the marker only when the caller still owns it; a late task of an old claim is a no-op. */
+    void complete(K key, long token) {
+        if (key == null || token == 0L) {
+            return;
+        }
+        submitted.computeIfPresent(key, (ignored, current) -> current.token() == token ? null : current);
+    }
+
+    /** Drops the marker regardless of token; used when the block itself stops being tracked. */
+    void release(K key) {
         if (key != null) {
-            submittedAt.remove(key);
+            submitted.remove(key);
         }
     }
 
@@ -63,11 +80,11 @@ final class InFlightGuard<K> {
         if (key == null) {
             return false;
         }
-        Long previous = submittedAt.get(key);
-        return previous != null && now - previous >= timeout;
+        Claim previous = submitted.get(key);
+        return previous != null && now - previous.submittedAt() >= timeout;
     }
 
     void clear() {
-        submittedAt.clear();
+        submitted.clear();
     }
 }

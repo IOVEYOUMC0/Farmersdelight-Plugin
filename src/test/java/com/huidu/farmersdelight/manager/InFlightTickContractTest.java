@@ -29,6 +29,7 @@ class InFlightTickContractTest {
             assertTrue(source.contains(marker + " = new InFlightGuard<>("), entry.getKey());
             assertTrue(source.contains(marker + ".tryAdd("), entry.getKey());
             assertTrue(source.contains(marker + ".complete("), entry.getKey());
+            assertTrue(source.contains(marker + ".release("), entry.getKey());
             assertFalse(source.contains(marker + ".add("), entry.getKey() + " must claim through the guard");
             assertFalse(source.contains(marker + ".remove("), entry.getKey() + " must release through the guard");
         }

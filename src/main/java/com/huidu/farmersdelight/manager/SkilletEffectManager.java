@@ -112,8 +112,8 @@ public class SkilletEffectManager {
         boolean smoke = smokeEnabled && random.nextDouble() < smokeChance;
         boolean sizzle = sizzleEnabled && random.nextDouble() < sizzleChance;
         if (!smoke && !sizzle) return;
-        List<Player> nearbyViewers = ManagerSupport.collectNearbyPlayers(
-                world, location, effectViewerDistanceSquared, NEARBY_VIEWER_SCRATCH.get());
+        List<Player> nearbyViewers = ManagerSupport.playersSeeingChunk(
+                world, location, NEARBY_VIEWER_SCRATCH.get());
         if (nearbyViewers.isEmpty()) return;
         try {
             long chunkKey = ManagerSupport.chunkKey(location);
@@ -127,11 +127,10 @@ public class SkilletEffectManager {
             }
             AtomicInteger chunkBudget = entry.count;
             if (smoke && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
-                spawnCookingParticles(nearbyViewers, location);
+                spawnCookingParticles(world, nearbyViewers, location);
             }
             if (sizzle && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
-                SoundUtils.play(plugin.scheduler(), nearbyViewers, location, getSizzleSound(carrierState),
-                        Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch);
+                playSizzle(world, nearbyViewers, location, getSizzleSound(carrierState));
             }
         } finally {
             nearbyViewers.clear();
@@ -152,12 +151,19 @@ public class SkilletEffectManager {
         chunkEffectBudget.clear();
     }
 
-    private void spawnCookingParticles(List<Player> viewers, Location location) {
+    private void spawnCookingParticles(World world, List<Player> viewers, Location location) {
         double px = location.getX() + 0.5;
         double py = location.getY() + smokeYOffset;
         double pz = location.getZ() + 0.5;
-        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, smokeParticle, px, py, pz,
-                smokeCount, smokeOffsetX, smokeOffsetY, smokeOffsetZ, smokeSpeed);
+        ManagerSupport.runForViewerWithin(plugin.scheduler(), world, viewers, location, effectViewerDistanceSquared,
+                viewer -> viewer.spawnParticle(smokeParticle, px, py, pz,
+                        smokeCount, smokeOffsetX, smokeOffsetY, smokeOffsetZ, smokeSpeed, null, false));
+    }
+
+    private void playSizzle(World world, List<Player> viewers, Location location, String soundKey) {
+        ManagerSupport.runForViewerWithin(plugin.scheduler(), world, viewers, location, effectViewerDistanceSquared,
+                viewer -> SoundUtils.play(null, List.of(viewer), location, soundKey,
+                        Sound.BLOCK_CAMPFIRE_CRACKLE, sizzleVolume, sizzlePitch));
     }
 
     // Resolves the sizzle sound from the already-fetched carrier state, avoiding a second CE custom-state

@@ -433,7 +433,7 @@ public class StoveManager {
             StoveData stove = stoves.remove(location);
             if (stove != null) {
                 removedAny = true;
-                scheduledStoveTicks.complete(location);
+                scheduledStoveTicks.release(location);
                 visualManager.cleanupAllVisuals(stove);
             }
         }
@@ -636,7 +636,7 @@ public class StoveManager {
         Location normalized = ManagerSupport.normalize(location);
         StoveData removed = stoves.remove(normalized);
         if (removed != null) {
-            scheduledStoveTicks.complete(normalized);
+            scheduledStoveTicks.release(normalized);
             locationIndex.remove(normalized);
             markTickLocationsDirty();
         }
@@ -727,7 +727,8 @@ public class StoveManager {
         // The claim is released by the region task itself; the guard also expires it, so a tick the region
         // accepted but never ran does not leave this stove marked forever. The global task has no ticking
         // region, so the clock is nanoTime rather than Bukkit.getCurrentTick().
-        if (!scheduledStoveTicks.tryAdd(location, System.nanoTime())) {
+        long claim = scheduledStoveTicks.tryAdd(location, System.nanoTime());
+        if (claim == 0L) {
             return;
         }
         try {
@@ -735,11 +736,11 @@ public class StoveManager {
                 try {
                     tickStove(location, stove);
                 } finally {
-                    scheduledStoveTicks.complete(location);
+                    scheduledStoveTicks.complete(location, claim);
                 }
             });
         } catch (RuntimeException e) {
-            scheduledStoveTicks.complete(location);
+            scheduledStoveTicks.complete(location, claim);
         }
     }
 
@@ -850,31 +851,16 @@ public class StoveManager {
             seeingPlayers = List.copyOf(world.getChunkAt(stoveChunkX, stoveChunkZ).getPlayersSeeingChunk());
             fx.seeing = seeingPlayers;
         }
-        // Filter chunk observers into a per-thread list and send directly to those recipients.
-        // This avoids repeating a world-wide player scan for each particle or sound broadcast.
+        // Keep the tracked viewers as-is and re-check distance on each viewer's own scheduler; reading player
+        // coordinates here would be a cross-region entity read on Folia.
         List<Player> nearbyViewers = NEARBY_VIEWER_SCRATCH.get();
         nearbyViewers.clear();
+        nearbyViewers.addAll(seeingPlayers);
         double viewDsq = effectViewerDistance * effectViewerDistance;
-        // Compute squared distance by hand to avoid allocating a Location per candidate. Same world is
-        // already guaranteed below, so this is equivalent to distanceSquared.
-        double cx = location.getX();
-        double cy = location.getY();
-        double cz = location.getZ();
-        for (Player p : seeingPlayers) {
-            if (p.getWorld() != world) {
-                continue;
-            }
-            double dx = p.getX() - cx;
-            double dy = p.getY() - cy;
-            double dz = p.getZ() - cz;
-            if (dx * dx + dy * dy + dz * dz <= viewDsq) {
-                nearbyViewers.add(p);
-            }
-        }
         AtomicInteger chunkBudget = nearbyViewers.isEmpty() ? null : fx.budget;
         if (isLit && fireParticlesEnabled && random.nextDouble() < fireParticleChance
                 && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 2)) { // SMOKE + FLAME
-            spawnAmbientFireParticles(nearbyViewers, location, front, random);
+            spawnAmbientFireParticles(nearbyViewers, location, front, random, viewDsq);
         }
         for (int i = 0; i < SLOT_COUNT; i++) {
             // Read the slot under the per-stove monitor: a concurrent interaction inserts into it under the
@@ -904,7 +890,7 @@ public class StoveManager {
 
                 if (smokeEnabled && random.nextDouble() < smokeChance
                         && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
-                    spawnCookingParticles(nearbyViewers, location, i, facing);
+                    spawnCookingParticles(nearbyViewers, location, i, facing, viewDsq);
                 }
                 if (crackleEnabled && random.nextDouble() < crackleChance
                         && EffectPacketBudget.tryReserve(chunkBudget, chunkEffectBudgetLimit, 1)) {
@@ -912,7 +898,10 @@ public class StoveManager {
                         crackleSound = getCrackleSound(state);
                         crackleResolved = true;
                     }
-                    SoundUtils.play(plugin.scheduler(), nearbyViewers, location, crackleSound, Sound.BLOCK_CAMPFIRE_CRACKLE, crackleVolume, cracklePitch);
+                    String resolvedCrackle = crackleSound;
+                    ManagerSupport.runForViewerWithin(plugin.scheduler(), world, nearbyViewers, location, viewDsq,
+                            viewer -> SoundUtils.play(null, List.of(viewer), location, resolvedCrackle,
+                                    Sound.BLOCK_CAMPFIRE_CRACKLE, crackleVolume, cracklePitch));
                 }
                 if (finished) {
                     int finishedSlot = i;
@@ -1109,16 +1098,18 @@ public class StoveManager {
         }
     }
 
-    private void spawnCookingParticles(List<Player> viewers, Location location, int slot, BlockFace facing) {
+    private void spawnCookingParticles(List<Player> viewers, Location location, int slot, BlockFace facing, double viewDsq) {
         double[] offset = visualManager.getRotatedSlotOffset(slot, facing);
         double px = location.getX() + 0.5 + offset[0];
         double py = location.getY() + offset[1] + smokeYOffset;
         double pz = location.getZ() + 0.5 + offset[2];
-        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, smokeParticle, px, py, pz,
-                smokeCount, smokeOffsetX, smokeOffsetY, smokeOffsetZ, smokeSpeed);
+        ManagerSupport.runForViewerWithin(plugin.scheduler(), location.getWorld(), viewers, location, viewDsq,
+                viewer -> viewer.spawnParticle(smokeParticle, px, py, pz,
+                        smokeCount, smokeOffsetX, smokeOffsetY, smokeOffsetZ, smokeSpeed, null, false));
     }
 
-    private void spawnAmbientFireParticles(List<Player> viewers, Location location, BlockFace facing, ThreadLocalRandom random) {
+    private void spawnAmbientFireParticles(List<Player> viewers, Location location, BlockFace facing,
+                                           ThreadLocalRandom random, double viewDsq) {
         double horizontalSpread = random.nextDouble() * 0.6D - 0.3D;
         boolean axisX = facing == BlockFace.EAST || facing == BlockFace.WEST;
         boolean axisZ = facing == BlockFace.NORTH || facing == BlockFace.SOUTH;
@@ -1128,8 +1119,11 @@ public class StoveManager {
         double px = location.getX() + 0.5D + xOffset;
         double py = location.getY() + yOffset;
         double pz = location.getZ() + 0.5D + zOffset;
-        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, Particle.SMOKE, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
-        ManagerSupport.spawnParticleFor(plugin.scheduler(), viewers, Particle.FLAME, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+        ManagerSupport.runForViewerWithin(plugin.scheduler(), location.getWorld(), viewers, location, viewDsq,
+                viewer -> {
+                    viewer.spawnParticle(Particle.SMOKE, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+                    viewer.spawnParticle(Particle.FLAME, px, py, pz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+                });
     }
 
     private String getCrackleSound(ImmutableBlockState state) {

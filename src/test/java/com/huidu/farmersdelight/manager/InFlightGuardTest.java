@@ -14,7 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The in-flight guard: one submission per block while its task is outstanding, and a claim that its task never
- * released expires after the timeout so the block is submitted again instead of staying marked forever.
+ * released expires after the timeout so the block is submitted again instead of staying marked forever. Every
+ * claim is a token, so a slow task from an expired claim cannot release the claim that replaced it.
  */
 class InFlightGuardTest {
 
@@ -22,10 +23,12 @@ class InFlightGuardTest {
     void aCompletedMarkerCanBeClaimedAgain() {
         InFlightGuard<String> guard = new InFlightGuard<>();
 
-        assertTrue(guard.tryAdd("pot@1,64,1", 100L));
-        guard.complete("pot@1,64,1");
+        long first = guard.tryAdd("pot@1,64,1", 100L);
+        assertTrue(first > 0);
+        guard.complete("pot@1,64,1", first);
 
-        assertTrue(guard.tryAdd("pot@1,64,1", 101L), "the task ran, so the next pass may submit again");
+        long second = guard.tryAdd("pot@1,64,1", 101L);
+        assertTrue(second > 0, "the task ran, so the next pass may submit again");
         assertFalse(guard.isStale("pot@1,64,1", 101L));
     }
 
@@ -33,22 +36,52 @@ class InFlightGuardTest {
     void aMarkerYoungerThanTheTimeoutBlocksASecondSubmission() {
         InFlightGuard<String> guard = new InFlightGuard<>(200L);
 
-        assertTrue(guard.tryAdd("pot@1,64,1", 1_000L));
+        assertTrue(guard.tryAdd("pot@1,64,1", 1_000L) > 0);
 
         assertFalse(guard.isStale("pot@1,64,1", 1_199L));
-        assertFalse(guard.tryAdd("pot@1,64,1", 1_199L), "the task may still run and must not be submitted twice");
+        assertEquals(0L, guard.tryAdd("pot@1,64,1", 1_199L), "the task may still run and must not be submitted twice");
     }
 
     @Test
     void aMarkerOlderThanTheTimeoutIsStaleAndMayBeReclaimed() {
         InFlightGuard<String> guard = new InFlightGuard<>(200L);
 
-        assertTrue(guard.tryAdd("pot@1,64,1", 1_000L));
+        assertTrue(guard.tryAdd("pot@1,64,1", 1_000L) > 0);
 
         assertTrue(guard.isStale("pot@1,64,1", 1_200L), "the accepted task never released its claim");
-        assertTrue(guard.tryAdd("pot@1,64,1", 1_200L), "a stale claim is replaced by the new submission");
+        long reclaimed = guard.tryAdd("pot@1,64,1", 1_200L);
+        assertTrue(reclaimed > 0, "a stale claim is replaced by the new submission");
         assertFalse(guard.isStale("pot@1,64,1", 1_200L));
-        assertFalse(guard.tryAdd("pot@1,64,1", 1_250L), "the fresh claim holds again");
+        assertEquals(0L, guard.tryAdd("pot@1,64,1", 1_250L), "the fresh claim holds again");
+    }
+
+    @Test
+    void aLateCompletionDoesNotReleaseANewerClaim() {
+        InFlightGuard<String> guard = new InFlightGuard<>(200L);
+
+        long expired = guard.tryAdd("pot@1,64,1", 1_000L);
+        assertTrue(expired > 0);
+        long replacement = guard.tryAdd("pot@1,64,1", 1_200L);
+        assertTrue(replacement > 0, "the expired claim can be replaced");
+
+        guard.complete("pot@1,64,1", expired);
+
+        assertEquals(0L, guard.tryAdd("pot@1,64,1", 1_201L),
+                "the late task for the expired claim must not release the replacement claim");
+        guard.complete("pot@1,64,1", replacement);
+        assertTrue(guard.tryAdd("pot@1,64,1", 1_202L) > 0, "completing the current claim releases it");
+    }
+
+    @Test
+    void releaseDropsTheMarkerRegardlessOfToken() {
+        InFlightGuard<String> guard = new InFlightGuard<>(200L);
+
+        long claim = guard.tryAdd("pot@1,64,1", 1_000L);
+        assertTrue(claim > 0);
+        guard.release("pot@1,64,1");
+
+        assertFalse(guard.isStale("pot@1,64,1", 1_201L));
+        assertTrue(guard.tryAdd("pot@1,64,1", 1_202L) > 0);
     }
 
     @Test
@@ -70,7 +103,7 @@ class InFlightGuardTest {
             Thread worker = new Thread(() -> {
                 try {
                     start.await();
-                    if (guard.tryAdd("stove@1,64,1", 500L)) {
+                    if (guard.tryAdd("stove@1,64,1", 500L) > 0) {
                         claims.incrementAndGet();
                     }
                 } catch (InterruptedException interrupted) {
@@ -95,10 +128,10 @@ class InFlightGuardTest {
     void clearDropsEveryMarker() {
         InFlightGuard<String> guard = new InFlightGuard<>();
 
-        assertTrue(guard.tryAdd("pot@1,64,1", 10L));
+        assertTrue(guard.tryAdd("pot@1,64,1", 10L) > 0);
         guard.clear();
 
         assertFalse(guard.isStale("pot@1,64,1", 10_000L));
-        assertTrue(guard.tryAdd("pot@1,64,1", 10_000L));
+        assertTrue(guard.tryAdd("pot@1,64,1", 10_000L) > 0);
     }
 }
