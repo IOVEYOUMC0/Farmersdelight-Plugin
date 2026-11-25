@@ -18,10 +18,12 @@ import net.momirealms.craftengine.core.plugin.context.function.FunctionFactory;
 import net.momirealms.craftengine.core.registry.BuiltInRegistries;
 import net.momirealms.craftengine.core.registry.Registry;
 import net.momirealms.craftengine.core.util.Key;
+import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -33,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Late registration requires CE to reread content before existing definitions use it.
  * Unregistering stops reapplication; CE retains the type until restart, so replacement needs a new ID.
  *
- * @deprecated advanced CE registration lives in {@code api.compat.ce}; this location stays as a
+ * @deprecated advanced CE registration lives in api.compat.ce; this location stays as a
  *             compatibility delegate for existing addons.
  */
 @Deprecated
@@ -58,7 +60,7 @@ public final class ContentRegistration {
         }
     }
 
-    private record Entry(Kind kind, Key id, Object factory) {
+    private record Entry(Kind kind, Key id, Object factory, Plugin owner) {
     }
 
     /**
@@ -88,27 +90,97 @@ public final class ContentRegistration {
 
     /** Registers a block behavior type other packs can use as myplugin:my_behavior. */
     public static void registerBlockBehavior(Key id, BlockBehaviorFactory<?> factory) {
-        add(Kind.BLOCK_BEHAVIOR, id, factory);
+        add(Kind.BLOCK_BEHAVIOR, id, factory, null);
+    }
+
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static void registerBlockBehavior(Plugin owner, Key id, BlockBehaviorFactory<?> factory) {
+        add(Kind.BLOCK_BEHAVIOR, id, factory, owner);
     }
 
     /** Registers an item behavior type. */
     public static void registerItemBehavior(Key id, ItemBehaviorFactory<?> factory) {
-        add(Kind.ITEM_BEHAVIOR, id, factory);
+        add(Kind.ITEM_BEHAVIOR, id, factory, null);
+    }
+
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static void registerItemBehavior(Plugin owner, Key id, ItemBehaviorFactory<?> factory) {
+        add(Kind.ITEM_BEHAVIOR, id, factory, owner);
     }
 
     /** Registers a common function type usable wherever CraftEngine accepts a function. */
     public static <T extends Function<Context>> void registerFunction(Key id, FunctionFactory<Context, T> factory) {
-        add(Kind.FUNCTION, id, factory);
+        add(Kind.FUNCTION, id, factory, null);
+    }
+
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static <T extends Function<Context>> void registerFunction(Plugin owner, Key id, FunctionFactory<Context, T> factory) {
+        add(Kind.FUNCTION, id, factory, owner);
     }
 
     /** Registers a common condition type usable wherever CraftEngine accepts a condition. */
     public static <T extends Condition<Context>> void registerCondition(Key id, ConditionFactory<Context, T> factory) {
-        add(Kind.CONDITION, id, factory);
+        add(Kind.CONDITION, id, factory, null);
+    }
+
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static <T extends Condition<Context>> void registerCondition(Plugin owner, Key id, ConditionFactory<Context, T> factory) {
+        add(Kind.CONDITION, id, factory, owner);
     }
 
     /** Registers a loot function type for loot tables and drop rules. */
     public static void registerLootFunction(Key id, LootFunctionFactory<?> factory) {
-        add(Kind.LOOT_FUNCTION, id, factory);
+        add(Kind.LOOT_FUNCTION, id, factory, null);
+    }
+
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static void registerLootFunction(Plugin owner, Key id, LootFunctionFactory<?> factory) {
+        add(Kind.LOOT_FUNCTION, id, factory, owner);
+    }
+
+    /**
+     * Withdraws every kind registered by this plugin. An addon should call this from onDisable before its
+     * class loader closes; otherwise FD's reload replay can touch a factory that belongs to a dead loader.
+     */
+    public static int unregisterAll(Plugin owner) {
+        if (owner == null) {
+            return 0;
+        }
+        int removed = 0;
+        for (Map.Entry<String, Entry> mapEntry : ENTRIES.entrySet()) {
+            Entry entry = mapEntry.getValue();
+            if (entry.owner() != owner) {
+                continue;
+            }
+            if (ENTRIES.remove(mapEntry.getKey(), entry)) {
+                WITHDRAWN.add(keyOf(entry.id()));
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Withdraws every kind under one namespace. Useful for addons that cannot pass a Plugin instance
+     * (loader/bootstrap code); registration itself still validates that the namespace is not reserved.
+     */
+    public static int unregisterAll(String namespace) {
+        if (namespace == null || namespace.isBlank()) {
+            return 0;
+        }
+        String normalized = namespace.trim().toLowerCase(Locale.ROOT);
+        int removed = 0;
+        for (Map.Entry<String, Entry> mapEntry : ENTRIES.entrySet()) {
+            Entry entry = mapEntry.getValue();
+            if (!entry.id().namespace().equals(normalized)) {
+                continue;
+            }
+            if (ENTRIES.remove(mapEntry.getKey(), entry)) {
+                WITHDRAWN.add(keyOf(entry.id()));
+                removed++;
+            }
+        }
+        return removed;
     }
 
     /**
@@ -194,7 +266,7 @@ public final class ContentRegistration {
         bridge = new CraftEngineBridge();
     }
 
-    private static void add(Kind kind, Key id, Object factory) {
+    private static void add(Kind kind, Key id, Object factory, Plugin owner) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(factory, "factory");
         if (id.namespace() == null || id.namespace().isBlank() || id.value() == null || id.value().isBlank()) {
@@ -218,7 +290,7 @@ public final class ContentRegistration {
             throw new IllegalStateException("id " + key + " is already registered with CraftEngine as a "
                     + kind.label() + " (FarmersDelight's own content or another plugin)");
         }
-        Entry entry = new Entry(kind, id, factory);
+        Entry entry = new Entry(kind, id, factory, owner);
         if (ENTRIES.putIfAbsent(entryKey(kind, key), entry) != null) {
             throw new IllegalStateException("id " + key + " is already registered by an external plugin as a "
                     + kind.label());

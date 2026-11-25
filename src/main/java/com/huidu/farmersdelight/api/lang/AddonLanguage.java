@@ -85,6 +85,17 @@ public final class AddonLanguage {
         }
     }
 
+    /**
+     * Removes the installed holder for this prefix. An addon must call this from onDisable: the map lives in
+     * FarmersDelight's class loader, so a retained instance would otherwise keep the addon's plugin/class
+     * loader reachable after it has been disabled.
+     */
+    public static void uninstall(String keyPrefix) {
+        if (keyPrefix != null) {
+            INSTALLED.remove(keyPrefix);
+        }
+    }
+
     static AddonLanguage register(String keyPrefix, AddonLanguage language) {
         INSTALLED.put(keyPrefix, language);
         return language;

@@ -4,12 +4,18 @@ The addon boundary check (`check_api_boundary.py`) keeps internal types out of `
 other half: it records the public signatures of every `api.**` type in `tools/api-signatures.txt` and fails when a
 signature that an already published addon can link against disappears or changes.
 
-Policy:
-  * removed or changed signatures fail the check — that is a binary break for addons compiled against an earlier
-    build;
-  * added signatures are allowed (the api is append-only by policy) but are reported so the baseline gets
-    refreshed in the same change with `--update`;
-  * `--update` rewrites the baseline after a reviewed addition, it never bypasses a removal.
+Policy (owner decision 2026-11-25, revision 4 stays append-only):
+  * removed or changed signatures always fail, **including under `--update`**: the baseline is append-only, so
+    no flag can launder a removal. An in-flight release that removed a method has to restore it (deprecate
+    first, remove in a later revision) or bump the api revision on purpose;
+  * added signatures are allowed and are reported so the baseline gets refreshed in the same change with
+    `--update`, which only ever appends;
+  * the baseline file itself is additionally checked against `git`-free rules: a line present in the file that
+    the current source no longer produces is a removal, whether or not `--update` ran.
+
+Why this is strict: FD 1.0.4 removed `PerformanceProbe.item(ItemStack)`/`items(ItemStack[])` and refreshed the
+baseline in the same commit, so the gate passed while a published BrewinAndChewin 1.0.3 jar compiled against the
+old shape failed at runtime with `NoSuchMethodError` inside chunk serialization.
 
 The signatures are derived from source, not bytecode, so the check can run in the same place as the other
 contract checks (no Gradle/JDK invocation in the gate). Keep the parser conservative: a construct it cannot
@@ -184,25 +190,40 @@ def collect(root: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="print problems only")
-    parser.add_argument("--update", action="store_true", help="rewrite the baseline with the current signatures")
+    parser.add_argument("--update", action="store_true",
+                        help="append newly added signatures to the baseline (removals still fail)")
     args = parser.parse_args()
 
     root = repo_root()
     baseline_path = root / "tools" / BASELINE
     current = collect(root)
-    if args.update:
-        baseline_path.write_text("\n".join(current) + "\n", encoding="utf-8", newline="\n")
-        print(f"api signatures: wrote {len(current)} signatures to {baseline_path}")
-        return 0
-    if not baseline_path.is_file():
-        print(f"missing baseline {baseline_path}; run: python tools/check_api_signatures.py --update")
-        return 1
+    baseline: list[str] = []
+    if baseline_path.is_file():
+        baseline = [line for line in baseline_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-    baseline = [line for line in baseline_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     current_set = set(current)
     baseline_set = set(baseline)
     removed = [line for line in baseline if line not in current_set]
     added = [line for line in current if line not in baseline_set]
+
+    if args.update:
+        # Append-only: a removal is never written away. The baseline keeps every historical signature, so the
+        # next run still reports it and the caller has to restore the api or bump the revision deliberately.
+        if removed:
+            print(f"api signatures: refusing --update, {len(removed)} baseline signature(s) no longer exist:")
+            for line in removed[:40]:
+                print("  - " + line)
+            print("Restore the removed api (deprecate instead of deleting) or bump the api revision on purpose.")
+            return 1
+        merged = sorted(baseline_set | current_set)
+        baseline_path.write_text("\n".join(merged) + "\n", encoding="utf-8", newline="\n")
+        print(f"api signatures: wrote {len(merged)} signatures to {baseline_path} "
+              f"({len(added)} added, 0 removed)")
+        return 0
+
+    if not baseline_path.is_file():
+        print(f"missing baseline {baseline_path}; run: python tools/check_api_signatures.py --update")
+        return 1
 
     if not args.quiet:
         print(f"api signatures @ {root}")
@@ -217,6 +238,8 @@ def main() -> int:
         print(f"\napi signatures removed or changed ({len(removed)}); this breaks addons compiled against them:")
         for line in removed[:40]:
             print("  - " + line)
+        print("\nThe api is append-only under revision 4: restore the signature (mark it @Deprecated and keep it) "
+              "or bump the api revision on purpose.")
 
     print(f"\nproblems: {len(removed)}")
     return 1 if removed else 0

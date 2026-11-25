@@ -10,6 +10,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -83,6 +84,8 @@ class AddonLanguageInstalledTest {
                     prefix + " has to install through the shared holder");
             assertTrue(wrapper.contains("AddonLanguage.reload(KEY_PREFIX);"),
                     prefix + " has to reload through the shared holder");
+            assertTrue(wrapper.contains("AddonLanguage.uninstall(KEY_PREFIX);"),
+                    prefix + " has to release its holder on disable");
             assertTrue(wrapper.contains("return AddonLanguage.text(KEY_PREFIX, key, args);"),
                     prefix + " has to resolve text through the shared holder");
             assertFalse(wrapper.contains("private static volatile AddonLanguage lang;"),
@@ -90,6 +93,16 @@ class AddonLanguageInstalledTest {
             assertFalse(wrapper.contains("new AddonLanguage(plugin,"),
                     prefix + " must not build its own instance any more");
         }
+    }
+
+    @Test
+    void uninstallReleasesTheInstalledHolder() {
+        AddonLanguage language = new AddonLanguage(null, "test.addon");
+        AddonLanguage.register("test.addon", language);
+        assertSame(language, AddonLanguage.of("test.addon"));
+        AddonLanguage.uninstall("test.addon");
+        assertNull(AddonLanguage.of("test.addon"));
+        AddonLanguage.uninstall(null);
     }
 
     private static String flat(Path path) throws IOException {

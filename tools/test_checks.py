@@ -284,6 +284,52 @@ class AddonConfigKeysSelfTest(CheckSelfTest):
         finally:
             shutil.rmtree(tree, ignore_errors=True)
 
+class CommentTagsSelfTest(CheckSelfTest):
+
+    script = "check_comment_tags.py"
+    args = ("--quiet",)
+    path = "src/main/java/example/Example.java"
+
+    def test_a_tag_in_a_comment_fails_and_plain_prose_passes(self):
+        clean = ("package example;\n\nclass Example {\n"
+                 "    /** Reads the key from the stack, or null when it carries none. */\n"
+                 "    String a() {\n        return null;\n    }\n}\n")
+        self.assert_red_then_green(
+            {"src/main/java/example/Keep.java": "package example;\n\nclass Keep {\n}\n"},
+            self.path,
+            "package example;\n\nclass Example {\n"
+            "    /** Reads the {@code key} from the {@link Example} stack. */\n"
+            "    String a() {\n        return null;\n    }\n}\n",
+            clean,
+            "{@code")
+
+    def test_a_paragraph_tag_on_its_own_line_fails(self):
+        tree = build_tree({"src/main/java/example/Keep.java": "package example;\n\nclass Keep {\n}\n"})
+        try:
+            write(tree, self.path,
+                  "package example;\n\nclass Example {\n"
+                  "    /**\n     * <p>First paragraph.\n     */\n"
+                  "    String a() {\n        return null;\n    }\n}\n")
+            failed = run_check(tree, self.script, *self.args)
+            self.assertNotEqual(0, failed.returncode,
+                                f"{self.script} accepted a paragraph tag:\n{failed.stdout}{failed.stderr}")
+            self.assertIn("<p>", failed.stdout + failed.stderr)
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+    def test_a_tag_inside_a_string_literal_is_not_a_comment(self):
+        tree = build_tree({})
+        try:
+            write(tree, self.path,
+                  "package example;\n\nclass Example {\n"
+                  "    String a() {\n        return \"{@code not a comment}\";\n    }\n}\n")
+            passed = run_check(tree, self.script, *self.args)
+            self.assertEqual(0, passed.returncode,
+                             f"{self.script} flagged code, not a comment:\n{passed.stdout}{passed.stderr}")
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+
 class VerificationEvidenceSelfTest(CheckSelfTest):
 
     script = "check_verification_evidence.py"
@@ -383,6 +429,40 @@ class ApiSignaturesSelfTest(unittest.TestCase):
             extended = run_check(tree, self.script, "--quiet")
             self.assertEqual(0, extended.returncode,
                              f"{self.script} rejected an additive api change:\n{extended.stdout}{extended.stderr}")
+        finally:
+            shutil.rmtree(tree, ignore_errors=True)
+
+    def test_update_cannot_launder_a_removal(self):
+        """The 1.0.4 regression: a commit deleted two api methods and refreshed the baseline in the same change,
+        so the gate passed while published addons broke at runtime. --update must refuse and keep the line."""
+        original = ("package com.huidu.farmersdelight.api;\n\n"
+                    "public final class Example {\n"
+                    "    public int value() {\n        return 1;\n    }\n"
+                    "    public String gone() {\n        return \"x\";\n    }\n}\n")
+        tree = build_tree({self.api_file: original})
+        try:
+            seeded = run_check(tree, self.script, "--update")
+            self.assertEqual(0, seeded.returncode, seeded.stdout + seeded.stderr)
+            baseline = (tree / "tools" / "api-signatures.txt").read_text(encoding="utf-8")
+            self.assertIn("public String gone()", baseline)
+
+            write(tree, self.api_file,
+                  "package com.huidu.farmersdelight.api;\n\npublic final class Example {\n"
+                  "    public int value() {\n        return 1;\n    }\n}\n")
+            laundered = run_check(tree, self.script, "--update")
+            self.assertNotEqual(0, laundered.returncode,
+                                f"{self.script} --update laundered a removal:\n"
+                                f"{laundered.stdout}{laundered.stderr}")
+            self.assertIn("public String gone()", laundered.stdout + laundered.stderr)
+            after = (tree / "tools" / "api-signatures.txt").read_text(encoding="utf-8")
+            self.assertIn("public String gone()", after,
+                          "the baseline must keep the removed signature so the next run still fails")
+
+            removed_only = run_check(tree, self.script, "--quiet")
+            self.assertNotEqual(0, removed_only.returncode)
+
+            write(tree, self.api_file, original)
+            self.assertEqual(0, run_check(tree, self.script, "--quiet").returncode)
         finally:
             shutil.rmtree(tree, ignore_errors=True)
 

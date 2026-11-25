@@ -17,9 +17,9 @@ import java.util.Set;
  * CraftEngine-pinned registry for addon block/item behaviour factories, functions, conditions and
  * loot functions. This is the advanced compatibility surface; the neutral API does not depend on it.
  *
- * <p>Behaviour: ids must be namespaced and outside {@code minecraft} and {@code farmersdelight};
- * late registration requires CraftEngine to reread content; unregistering stops reapplication but
- * CraftEngine retains the type until restart (use a new id to replace it).</p>
+ * Behaviour: ids must be namespaced and outside minecraft and farmersdelight; late registration requires
+ * CraftEngine to reread content; unregistering stops reapplication but CraftEngine retains the type until
+ * restart, so replacing one requires a new id.
  */
 @ApiStatus.Experimental
 public final class ContentRegistration {
@@ -43,20 +43,57 @@ public final class ContentRegistration {
         com.huidu.farmersdelight.api.registry.ContentRegistration.registerBlockBehavior(id, factory);
     }
 
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static void registerBlockBehavior(org.bukkit.plugin.Plugin owner, Key id, BlockBehaviorFactory<?> factory) {
+        com.huidu.farmersdelight.api.registry.ContentRegistration.registerBlockBehavior(owner, id, factory);
+    }
+
     public static void registerItemBehavior(Key id, ItemBehaviorFactory<?> factory) {
         com.huidu.farmersdelight.api.registry.ContentRegistration.registerItemBehavior(id, factory);
+    }
+
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static void registerItemBehavior(org.bukkit.plugin.Plugin owner, Key id, ItemBehaviorFactory<?> factory) {
+        com.huidu.farmersdelight.api.registry.ContentRegistration.registerItemBehavior(owner, id, factory);
     }
 
     public static <T extends Function<Context>> void registerFunction(Key id, FunctionFactory<Context, T> factory) {
         com.huidu.farmersdelight.api.registry.ContentRegistration.registerFunction(id, factory);
     }
 
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static <T extends Function<Context>> void registerFunction(org.bukkit.plugin.Plugin owner, Key id,
+                                                                      FunctionFactory<Context, T> factory) {
+        com.huidu.farmersdelight.api.registry.ContentRegistration.registerFunction(owner, id, factory);
+    }
+
     public static <T extends Condition<Context>> void registerCondition(Key id, ConditionFactory<Context, T> factory) {
         com.huidu.farmersdelight.api.registry.ContentRegistration.registerCondition(id, factory);
     }
 
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static <T extends Condition<Context>> void registerCondition(org.bukkit.plugin.Plugin owner, Key id,
+                                                                        ConditionFactory<Context, T> factory) {
+        com.huidu.farmersdelight.api.registry.ContentRegistration.registerCondition(owner, id, factory);
+    }
+
     public static void registerLootFunction(Key id, LootFunctionFactory<?> factory) {
         com.huidu.farmersdelight.api.registry.ContentRegistration.registerLootFunction(id, factory);
+    }
+
+    /** Owner-aware variant; unregisterAll(owner) withdraws everything this plugin registered. */
+    public static void registerLootFunction(org.bukkit.plugin.Plugin owner, Key id, LootFunctionFactory<?> factory) {
+        com.huidu.farmersdelight.api.registry.ContentRegistration.registerLootFunction(owner, id, factory);
+    }
+
+    /** Withdraws every kind registered by this plugin; call from the addon's onDisable. */
+    public static int unregisterAll(org.bukkit.plugin.Plugin owner) {
+        return com.huidu.farmersdelight.api.registry.ContentRegistration.unregisterAll(owner);
+    }
+
+    /** Withdraws every kind under one namespace. */
+    public static int unregisterAll(String namespace) {
+        return com.huidu.farmersdelight.api.registry.ContentRegistration.unregisterAll(namespace);
     }
 
     public static boolean unregister(Key id) {

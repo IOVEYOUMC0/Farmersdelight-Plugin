@@ -12,6 +12,7 @@ import net.momirealms.craftengine.core.plugin.context.condition.ConditionFactory
 import net.momirealms.craftengine.core.plugin.context.function.Function;
 import net.momirealms.craftengine.core.plugin.context.function.FunctionFactory;
 import net.momirealms.craftengine.core.util.Key;
+import org.bukkit.plugin.Plugin;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -169,6 +170,41 @@ class ContentRegistrationTest {
         assertEquals(0, ContentRegistration.apply(Kind.FUNCTION));
         assertEquals(0, ContentRegistration.apply(Kind.BLOCK_BEHAVIOR));
         assertTrue(bridge.applied().isEmpty());
+    }
+
+    @Test
+    void ownerUnregisterRemovesOnlyThatPluginsEntries() {
+        install();
+        Plugin owner = plugin();
+        Plugin other = plugin();
+        ContentRegistration.registerFunction(owner, VALID, FUNCTION);
+        ContentRegistration.registerBlockBehavior(owner, Key.of("testplugin:second"), BLOCK);
+        ContentRegistration.registerFunction(other, Key.of("otherplugin:kept"), FUNCTION);
+        assertEquals(2, ContentRegistration.unregisterAll(owner));
+        assertEquals(Set.of(Key.of("otherplugin:kept")), ContentRegistration.registeredIds());
+        assertFalse(ContentRegistration.unregisterAll(owner) > 0);
+        assertEquals(1, ContentRegistration.unregisterAll(other));
+    }
+
+    @Test
+    void namespaceUnregisterRemovesEveryKind() {
+        install();
+        ContentRegistration.registerFunction(Key.of("testplugin:one"), FUNCTION);
+        ContentRegistration.registerCondition(Key.of("testplugin:two"), CONDITION);
+        ContentRegistration.registerBlockBehavior(Key.of("otherplugin:kept"), BLOCK);
+        assertEquals(2, ContentRegistration.unregisterAll("testplugin"));
+        assertEquals(Set.of(Key.of("otherplugin:kept")), ContentRegistration.registeredIds());
+        assertEquals(0, ContentRegistration.unregisterAll("testplugin"));
+    }
+
+    private static Plugin plugin() {
+        return (Plugin) java.lang.reflect.Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(), new Class<?>[]{Plugin.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> null;
+                });
     }
 
     @Test

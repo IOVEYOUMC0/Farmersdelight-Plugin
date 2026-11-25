@@ -39,6 +39,7 @@ CHECKS = (
     ("check_pack_client_keys.py", ["--quiet"]),
     ("check_behavior_keys.py", ["--quiet"]),
     ("check_addon_config_keys.py", ["--quiet"]),
+    ("check_comment_tags.py", ["--quiet"]),
     ("check_verification_evidence.py", ["--quiet"]),
 )
 

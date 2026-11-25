@@ -94,6 +94,29 @@ def check_feature_gate(root: Path) -> Check:
     return Check("feature-gate", False, "no apiVersion()/hasFeature() gate in addon Java sources")
 
 
+COMMENT_TAG = re.compile(
+    r"</?(?:p|b|i|code|br|ul|ol|li|pre|em|strong)\s*/?>"
+    r"|\{@(?:link|linkplain|code|literal|value|inheritDoc|param|return|throws|see|since|deprecated)\b"
+)
+
+
+def check_comment_tags(root: Path) -> Check:
+    violations: list[str] = []
+    for path in java_sources(root):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.lstrip()
+            if not (stripped.startswith("*") or stripped.startswith("//") or stripped.startswith("/*")):
+                continue
+            match = COMMENT_TAG.search(line)
+            if match:
+                violations.append(f"{path.relative_to(root)}:{number}: {match.group(0)}")
+    if violations:
+        return Check("comment-tags", False,
+                     "HTML/Javadoc inline tags belong in prose: " + "; ".join(violations[:5]))
+    return Check("comment-tags", True, "comments carry no HTML or Javadoc inline tags")
+
+
 def check_deprecated_api(root: Path) -> Check:
     violations: list[str] = []
     for path in java_sources(root):
@@ -369,6 +392,7 @@ def main(argv: list[str] | None = None) -> int:
         check_deprecated_api(root),
         check_paper_dependency(root),
         check_feature_gate(root),
+        check_comment_tags(root),
     ]
     if not args.skip_build:
         checks.append(run_gradle(root))
