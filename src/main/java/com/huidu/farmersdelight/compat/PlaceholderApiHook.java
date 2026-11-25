@@ -6,6 +6,7 @@ import com.huidu.farmersdelight.api.buff.CustomBuff;
 import com.huidu.farmersdelight.api.buff.CustomBuffRegistry;
 import com.huidu.farmersdelight.api.recipe.FarmersDelightRecipeDiscovery;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
+import me.clip.placeholderapi.PlaceholderAPI;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -44,6 +45,15 @@ public final class PlaceholderApiHook extends PlaceholderExpansion {
     @Override
     public boolean persist() {
         return true;
+    }
+
+    /** Stops PAPI callbacks once the plugin is disabled; a disabled plugin must not keep its classloader alive. */
+    public void unregisterExpansion() {
+        try {
+            PlaceholderAPI.unregisterExpansion(this);
+        } catch (RuntimeException | LinkageError ignored) {
+            // The expansion is already gone (PAPI disabled, reload race); nothing left to release.
+        }
     }
 
     @Override
