@@ -2,6 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
+import com.huidu.farmersdelight.util.InventoryViewerTracker;
 import net.momirealms.craftengine.bukkit.block.entity.SimpleStorageBlockEntityController;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.block.entity.BlockEntity;
@@ -85,6 +86,13 @@ public final class BasketVacuumController extends BlockEntityController {
         if (inventory == null) {
             return;
         }
+        // The simple-storage GUI and this tick share the same inventory. Moving items while a player has either
+        // side open lets a high-frequency redstone clock interleave a GUI click with the eject/collect, which can
+        // duplicate (or delete) the stack that is still displayed. Wait until every viewer has closed.
+        if (hasOpenViewer(inventory)) {
+            this.transferCooldown = NO_OP_COOLDOWN;
+            return;
+        }
 
         BlockFace facing = CustomBlockUtils.getFullFacing(state);
         if (facing == null) {
@@ -109,6 +117,11 @@ public final class BasketVacuumController extends BlockEntityController {
         if (eject && facedOwned) {
             Inventory target = facedContainerInventory(world, pos.x() + fx, pos.y() + fy, pos.z() + fz);
             if (target != null) {
+                // A player with the target container open is another concurrent modifier of that inventory.
+                if (hasOpenViewer(target)) {
+                    this.transferCooldown = NO_OP_COOLDOWN;
+                    return;
+                }
                 // The faced cell holds a container: push contents into it hopper-style rather than
                 // vacuuming. A full basket still reaches this branch, so isFull only gates the collect
                 // branch below.
@@ -141,7 +154,16 @@ public final class BasketVacuumController extends BlockEntityController {
         return null;
     }
 
-    private static boolean ejectOneItem(Inventory source, Inventory target) {
+    /**
+     * A basket/container with an open viewer must not be mutated by the region tick: the GUI is handling the same
+     * inventory on the player's thread, and the two can otherwise interleave between a stack snapshot and its
+     * write-back.
+     */
+    static boolean hasOpenViewer(Inventory inventory) {
+        return InventoryViewerTracker.hasViewer(inventory);
+    }
+
+    static boolean ejectOneItem(Inventory source, Inventory target) {
         ItemStack[] contents = source.getStorageContents();
         for (int slot = 0; slot < contents.length; slot++) {
             ItemStack stack = contents[slot];
@@ -150,21 +172,103 @@ public final class BasketVacuumController extends BlockEntityController {
             }
             ItemStack single = stack.clone();
             single.setAmount(1);
+            ItemStack[] targetBefore = target.getStorageContents();
             Map<Integer, ItemStack> leftover = target.addItem(single);
             if (!leftover.isEmpty()) {
                 continue;
             }
-            int remaining = stack.getAmount() - 1;
-            if (remaining <= 0) {
-                source.setItem(slot, null);
-            } else {
-                ItemStack reduced = stack.clone();
-                reduced.setAmount(remaining);
-                source.setItem(slot, reduced);
+            // Confirm the target really stored this exact item before touching the source. A custom/foreign
+            // inventory that reports success without keeping the item would otherwise lose it silently.
+            int addedSlot = findAddedSlot(targetBefore, target.getStorageContents(), single);
+            if (addedSlot < 0) {
+                // addItem claimed success but the diff did not identify a slot. If the target's total count
+                // really grew, undo the copy; otherwise do not touch the source. Never leave an unaccounted
+                // target copy behind.
+                if (countSimilar(target.getStorageContents(), single) > countSimilar(targetBefore, single)) {
+                    removeOneFromSlot(target, -1, single);
+                }
+                continue;
+            }
+            ItemStack current = source.getItem(slot);
+            if (!sameStack(current, stack)) {
+                // A GUI click or another plugin changed the slot between the snapshot and this write-back.
+                // Undo the target's copy; the next tick retries against the fresh source.
+                removeOneFromSlot(target, addedSlot, single);
+                continue;
+            }
+            int remaining = current.getAmount() - 1;
+            try {
+                if (remaining <= 0) {
+                    source.setItem(slot, null);
+                } else {
+                    ItemStack reduced = current.clone();
+                    reduced.setAmount(remaining);
+                    source.setItem(slot, reduced);
+                }
+            } catch (RuntimeException | LinkageError failure) {
+                removeOneFromSlot(target, addedSlot, single);
+                throw failure;
             }
             return true;
         }
         return false;
+    }
+
+    private static boolean sameStack(ItemStack current, ItemStack expected) {
+        return current != null
+                && !current.getType().isAir()
+                && current.isSimilar(expected)
+                && current.getAmount() == expected.getAmount();
+    }
+
+    /** Finds the slot whose amount grew by exactly the accepted one-item stack, or -1 when nothing changed. */
+    private static int findAddedSlot(ItemStack[] before, ItemStack[] after, ItemStack single) {
+        int length = Math.min(before.length, after.length);
+        for (int i = 0; i < length; i++) {
+            int beforeAmount = before[i] == null ? 0 : before[i].getAmount();
+            ItemStack now = after[i];
+            if (now != null && !now.getType().isAir() && now.isSimilar(single)
+                    && now.getAmount() == beforeAmount + 1) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int countSimilar(ItemStack[] contents, ItemStack single) {
+        int total = 0;
+        for (ItemStack item : contents) {
+            if (item != null && item.isSimilar(single)) {
+                total += item.getAmount();
+            }
+        }
+        return total;
+    }
+
+    private static void removeOneFromSlot(Inventory target, int slot, ItemStack single) {
+        ItemStack current = slot >= 0 ? target.getItem(slot) : null;
+        if (current == null || current.getType().isAir() || !current.isSimilar(single)) {
+            // The array index may not be addressable on a foreign inventory; find one matching stack instead.
+            ItemStack[] contents = target.getStorageContents();
+            current = null;
+            for (int i = 0; i < contents.length; i++) {
+                if (contents[i] != null && contents[i].isSimilar(single) && contents[i].getAmount() > 0) {
+                    slot = i;
+                    current = contents[i];
+                    break;
+                }
+            }
+        }
+        if (current == null || current.getType().isAir()) {
+            return;
+        }
+        if (current.getAmount() <= 1) {
+            target.setItem(slot, null);
+        } else {
+            ItemStack reduced = current.clone();
+            reduced.setAmount(current.getAmount() - 1);
+            target.setItem(slot, reduced);
+        }
     }
 
     private Inventory storageInventory() {

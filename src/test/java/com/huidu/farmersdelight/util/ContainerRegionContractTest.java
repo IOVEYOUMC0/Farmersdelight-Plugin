@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * nothing in CraftEngine or in this plugin checked the region before. Each container hook must refuse a caller
  * that does not own the block's region (the same rule the crab trap and worm bin already apply).
  *
- * <p>These are source-contract checks: the hooks take CraftEngine's reflection-free {@code Object[]} arguments
+ * These are source-contract checks: the hooks take CraftEngine's reflection-free Object[] arguments
  * and cannot be driven offline.
  */
 class ContainerRegionContractTest {
