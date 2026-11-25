@@ -317,6 +317,9 @@ tasks.register<Jar>("apiJar") {
     archiveClassifier.set("api")
     from(sourceSets["api"].output) {
         include("com/huidu/farmersdelight/api/**")
+        // The api jar is a distributed artifact too; carry the license and notices like the plugin jar.
+        include("LICENSE")
+        include("NOTICE.txt")
     }
 }
 
@@ -342,6 +345,9 @@ tasks.register<Jar>("pluginJar") {
     archiveClassifier.set("")
     from(sourceSets["api"].output) {
         include("com/huidu/farmersdelight/api/**")
+        // The source-dependency channel publishes this artifact; it needs the license too.
+        include("LICENSE")
+        include("NOTICE.txt")
     }
 }
 
