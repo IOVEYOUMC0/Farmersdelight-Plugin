@@ -40,9 +40,61 @@ final class PluginConfigAssembly {
         this.plugin = plugin;
     }
 
+    /**
+     * Loads the new config and publishes it, but restores the previously published fields when the pass throws.
+     * Most reload failures come from reading/parsing a file, i.e. before the first field is published; a failure
+     * later in the pass still restores every field captured here instead of leaving a half-new configuration.
+     * Static side effects (GUI caches, common tags, world data) cannot be rolled back by a field assignment and
+     * are re-applied by the next reload/restart.
+     */
+    void applyWithRollback() {
+        ConfigRollback rollback = new ConfigRollback();
+        var oldDrops = plugin.dropsConfig;
+        rollback.capture(() -> plugin.dropsConfig = oldDrops);
+        var oldEnchantments = plugin.enchantmentSettings;
+        rollback.capture(() -> plugin.enchantmentSettings = oldEnchantments);
+        var oldBackstab = plugin.backstabEnchantmentEnabled;
+        rollback.capture(() -> plugin.backstabEnchantmentEnabled = oldBackstab);
+        var oldDebug = plugin.debugSettings;
+        rollback.capture(() -> plugin.debugSettings = oldDebug);
+        var oldKnife = plugin.knifeSettings;
+        rollback.capture(() -> plugin.knifeSettings = oldKnife);
+        var oldHeat = plugin.heatSourceConfig;
+        rollback.capture(() -> plugin.heatSourceConfig = oldHeat);
+        var oldCuttingBoardSounds = plugin.cuttingBoardSounds;
+        rollback.capture(() -> plugin.cuttingBoardSounds = oldCuttingBoardSounds);
+        var oldGui = plugin.guiConfig;
+        rollback.capture(() -> plugin.guiConfig = oldGui);
+        var oldCookingPotGui = plugin.cookingPotGuiConfig;
+        rollback.capture(() -> plugin.cookingPotGuiConfig = oldCookingPotGui);
+        var oldCustomCookingPotGuis = plugin.customCookingPotGuiConfigs;
+        rollback.capture(() -> plugin.customCookingPotGuiConfigs = oldCustomCookingPotGuis);
+        var oldStraw = plugin.strawDropConfig;
+        rollback.capture(() -> plugin.strawDropConfig = oldStraw);
+        var oldPetFood = plugin.petFoodConfig;
+        rollback.capture(() -> plugin.petFoodConfig = oldPetFood);
+        var oldContainerReturn = plugin.containerReturnConfig;
+        rollback.capture(() -> plugin.containerReturnConfig = oldContainerReturn);
+        var oldCuttingBoardDisplay = plugin.cuttingBoardDisplayConfig;
+        rollback.capture(() -> plugin.cuttingBoardDisplayConfig = oldCuttingBoardDisplay);
+        var oldSkilletDisplay = plugin.skilletDisplayConfig;
+        rollback.capture(() -> plugin.skilletDisplayConfig = oldSkilletDisplay);
+        var oldStoveDisplay = plugin.stoveDisplayConfig;
+        rollback.capture(() -> plugin.stoveDisplayConfig = oldStoveDisplay);
+        var oldStationSettings = plugin.stationSettings;
+        rollback.capture(() -> plugin.stationSettings = oldStationSettings);
+        var oldExperienceReward = plugin.cookingPotExperienceRewardConfig;
+        rollback.capture(() -> plugin.cookingPotExperienceRewardConfig = oldExperienceReward);
+        boolean oldAdvancements = plugin.advancementSystem.isEnabled();
+        rollback.capture(() -> plugin.advancementSystem.setEnabled(oldAdvancements));
+        boolean oldBuffs = plugin.buffSystem.isEnabled();
+        rollback.capture(() -> plugin.buffSystem.setEnabled(oldBuffs));
+
+        rollback.run(this::apply);
+    }
+
     /** Reads every config file once; the enable path and every reload pass share this sequence. */
-    void apply() {
-        YamlConfiguration worldDataConfig = plugin.configFiles.loadWorldData();
+    void apply() {        YamlConfiguration worldDataConfig = plugin.configFiles.loadWorldData();
         YamlConfiguration loadedDropsConfig = plugin.configFiles.loadDrops();
         plugin.dropsConfig = loadedDropsConfig;
         plugin.advancementSystem.setEnabled(plugin.getConfig().getBoolean("advancements.enabled", true));
