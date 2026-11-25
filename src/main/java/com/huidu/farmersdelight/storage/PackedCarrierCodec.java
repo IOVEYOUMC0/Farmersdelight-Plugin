@@ -18,7 +18,7 @@ public final class PackedCarrierCodec {
     private PackedCarrierCodec() {
     }
 
-    /** The nested compound stored under {@code key}, or null when the component is absent or unreadable. */
+    /** The nested compound stored under key, or null when the component is absent or unreadable. */
     @Nullable
     public static CompoundTag read(Item item, Key component, String key) {
         if (item == null || component == null || key == null || key.isBlank()) {
@@ -28,8 +28,8 @@ public final class PackedCarrierCodec {
     }
 
     /**
-     * Stores {@code data} under {@code key}, preserving every other key of the component.
-     * A null {@code data} removes the key, matching "no packed state".
+     * Stores data under key, preserving every other key of the component.
+     * A null data removes the key, matching "no packed state".
      */
     public static void write(Item item, Key component, String key, @Nullable CompoundTag data) {
         if (item == null || component == null || key == null || key.isBlank()) {
@@ -50,13 +50,13 @@ public final class PackedCarrierCodec {
         item.setSparrowTagComponent(component, customData);
     }
 
-    /** Removes the nested compound under {@code key}; the rest of the component stays untouched. */
+    /** Removes the nested compound under key; the rest of the component stays untouched. */
     public static void remove(Item item, Key component, String key) {
         write(item, component, key, null);
     }
 
     /**
-     * Overlays {@code overlay} on {@code existing} without mutating either input. Nested compounds merge
+     * Overlays overlay on existing without mutating either input. Nested compounds merge
      * recursively so a caller that only wrote a few fields cannot drop the others that were already packed.
      */
     public static CompoundTag merge(@Nullable CompoundTag existing, CompoundTag overlay) {

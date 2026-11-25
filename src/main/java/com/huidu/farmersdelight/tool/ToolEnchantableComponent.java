@@ -19,7 +19,7 @@ public final class ToolEnchantableComponent {
     /**
      * Applies one candidate value and reports whether the component is really present afterwards.
      *
-     * <p>CraftEngine's {@code setComponentInternal} returns without writing when it cannot resolve the component
+     * CraftEngine's setComponentInternal returns without writing when it cannot resolve the component
      * type, and it throws nothing, so "the call returned" is not "the item is enchantable".
      */
     public interface VerifyingWriter extends ComponentWriter {

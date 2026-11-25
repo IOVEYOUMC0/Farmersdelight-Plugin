@@ -49,6 +49,7 @@ import com.huidu.farmersdelight.gui.RecipeIngredientIcons;
 import com.huidu.farmersdelight.gui.RecipeViewGui;
 import com.huidu.farmersdelight.gui.recipebook.RecipeBookListener;
 import com.huidu.farmersdelight.i18n.I18n;
+import com.huidu.farmersdelight.loot.BurningDeathTracker;
 import com.huidu.farmersdelight.loot.KnifeDropHandler;
 import com.huidu.farmersdelight.manager.BuffBossbarManager;
 import com.huidu.farmersdelight.manager.BuffSystem;
@@ -70,6 +71,7 @@ import com.huidu.farmersdelight.recipe.SpecialRecipeRegistry;
 import com.huidu.farmersdelight.registry.BehaviorRegistrar;
 import com.huidu.farmersdelight.startup.StartupVersionBanner;
 import com.huidu.farmersdelight.util.CommonTagResolver;
+import com.huidu.farmersdelight.util.InventoryViewerTracker;
 import com.huidu.farmersdelight.util.CraftEngineTagBridge;
 import com.huidu.farmersdelight.util.InteractionDebouncer;
 import com.huidu.farmersdelight.util.ItemUtils;
@@ -310,6 +312,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     private static final int BSTATS_PLUGIN_ID = 32571;
     // Held so the disable sequence can stop bStats' own reporting task.
     private Metrics metrics;
+    // Held so a runtime disable can unregister the PlaceholderAPI expansion.
+    private PlaceholderApiHook placeholderApiHook;
 
     // Required host platform; excluded from enchantment-conflict detection (it hooks the enchant event to manage
     // its own custom items and is always present, so it is not a competing enchantment system).
@@ -435,11 +439,18 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
         registerMainCommand();
 
+        // Cross-thread-safe viewer state for the basket/container transfer guards (CE's own viewer list is not
+        // thread-safe on Folia).
+        getServer().getPluginManager().registerEvents(new InventoryViewerTracker(), this);
+        getServer().getPluginManager().registerEvents(new BurningDeathTracker(this), this);
+
         // PlaceholderAPI bridge — registers iff PAPI is loaded so HUD plugins (BetterHud, MythicHud,
         // etc.) can read every CustomBuffRegistry entry per player. Soft-dep, no-op when absent.
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
             try {
-                new PlaceholderApiHook(this).register();
+                PlaceholderApiHook hook = new PlaceholderApiHook(this);
+                hook.register();
+                placeholderApiHook = hook;
                 I18n.logDetail(DebugCategory.STARTUP, "plugin.papi_bridge_registered");
             } catch (Throwable t) {
                 I18n.logWarning("plugin.papi_bridge_failed", "error", t.getMessage());
@@ -496,6 +507,8 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         // Order inside ListenerRegistry#stop: event delivery is detached before any listener state is torn
         // down, then the listeners' own tasks stop, then the world/chunk handlers detach.
         runDisableStep("plugin.disable_step_unregister_listeners", listeners::stop);
+        runDisableStep("plugin.disable_step_clear_viewer_tracker", InventoryViewerTracker::clear);
+        runDisableStep("plugin.disable_step_clear_burning_tracker", BurningDeathTracker::clear);
 
         // bStats keeps a task of its own; its reports are useless once the plugin is going away, and
         // shutting it down here is what stops it from holding a reference to a disabled plugin instance.
@@ -504,6 +517,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
             metrics = null;
             if (current != null) {
                 current.shutdown();
+            }
+        });
+
+        runDisableStep("plugin.disable_step_unregister_placeholderapi", () -> {
+            PlaceholderApiHook hook = placeholderApiHook;
+            placeholderApiHook = null;
+            if (hook != null) {
+                hook.unregisterExpansion();
             }
         });
 
@@ -641,7 +662,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
         shutdownSteps.run(stepKey, action, stepArgs);
     }
 
-    private void runBudgetedDisableStep(String stepKey, Runnable action) {
+    void runBudgetedDisableStep(String stepKey, Runnable action) {
         shutdownSteps.runBudgeted(stepKey, action);
     }
 
@@ -944,7 +965,14 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void fireReloadEvent(String reason) {
-        Bukkit.getPluginManager().callEvent(new FarmersDelightReloadEvent(reason));
+        try {
+            Bukkit.getPluginManager().callEvent(new FarmersDelightReloadEvent(reason));
+        } catch (RuntimeException | LinkageError failure) {
+            // Addons are independent plugins; one broken reload listener must not abort FD's own reload pass.
+            // (Bukkit may already have delivered the event to earlier listeners; this only preserves FD's tail.)
+            getLogger().log(java.util.logging.Level.WARNING,
+                    "FarmersDelight addon reload listener failed for reason '" + reason + "'", failure);
+        }
     }
 
     /**
@@ -1118,7 +1146,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     }
 
     private void loadConfigs() {
-        configAssembly.apply();
+        configAssembly.applyWithRollback();
     }
 
     void loadDebugFlags() {
@@ -1705,7 +1733,7 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
 
     /**
      * Ids this plugin's own enchant datapack declares: the configured backstabbing id plus every addon
-     * definition written through {@code FarmersDelightEnchantments}. Reading the files avoids depending on the
+     * definition written through FarmersDelightEnchantments. Reading the files avoids depending on the
      * API registry, which an addon only fills during its own enable.
      */
     private Set<String> managedEnchantmentIds() {
@@ -1743,12 +1771,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     /**
      * Enchantments registered outside the namespaces this plugin, CraftEngine and vanilla own.
      *
-     * <p>One entry here is not a conflict on its own: content plugins routinely register a single enchantment of
+     * One entry here is not a conflict on its own: content plugins routinely register a single enchantment of
      * their own (a maid's debuff, a mod's utility enchant), and treating that as a competing enchantment system
      * silently removed the backstab enchant from every knife on such a server. The list is reported, and it only
-     * disables the enchant when {@code enchantments.compatibility.disable-on-custom-enchantments} asks for it.
+     * disables the enchant when enchantments.compatibility.disable-on-custom-enchantments asks for it.
      *
-     * @return {@code namespace (count)} entries, empty when nothing foreign is registered
+     * @return namespace (count) entries, empty when nothing foreign is registered
      */
     List<String> detectForeignEnchantments() {
         Map<String, Integer> counts = new TreeMap<>();

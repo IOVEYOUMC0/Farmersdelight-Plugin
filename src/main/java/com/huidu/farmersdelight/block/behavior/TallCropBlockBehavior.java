@@ -387,6 +387,11 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 ? ProtectionChecks.Feature.RICE : null;
     }
 
+    /** Creative-mode harvests still remove the crop and fire the event, but must not spawn loot. */
+    static boolean dropsHarvestLoot(GameMode mode) {
+        return mode != GameMode.CREATIVE;
+    }
+
     @Override
     public InteractionResult useOnBlock(UseOnContext context, ImmutableBlockState state) {
         if (context.getPlayer() == null) return InteractionResult.PASS;
@@ -423,12 +428,14 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(world);
                 WorldPosition wPos = new WorldPosition(ceWorld, loc.getX(), loc.getY(), loc.getZ());
 
-                if (state.owner().value().loot() == null) {
-                    runConfiguredBreakLoot(state, bukkitBlock, bukkitPlayer, mainHand, wPos);
-                } else {
-                    dropLootTableDrops(state, bukkitBlock, bukkitPlayer, mainHand, wPos);
+                if (dropsHarvestLoot(bukkitPlayer.getGameMode())) {
+                    if (state.owner().value().loot() == null) {
+                        runConfiguredBreakLoot(state, bukkitBlock, bukkitPlayer, mainHand, wPos);
+                    } else {
+                        dropLootTableDrops(state, bukkitBlock, bukkitPlayer, mainHand, wPos);
+                    }
+                    awardHarvestStraw(bukkitBlock, bukkitPlayer);
                 }
-                awardHarvestStraw(bukkitBlock, bukkitPlayer);
 
                 world.playSound(loc, Sound.BLOCK_CROP_BREAK, 1.0f, 1.0f);
                 world.playSound(loc, Sound.ITEM_CROP_PLANT, 1.0f, 0.8f);

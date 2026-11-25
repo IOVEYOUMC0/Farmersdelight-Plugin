@@ -35,9 +35,9 @@ public final class CustomBlockUtils {
     /**
      * True when the calling thread owns the block's region.
      *
-     * <p>CraftEngine hands a block's container to vanilla hopper logic on whatever thread ticks the hopper, and
+     * CraftEngine hands a block's container to vanilla hopper logic on whatever thread ticks the hopper, and
      * the block-entity stores are only safe to read/write from their own region's thread. Callers of
-     * {@code getContainer} fail closed with this check instead of touching the controller from a foreign region.
+     * getContainer fail closed with this check instead of touching the controller from a foreign region.
      * Off Folia the scheduler answers true, so Paper behaviour is unchanged.
      */
     public static boolean ownsBlockRegion(FarmersDelightPlugin plugin, World world, BlockPos pos) {

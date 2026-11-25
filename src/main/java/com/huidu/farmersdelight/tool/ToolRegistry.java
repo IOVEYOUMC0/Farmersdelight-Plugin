@@ -79,7 +79,7 @@ public final class ToolRegistry {
     /**
      * Registers one settings type unless the registry already has that id.
      *
-     * <p>An interrupted earlier attempt (one type in, one type out) must be resumable: CraftEngine's registry
+     * An interrupted earlier attempt (one type in, one type out) must be resumable: CraftEngine's registry
      * throws on a duplicate key, so a plain retry would fail forever on the half that did register.
      */
     @SuppressWarnings("unchecked")

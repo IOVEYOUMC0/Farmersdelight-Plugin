@@ -69,7 +69,7 @@ public class KnifeDropHandler implements Listener {
 
         if (ThreadLocalRandom.current().nextDouble() > finalChance) return;
 
-        boolean isBurning = entity.getFireTicks() > 0;
+        boolean isBurning = entity.getFireTicks() > 0 || BurningDeathTracker.wasBurning(entity);
         String itemId;
 
         if (isBurning && rule.getBurningItem() != null) {

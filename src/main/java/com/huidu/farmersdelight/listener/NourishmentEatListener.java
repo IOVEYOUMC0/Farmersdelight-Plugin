@@ -24,11 +24,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Paper-side equivalent of the upstream Nourishment always-eat mixin. Upstream returns true from
- * {@code Player#canEat} while the player has Nourishment; Paper exposes no canEat hook, so a right-click with
+ * Player#canEat while the player has Nourishment; Paper exposes no canEat hook, so a right-click with
  * food at full hunger briefly lowers the food level by one (enough for vanilla to start the consume) and the
  * normal restore runs on the next tick. The food's nutrition and on-consume effects still resolve through the
  * vanilla path. Players that quit inside that one-tick window are put back to their original level on quit so the
- * temporary drop never reaches the player data. Config: {@code buff.nourishment-always-eat}.
+ * temporary drop never reaches the player data. Config: buff.nourishment-always-eat.
  */
 public final class NourishmentEatListener implements Listener {
 

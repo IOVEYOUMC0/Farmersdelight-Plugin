@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * CraftEngine-backed implementation of {@code api.storage}. Kept out of the api jar: addons see only the
+ * CraftEngine-backed implementation of api.storage. Kept out of the api jar: addons see only the
  * api classes and this resolves from the plugin class loader at runtime.
  */
 public final class PackedDataCodec {
@@ -37,7 +37,7 @@ public final class PackedDataCodec {
         return new Tree();
     }
 
-    /** The tree stored under {@code key}, or null when the item carries none. */
+    /** The tree stored under key, or null when the item carries none. */
     @Nullable
     public static PackedData read(ItemStack item, String key) {
         if (item == null || key == null || key.isBlank()) {
@@ -47,7 +47,7 @@ public final class PackedDataCodec {
         return packed == null ? null : fromTag(packed);
     }
 
-    /** Stores {@code data} under {@code key}, preserving every other key of the custom data component. */
+    /** Stores data under key, preserving every other key of the custom data component. */
     public static void write(ItemStack item, String key, PackedData data) {
         if (item == null || key == null || key.isBlank() || data == null) {
             return;
@@ -59,7 +59,7 @@ public final class PackedDataCodec {
         wrapped.setSparrowTagComponent(DataComponentKeys.CUSTOM_DATA, customData);
     }
 
-    /** Removes {@code key}; every other key of the custom data component is preserved. */
+    /** Removes key; every other key of the custom data component is preserved. */
     public static void remove(ItemStack item, String key) {
         if (item == null || key == null || key.isBlank()) {
             return;

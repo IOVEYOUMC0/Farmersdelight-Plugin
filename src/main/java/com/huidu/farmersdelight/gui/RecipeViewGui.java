@@ -1688,7 +1688,14 @@ public class RecipeViewGui extends AbstractInventoryGui {
             return;
         }
         ignoreNextClose = true;
-        player.openInventory(inventory);
+        try {
+            player.openInventory(inventory);
+        } catch (RuntimeException | LinkageError failure) {
+            // The reopen failed, so no ignored close event is coming; keeping the flag would swallow the next
+            // real close and leave the player's view/state tracking out of sync.
+            ignoreNextClose = false;
+            throw failure;
+        }
     }
 
     private void closeGui(Player player) {

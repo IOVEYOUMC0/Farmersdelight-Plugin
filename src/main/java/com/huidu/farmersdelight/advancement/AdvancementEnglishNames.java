@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Reads the English names out of a resource pack's {@code lang/en_us.json}.
+ * Reads the English names out of a resource pack's lang/en_us.json.
  *
  * Used only when the installed UltimateAdvancementAPI cannot render client translation keys: the display then
  * carries plain text, and the English name keeps the advancement page readable instead of showing the raw key.

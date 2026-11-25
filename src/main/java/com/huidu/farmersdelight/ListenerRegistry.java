@@ -94,7 +94,7 @@ final class ListenerRegistry {
                 new BlockPlaceListener(plugin),
                 new SkilletPlaceListener(plugin),
                 new SkilletLifecycleListener(plugin),
-                new ToolAttackListener(),
+                new ToolAttackListener(plugin),
                 new RottenTomatoListener(plugin),
                 new CuttingBoardInteractListener(plugin),
                 new CuttingBoardDispenseListener(plugin),

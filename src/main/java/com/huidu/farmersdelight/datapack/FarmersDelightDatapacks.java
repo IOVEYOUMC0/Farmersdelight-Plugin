@@ -110,7 +110,7 @@ public final class FarmersDelightDatapacks {
         writeIfChanged(root.resolve("pack.mcmeta"), DatapackSupport.renderPackMetadata(PACK_DESCRIPTION, version));
     }
 
-    /** The id a tag entry names: the string itself, or the {@code id} field of an object entry. */
+    /** The id a tag entry names: the string itself, or the id field of an object entry. */
     private static String tagEntryId(JsonElement value) {
         if (value == null) {
             return null;

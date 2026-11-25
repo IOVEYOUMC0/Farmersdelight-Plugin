@@ -9,6 +9,7 @@ import net.momirealms.craftengine.core.plugin.config.ConfigSection;
 import net.momirealms.craftengine.core.plugin.config.KnownResourceException;
 import net.momirealms.craftengine.core.util.Key;
 import com.huidu.farmersdelight.util.compat.ProtectionChecks;
+import org.bukkit.GameMode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -94,6 +95,13 @@ class TallCropBlockBehaviorTest {
         assertEquals(ProtectionChecks.Feature.RICE,
                 TallCropBlockBehavior.protectionFeature(Key.of("farmersdelight:rice")));
         assertNull(TallCropBlockBehavior.protectionFeature(Key.of("corndelight:corn_crop")));
+    }
+
+    @Test
+    void creativeHarvestDoesNotDropLoot() {
+        assertFalse(TallCropBlockBehavior.dropsHarvestLoot(GameMode.CREATIVE));
+        assertTrue(TallCropBlockBehavior.dropsHarvestLoot(GameMode.SURVIVAL));
+        assertTrue(TallCropBlockBehavior.dropsHarvestLoot(GameMode.ADVENTURE));
     }
 
     private static TallCropBlockBehavior crop(String blockId, Map<String, Object> config) {

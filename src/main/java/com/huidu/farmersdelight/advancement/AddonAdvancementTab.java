@@ -228,7 +228,7 @@ public final class AddonAdvancementTab {
     }
 
     /**
-     * Gives the completion experience through the upstream {@code giveReward} hook, on the player's own thread: the
+     * Gives the completion experience through the upstream giveReward hook, on the player's own thread: the
      * recipient can differ from the thread that completed the advancement (unredeemed replays pick an online member).
      */
     private void awardExperience(Player player, int experience) {
