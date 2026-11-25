@@ -349,7 +349,7 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         }
     }
 
-    /** True when the vine block at {@code pos} can place one more hanging crop above itself. */
+    /** True when the vine block at this position can place one more hanging crop above itself. */
     private boolean canClimb(World world, BlockPos pos) {
         if (world == null || pos == null) return false;
         Block atPos = world.getBlockAt(pos.x(), pos.y(), pos.z());
@@ -380,6 +380,15 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         World world = CraftEngineAdapter.toWorld(args[1]);
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) return;
+
+        // A right-click harvest updates the hanging crop in place (age -> 0). CE still calls the old state's
+        // removal hook, but the position already holds the replacement crop; placing rope here would overwrite
+        // the harvested vine and look like the rope "retracts" after picking tomatoes.
+        ImmutableBlockState current = CraftEngineBlocks.getCustomBlockState(
+                world.getBlockAt(pos.x(), pos.y(), pos.z()));
+        if (current != null && !current.isEmpty()) {
+            return;
+        }
 
         // A hanging crop removed because its support below disappeared is not a player break: the
         // lower tomato was collected and CE is cleaning up the unsupported hanging block. Replacing
