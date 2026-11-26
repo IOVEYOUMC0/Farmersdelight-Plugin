@@ -47,6 +47,8 @@ LANG_DIR = "src/main/resources/lang"
 # The shipped content pack: client language files plus the CraftEngine translations that mirror their names.
 CONTENT_ROOT = "src/main/resources/craftengine/farmersdelight"
 NAMED_PLACEHOLDER = re.compile(r"\{([A-Za-z][A-Za-z0-9_-]*)\}")
+# Placeholder forms the console formatter does not understand: printf conversions and %name% tokens.
+FOREIGN_PLACEHOLDER = re.compile(r"%[A-Za-z_][A-Za-z0-9_]*%|%\d*\$?[sdf]")
 HAN = re.compile(r"[\u3400-\u9fff]")
 
 # Helper calls whose literal argument is a language key, with the lookup mode the helper applies:
@@ -173,6 +175,26 @@ def placeholder_problems(en: dict[str, object], zh: dict[str, object]) -> list[s
     for key in sorted(set(en) & set(zh)):
         if set(NAMED_PLACEHOLDER.findall(str(en[key]))) != set(NAMED_PLACEHOLDER.findall(str(zh[key]))):
             problems.append(f"{key}: named placeholders differ between en_us and zh_cn")
+    return problems
+
+
+def unsubstituted_placeholder_problems(en: dict[str, object], zh: dict[str, object]) -> list[str]:
+    """A console message must use the one placeholder form the formatter substitutes.
+
+    logInfo and its siblings format through formatConsole, which replaces ``{name}`` and nothing else, so a
+    printf-style ``%s``, ``%d`` or ``%name%`` in the console section is never substituted and reaches the
+    server log as literal text. That section is read only through that path, which makes such a token a
+    defect rather than a formatting choice. Messages rendered with String.format live outside it.
+    """
+    problems: list[str] = []
+    for locale, messages in (("en_us", en), ("zh_cn", zh)):
+        for key in sorted(messages):
+            if not key.startswith("console."):
+                continue
+            found = sorted(set(FOREIGN_PLACEHOLDER.findall(str(messages[key]))))
+            if found:
+                problems.append(f"{key} ({locale}) uses {' '.join(found)}; "
+                                f"the console formatter only substitutes {{name}}")
     return problems
 
 
@@ -306,6 +328,12 @@ def main() -> int:
     problems += len(placeholders)
     for problem in placeholders:
         print(f"   PLACEHOLDERS: {problem}")
+
+    # A console message has to use the placeholder form the console formatter substitutes.
+    foreign = unsubstituted_placeholder_problems(en, zh)
+    problems += len(foreign)
+    for problem in foreign:
+        print(f"   UNSUBSTITUTED: {problem}")
 
     # Shipped item/block names agree between the client pack and the CraftEngine translations.
     content, advisory = content_language_problems()

@@ -74,6 +74,18 @@ class LangKeysSelfTest(CheckSelfTest):
             'command:\n  report: "共 {total}ms，{issues} 个问题"\n',
             "report")
 
+    def test_a_printf_placeholder_in_console_text_fails(self):
+        # The console formatter substitutes {name} only, so a printf conversion reaches the log as literal text.
+        # Both locales carry the same {world} so the locale-symmetry check stays quiet and only the printf
+        # token is left to fail: a test that failed for the other reason would not prove this check works.
+        en = 'console:\n  plugin:\n    sample: "Could not reach {world}"\n'
+        self.assert_red_then_green(
+            {"src/main/resources/lang/en_us.yml": en},
+            self.path,
+            'console:\n  plugin:\n    sample: "无法到达 {world}（%world%）"\n',
+            'console:\n  plugin:\n    sample: "无法到达 {world}"\n',
+            "console.plugin.sample")
+
 
 class ApiBoundarySelfTest(CheckSelfTest):
 
