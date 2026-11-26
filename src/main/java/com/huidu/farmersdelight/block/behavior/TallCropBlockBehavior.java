@@ -50,6 +50,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Farmland;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -865,9 +866,24 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         placeKeepingSibling(upperBlock, upperState);
     }
 
-    private void runConfiguredBreakLoot(ImmutableBlockState state, Block bukkitBlock, Player player,
-                                        ItemStack tool, WorldPosition position) {
-        var cePlayer = BukkitAdaptor.adapt(player);
+    public void dropBreakLoot(Block block, ImmutableBlockState state,
+                              @Nullable Player player, @Nullable ItemStack tool) {
+        if (block == null || state == null || state.isEmpty()) {
+            return;
+        }
+        net.momirealms.craftengine.core.world.World ceWorld = BukkitAdaptor.adapt(block.getWorld());
+        WorldPosition position = new WorldPosition(ceWorld,
+                block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
+        if (state.owner().value().loot() == null) {
+            runConfiguredBreakLoot(state, block, player, tool, position);
+        } else {
+            dropLootTableDrops(state, block, player, tool, position);
+        }
+    }
+
+    private void runConfiguredBreakLoot(ImmutableBlockState state, Block bukkitBlock, @Nullable Player player,
+                                        @Nullable ItemStack tool, WorldPosition position) {
+        var cePlayer = player == null ? null : BukkitAdaptor.adapt(player);
         Cancellable cancellable = Cancellable.dummy();
         ContextHolder.Builder builder = createLootContext(bukkitBlock, player, tool, position)
                 .withParameter(DirectContextParameters.CUSTOM_BLOCK_STATE, state)
@@ -876,10 +892,10 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
                 state.owner().value().eventFunctions(EventTrigger.BLOCK_BREAK));
     }
 
-    private void dropLootTableDrops(ImmutableBlockState state, Block bukkitBlock, Player player,
-                                    ItemStack tool, WorldPosition position) {
+    private void dropLootTableDrops(ImmutableBlockState state, Block bukkitBlock, @Nullable Player player,
+                                    @Nullable ItemStack tool, WorldPosition position) {
          net.momirealms.craftengine.core.world.World ceWorld = position.world();
-        var cePlayer = BukkitAdaptor.adapt(player);
+        var cePlayer = player == null ? null : BukkitAdaptor.adapt(player);
         ContextHolder.Builder builder = createLootContext(bukkitBlock, player, tool, position);
         List<Item> drops = state.getDrops(builder.build(), ceWorld, cePlayer);
         if (drops.isEmpty()) {
@@ -895,11 +911,12 @@ public class TallCropBlockBehavior extends FarmersDelightBlockBehavior implement
         }
     }
 
-    private ContextHolder.Builder createLootContext(Block block, Player player, ItemStack tool, WorldPosition position) {
+    private ContextHolder.Builder createLootContext(Block block, @Nullable Player player,
+                                                    @Nullable ItemStack tool, WorldPosition position) {
         ContextHolder.Builder builder = ContextHolder.builder()
                 .withParameter(DirectContextParameters.POSITION, position)
                 .withParameter(DirectContextParameters.BLOCK, new BukkitExistingBlock(block));
-        var cePlayer = BukkitAdaptor.adapt(player);
+        var cePlayer = player == null ? null : BukkitAdaptor.adapt(player);
         if (cePlayer != null) {
             builder.withOptionalParameter(DirectContextParameters.PLAYER, cePlayer);
         }

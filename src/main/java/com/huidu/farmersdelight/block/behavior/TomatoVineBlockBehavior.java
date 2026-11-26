@@ -381,6 +381,14 @@ public class TomatoVineBlockBehavior extends FarmersDelightBlockBehavior impleme
         BlockPos pos = CraftEngineAdapter.toBlockPos(args[2]);
         if (world == null || pos == null) return;
 
+        // A hanging crop removed because its support below disappeared is not a player break: the
+        // lower tomato was collected and CE is cleaning up the unsupported hanging block. Replacing
+        // that unsupported block with rope would leave a rope behind at the old vine position.
+        BushBlockBehavior bush = CustomBlockUtils.getBehavior(state, BushBlockBehavior.class);
+        if (bush != null && !bush.canSurvive(null, args)) {
+            return;
+        }
+
         BlockDefinition ropeBlock = CraftEngineBlocks.byId(config.ropeBlockId());
         if (ropeBlock == null) return;
 

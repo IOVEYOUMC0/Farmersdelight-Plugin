@@ -38,6 +38,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -119,6 +120,16 @@ public class RicePlantListener implements Listener {
                         brokenBlock.getX(), brokenBlock.getY() - 1, brokenBlock.getZ());
                 runAtBlock(lowerBlock.getLocation(), () -> resetLowerAfterUpperBreak(lowerBlock));
             } else {
+                // The lower half's own break loot is produced by CE's break event. The upper half has
+                // its own current-age loot pool, so drop it here before the removal hook clears it.
+                Block upperBlock = brokenBlock.getRelative(BlockFace.UP);
+                if (event.dropItems() && !upperBlock.getType().isAir()) {
+                    ImmutableBlockState upperState = CraftEngineBlocks.getCustomBlockState(upperBlock);
+                    if (isRiceBlock(upperState)) {
+                        dropRiceHalf(upperBlock, upperState, event.getPlayer(),
+                                event.getPlayer().getInventory().getItemInMainHand());
+                    }
+                }
                 runAtBlock(brokenBlock.getLocation(), () -> restoreRiceCarrierBlock(brokenBlock, half));
             }
             return;
@@ -557,18 +568,38 @@ public class RicePlantListener implements Listener {
 
     private void removeRicePlant(Block block, ImmutableBlockState state) {
         if (isUpperRiceHalf(state)) {
+            dropRiceHalf(block, state, null, null);
             CraftEngineBlocks.remove(block);
             return;
         }
 
         Block upperBlock = block.getRelative(BlockFace.UP);
-        if (isRiceBlock(upperBlock)) {
+        if (!upperBlock.getType().isAir()) {
+            ImmutableBlockState upperState = CraftEngineBlocks.getCustomBlockState(upperBlock);
+            if (isRiceBlock(upperState)) {
+                dropRiceHalf(upperBlock, upperState, null, null);
+            }
+        }
+        dropRiceHalf(block, state, null, null);
+        CraftEngineBlocks.remove(block);
+        if (!upperBlock.getType().isAir() && isRiceBlock(upperBlock)) {
             CraftEngineBlocks.remove(upperBlock);
         }
-        CraftEngineBlocks.remove(block);
         if (RiceCropRules.isValidSoil(block.getRelative(BlockFace.DOWN))) {
             block.setType(Material.WATER, false);
             scheduleWaterRestoreCheck(block);
+        }
+    }
+
+    /** Drops the current-age break loot for one rice half without removing the block. */
+    private void dropRiceHalf(Block block, @Nullable ImmutableBlockState state,
+                              @Nullable Player player, @Nullable ItemStack tool) {
+        if (block == null || state == null || state.isEmpty() || !isRiceBlock(state)) {
+            return;
+        }
+        TallCropBlockBehavior behavior = TallCropBlockBehavior.getBehavior(state);
+        if (behavior != null) {
+            behavior.dropBreakLoot(block, state, player, tool);
         }
     }
 
