@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.api.util.CeItemInterop;
+import com.huidu.farmersdelight.api.compat.ce.CeItemInterop;
 import com.huidu.farmersdelight.manager.TickManager;
 import com.huidu.farmersdelight.storage.PackedCarrierCodec;
 import com.huidu.farmersdelight.util.BlockPosKey;

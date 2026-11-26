@@ -1,6 +1,6 @@
 package com.huidu.farmersdelight.util;
 
-import com.huidu.farmersdelight.api.item.SlotPlaceholder;
+import com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder;
 import org.bukkit.inventory.ItemStack;
 
 public final class CookingPotPlaceholder {

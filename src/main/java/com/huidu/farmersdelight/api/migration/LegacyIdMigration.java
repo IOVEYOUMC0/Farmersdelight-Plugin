@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.migration;
 
+import com.huidu.farmersdelight.api.content.ContentId;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.inventory.ItemStack;
@@ -80,6 +81,22 @@ public final class LegacyIdMigration {
             return;
         }
         register(legacyId.toString(), currentId.toString());
+    }
+
+    /** Neutral-id overload for addons that do not want to import CraftEngine's Key. */
+    public static void registerItem(ContentId legacyId, ItemStack replacement) {
+        if (legacyId == null) {
+            return;
+        }
+        registerItem(Key.of(legacyId.value()), replacement);
+    }
+
+    /** Neutral-id overload for addons that do not want to import CraftEngine's Key. */
+    public static void registerItem(ContentId legacyId, ContentId currentId) {
+        if (legacyId == null || currentId == null) {
+            return;
+        }
+        register(legacyId.value(), currentId.value());
     }
 
     /** Whether this stack carries an id that has been registered as legacy. */

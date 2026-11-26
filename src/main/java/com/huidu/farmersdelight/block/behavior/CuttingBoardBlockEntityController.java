@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.api.util.CeItemInterop;
+import com.huidu.farmersdelight.api.compat.ce.CeItemInterop;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;

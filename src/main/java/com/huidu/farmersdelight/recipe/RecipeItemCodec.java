@@ -1,7 +1,7 @@
 package com.huidu.farmersdelight.recipe;
 
 import com.google.gson.JsonElement;
-import com.huidu.farmersdelight.api.util.CeItemInterop;
+import com.huidu.farmersdelight.api.compat.ce.CeItemInterop;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.bukkit.item.BukkitItem;
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;

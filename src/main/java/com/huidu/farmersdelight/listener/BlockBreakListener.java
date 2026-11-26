@@ -23,7 +23,7 @@ import com.huidu.farmersdelight.util.StationTypes;
 import com.huidu.farmersdelight.util.Text;
 import com.huidu.farmersdelight.util.compat.ProtectionChecks;
 import com.huidu.farmersdelight.util.scheduler.RegionTasks;
-import com.huidu.farmersdelight.api.util.TooltipUtils;
+import com.huidu.farmersdelight.api.compat.ce.TooltipUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;

@@ -1,7 +1,7 @@
 package com.huidu.farmersdelight.condition;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.api.util.CeItemInterop;
+import com.huidu.farmersdelight.api.compat.ce.CeItemInterop;
 import net.momirealms.craftengine.core.plugin.context.Condition;
 import net.momirealms.craftengine.core.plugin.context.Context;
 import net.momirealms.craftengine.core.plugin.context.condition.ConditionFactory;

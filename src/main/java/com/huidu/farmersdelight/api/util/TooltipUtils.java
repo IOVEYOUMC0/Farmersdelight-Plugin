@@ -1,45 +1,19 @@
 package com.huidu.farmersdelight.api.util;
 
 import net.momirealms.craftengine.core.item.Item;
-import net.momirealms.craftengine.core.item.component.DataComponentKeys;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
-
+/**
+ * Compatibility delegate for {@link com.huidu.farmersdelight.api.compat.ce.TooltipUtils}.
+ *
+ * @deprecated use the CraftEngine-pinned {@code api.compat.ce} class for new code.
+ */
+@Deprecated
 public final class TooltipUtils {
 
-    private TooltipUtils() {}
+    private TooltipUtils() {
+    }
 
     public static void hideDurabilityLine(Item wrapped) {
-        List<String> hidden = List.of(
-                DataComponentKeys.DAMAGE.asString(),
-                DataComponentKeys.MAX_DAMAGE.asString()
-        );
-        Object existing = wrapped.getComponentAsJava(DataComponentKeys.TOOLTIP_DISPLAY);
-        if (existing == null) {
-            wrapped.setJavaComponent(DataComponentKeys.TOOLTIP_DISPLAY,
-                    Map.of("hidden_components", hidden));
-            return;
-        }
-        if (!(existing instanceof Map<?, ?> rawMap)) return;
-        Map<String, Object> data = new HashMap<>();
-        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
-            if (entry.getKey() instanceof String key) {
-                data.put(key, entry.getValue());
-            }
-        }
-        Object prev = data.get("hidden_components");
-        if (prev instanceof List<?> list) {
-            List<String> merged = Stream.concat(
-                    list.stream().map(Object::toString),
-                    hidden.stream()
-            ).distinct().toList();
-            data.put("hidden_components", merged);
-        } else {
-            data.put("hidden_components", hidden);
-        }
-        wrapped.setJavaComponent(DataComponentKeys.TOOLTIP_DISPLAY, data);
+        com.huidu.farmersdelight.api.compat.ce.TooltipUtils.hideDurabilityLine(wrapped);
     }
 }

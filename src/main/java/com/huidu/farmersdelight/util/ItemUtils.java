@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.util;
 
 import com.huidu.farmersdelight.api.util.PerformanceProbe;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
-import com.huidu.farmersdelight.api.util.CeItemInterop;
+import com.huidu.farmersdelight.api.compat.ce.CeItemInterop;
 import com.huidu.farmersdelight.block.behavior.BlockBehaviorConfigs;
 import com.huidu.farmersdelight.block.behavior.ConfiguredBlockSet;
 import com.huidu.farmersdelight.config.ContainerReturnConfig;

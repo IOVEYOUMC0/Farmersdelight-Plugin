@@ -128,20 +128,27 @@ member|com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode|public sta
 member|com.huidu.farmersdelight.api.block.CuttingBoardSnapshot|public ItemStack storedItem()
 member|com.huidu.farmersdelight.api.block.CuttingBoardSnapshot|public Location location()
 member|com.huidu.farmersdelight.api.block.CuttingBoardSnapshot|public boolean occupied()
+member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static ContentId blockId(Block block)
+member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static ContentId stationId(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static CookingPotSnapshot cookingPot(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static CuttingBoardSnapshot cuttingBoard(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static FarmersDelightStation stationOf(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static SkilletSnapshot skillet(Block block)
+member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static StationRule stationRule(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static StoveSnapshot stove(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static String blockIdOf(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static String stationIdOf(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightBlocks|public static boolean isStation(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static boolean isCrop(Block block)
+member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static boolean isCropBlockId(ContentId blockId)
 member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static boolean isCropBlockId(Key blockId)
 member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static boolean isHarvestReady(Block block)
+member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static boolean resetsOnHarvest(Block block)
+member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static boolean resetsOnHarvest(ContentId blockId)
 member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static boolean resetsOnHarvest(String blockId)
 member|com.huidu.farmersdelight.api.block.FarmersDelightCrops|public static int tallCropAge(Block block)
 member|com.huidu.farmersdelight.api.block.FarmersDelightStation|public String defaultBlockId()
+member|com.huidu.farmersdelight.api.block.HeatSources|public boolean addCustomBlock(ContentId blockId)
 member|com.huidu.farmersdelight.api.block.HeatSources|public boolean addCustomBlock(String blockIdWithOptionalState)
 member|com.huidu.farmersdelight.api.block.HeatSources|public boolean remove(String id)
 member|com.huidu.farmersdelight.api.block.HeatSources|public int size()
@@ -149,6 +156,7 @@ member|com.huidu.farmersdelight.api.block.HeatSources|public static HeatSources 
 member|com.huidu.farmersdelight.api.block.HeatSources|public static HeatSources of(Plugin owner)
 member|com.huidu.farmersdelight.api.block.HeatSources|public static void replayAll(HeatSourceConfig config)
 member|com.huidu.farmersdelight.api.block.HeatSources|public void addConductor(String vanillaBlockId)
+member|com.huidu.farmersdelight.api.block.HeatSources|public void addCustomTag(ContentId tagId)
 member|com.huidu.farmersdelight.api.block.HeatSources|public void addCustomTag(String tagId)
 member|com.huidu.farmersdelight.api.block.HeatSources|public void addVanillaBlock(String vanillaBlockId)
 member|com.huidu.farmersdelight.api.block.HeatSources|public void clear()
@@ -196,6 +204,31 @@ member|com.huidu.farmersdelight.api.buff.CustomBuff|public default int remaining
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public default void restoreState(Player player)
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public default void saveState(Player player)
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public void remove(Player player)
+member|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public static Item normalize(Item item)
+member|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public static ItemStack asBukkitStack(Item item)
+member|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public static ItemStack toBukkitStack(Item item)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static Set<Key>registeredIds()
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static boolean isRegistered(Key id)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static boolean unregister(Key id)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static int apply(Kind kind)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static void registerBlockBehavior(Key id, BlockBehaviorFactory<?>factory)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static void registerItemBehavior(Key id, ItemBehaviorFactory<?>factory)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static void registerLootFunction(Key id, LootFunctionFactory<?>factory)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static<T extends Condition<Context>>void registerCondition(Key id, ConditionFactory<Context, T>factory)
+member|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public static<T extends Function<Context>>void registerFunction(Key id, FunctionFactory<Context, T>factory)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static BlockEntityController blockEntityController(World world, int x, int y, int z)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static BlockFace facing(ImmutableBlockState state)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static BlockPos toBlockPos(Object posHandle)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static CEWorld getCEWorld(World world)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static String blockId(ImmutableBlockState state)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static String property(ImmutableBlockState state, String propertyName)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static World getBukkitWorld(BlockEntity blockEntity)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static World toWorld(Object levelHandle)
+member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static void markDirty(BlockEntity blockEntity)
+member|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public static ItemStack mark(String key, ItemStack base)
+member|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public static boolean is(String key, ItemStack item)
+member|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public static boolean isEmpty(String key, ItemStack item)
+member|com.huidu.farmersdelight.api.compat.ce.TooltipUtils|public static void hideDurabilityLine(Item wrapped)
 member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static Set<String>end()
 member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static String sectionMarker(String path)
 member|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public static void begin()
@@ -265,9 +298,32 @@ member|com.huidu.farmersdelight.api.config.ConfigUpdateReport|public int fromVer
 member|com.huidu.farmersdelight.api.config.ConfigUpdateReport|public int toVersion()
 member|com.huidu.farmersdelight.api.config.InvalidConfigKeyException|public InvalidConfigKeyException(ConfigurationSection section, String path, Object value, String expected, Throwable cause)
 member|com.huidu.farmersdelight.api.config.MissingConfigKeyException|public MissingConfigKeyException(ConfigurationSection section, String path)
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public ContentId blockId()
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public Map<String, String>properties()
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public String toString()
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public String value()
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public boolean equals(Object other)
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public int hashCode()
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public static BlockStateRef of(ContentId blockId)
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public static BlockStateRef of(ContentId blockId, Map<String, String>properties)
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public static BlockStateRef parse(String value)
+member|com.huidu.farmersdelight.api.content.BlockStateRef|public static BlockStateRef parseOrNull(String value)
+member|com.huidu.farmersdelight.api.content.ContentId|public String namespace()
+member|com.huidu.farmersdelight.api.content.ContentId|public String path()
+member|com.huidu.farmersdelight.api.content.ContentId|public String toString()
+member|com.huidu.farmersdelight.api.content.ContentId|public String value()
+member|com.huidu.farmersdelight.api.content.ContentId|public boolean equals(Object other)
+member|com.huidu.farmersdelight.api.content.ContentId|public int compareTo(ContentId other)
+member|com.huidu.farmersdelight.api.content.ContentId|public int hashCode()
+member|com.huidu.farmersdelight.api.content.ContentId|public static ContentId of(String namespace, String path)
+member|com.huidu.farmersdelight.api.content.ContentId|public static ContentId parse(String value)
+member|com.huidu.farmersdelight.api.content.ContentId|public static ContentId parseOrNull(String value)
+member|com.huidu.farmersdelight.api.content.FarmersDelightContent|public static boolean isBlockPresent(ContentId blockId)
 member|com.huidu.farmersdelight.api.content.FarmersDelightContent|public static boolean isBlockPresent(String blockId)
 member|com.huidu.farmersdelight.api.content.FarmersDelightContent|public static boolean isCraftEngineReady()
+member|com.huidu.farmersdelight.api.content.FarmersDelightContent|public static boolean isItemOrBlockPresent(ContentId id)
 member|com.huidu.farmersdelight.api.content.FarmersDelightContent|public static boolean isItemOrBlockPresent(String id)
+member|com.huidu.farmersdelight.api.content.FarmersDelightContent|public static boolean isItemPresent(ContentId itemId)
 member|com.huidu.farmersdelight.api.content.FarmersDelightContent|public static boolean isItemPresent(String itemId)
 member|com.huidu.farmersdelight.api.effect.FarmersDelightFoodEffects|public static boolean hasComfort(Player player)
 member|com.huidu.farmersdelight.api.effect.FarmersDelightFoodEffects|public static boolean hasNourishment(Player player)
@@ -461,6 +517,7 @@ member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static Compo
 member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static Component serverDisplayNameOf(ItemStack item)
 member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static Component translatableDisplayNameOf(ItemStack item)
 member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static Component translatableDisplayNameOfNoAnvilOf(ItemStack item)
+member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static ContentId contentIdOf(ItemStack item)
 member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static ItemStack buildIcon(String itemId, String nameTemplate, List<String>loreTemplates, Player viewer, Map<String, String>placeholders)
 member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static ItemStack craftingRemainderOf(ItemStack item)
 member|com.huidu.farmersdelight.api.item.FarmersDelightItems|public static ItemStack create(String itemId)
@@ -509,6 +566,8 @@ member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static bo
 member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static int conflictCount()
 member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static int size()
 member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static void clear()
+member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static void registerItem(ContentId legacyId, ContentId currentId)
+member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static void registerItem(ContentId legacyId, ItemStack replacement)
 member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static void registerItem(Key legacyId, ItemStack replacement)
 member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static void registerItem(Key legacyId, Key currentId)
 member|com.huidu.farmersdelight.api.migration.LegacyIdMigration|public static void setBridge(Bridge replacement)
@@ -669,6 +728,45 @@ member|com.huidu.farmersdelight.api.registry.ContentRegistration|public static<T
 member|com.huidu.farmersdelight.api.registry.ContentRegistration|public static<T extends Function<Context>>void registerFunction(Key id, FunctionFactory<Context, T>factory)
 member|com.huidu.farmersdelight.api.resource.CraftEngineResources|public static int release(JavaPlugin plugin, String namespace)
 member|com.huidu.farmersdelight.api.resource.CraftEngineResources|public static int release(JavaPlugin plugin, String namespace, boolean completeExisting)
+member|com.huidu.farmersdelight.api.rule.CropRules|public static CropRule matching(Block block)
+member|com.huidu.farmersdelight.api.rule.CropRules|public static Optional<CropRule>find(ContentId id)
+member|com.huidu.farmersdelight.api.rule.CropRules|public static Set<ContentId>ids()
+member|com.huidu.farmersdelight.api.rule.CropRules|public static boolean register(CropRule rule)
+member|com.huidu.farmersdelight.api.rule.CropRules|public static boolean unregister(ContentId id)
+member|com.huidu.farmersdelight.api.rule.CropRule|public ContentId id()
+member|com.huidu.farmersdelight.api.rule.CropRule|public boolean isHarvestReady(Block block)
+member|com.huidu.farmersdelight.api.rule.CropRule|public boolean matches(Block block)
+member|com.huidu.farmersdelight.api.rule.CropRule|public default boolean resetsOnHarvest(Block block)
+member|com.huidu.farmersdelight.api.rule.CropRule|public default int age(Block block)
+member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static Optional<RecipeCondition>find(ContentId id)
+member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static Set<ContentId>ids()
+member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static boolean allMatch(RecipeContext context)
+member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static boolean hasConditions()
+member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static boolean register(RecipeCondition condition)
+member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static boolean unregister(ContentId id)
+member|com.huidu.farmersdelight.api.rule.RecipeCondition|public ContentId id()
+member|com.huidu.farmersdelight.api.rule.RecipeCondition|public boolean test(RecipeContext context)
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public ItemStack container()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public ItemStack tool()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public List<ItemStack>inputs()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public Location station()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public Player player()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public String recipeId()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public String recipeType()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public boolean equals(Object other)
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public int hashCode()
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public static RecipeContext of(Player player, Location station, List<ItemStack>inputs, ItemStack container)
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public static RecipeContext of(Player player, Location station, List<ItemStack>inputs, ItemStack container, ItemStack tool)
+member|com.huidu.farmersdelight.api.rule.RecipeContext|public static RecipeContext of(Player player, Location station, List<ItemStack>inputs, ItemStack container, ItemStack tool, String recipeType, String recipeId)
+member|com.huidu.farmersdelight.api.rule.StationRules|public static Optional<StationRule>find(ContentId id)
+member|com.huidu.farmersdelight.api.rule.StationRules|public static Set<ContentId>ids()
+member|com.huidu.farmersdelight.api.rule.StationRules|public static StationRule matching(Block block)
+member|com.huidu.farmersdelight.api.rule.StationRules|public static boolean register(StationRule rule)
+member|com.huidu.farmersdelight.api.rule.StationRules|public static boolean unregister(ContentId id)
+member|com.huidu.farmersdelight.api.rule.StationRule|public ContentId id()
+member|com.huidu.farmersdelight.api.rule.StationRule|public boolean matches(Block block)
+member|com.huidu.farmersdelight.api.rule.StationRule|public default String recipeTypeId()
+member|com.huidu.farmersdelight.api.rule.StationRule|public default boolean isHeatSource(Block block)
 member|com.huidu.farmersdelight.api.scheduler.ApiTask|public boolean isCancelled()
 member|com.huidu.farmersdelight.api.scheduler.ApiTask|public void cancel()
 member|com.huidu.farmersdelight.api.sound.FarmersDelightSounds|public static void clearCache()
@@ -894,6 +992,12 @@ type|com.huidu.farmersdelight.api.block.StoveSnapshot|public record StoveSnapsho
 type|com.huidu.farmersdelight.api.buff.BuffBossbar|public final class BuffBossbar
 type|com.huidu.farmersdelight.api.buff.CustomBuffRegistry|public final class CustomBuffRegistry
 type|com.huidu.farmersdelight.api.buff.CustomBuff|public interface CustomBuff
+type|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public final class CeItemInterop
+type|com.huidu.farmersdelight.api.compat.ce.ContentRegistration.Kind|public enum Kind
+type|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public final class ContentRegistration
+type|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public final class CraftEngineBlockAccess
+type|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public final class SlotPlaceholder
+type|com.huidu.farmersdelight.api.compat.ce.TooltipUtils|public final class TooltipUtils
 type|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public final class BehaviorArgRecorder
 type|com.huidu.farmersdelight.api.config.BehaviorArguments|public final class BehaviorArguments
 type|com.huidu.farmersdelight.api.config.ConfigFileUpdater|public final class ConfigFileUpdater
@@ -907,6 +1011,8 @@ type|com.huidu.farmersdelight.api.config.ConfigUpdatePolicy|public final class C
 type|com.huidu.farmersdelight.api.config.ConfigUpdateReport|public final class ConfigUpdateReport
 type|com.huidu.farmersdelight.api.config.InvalidConfigKeyException|public class InvalidConfigKeyException extends ConfigParsingException
 type|com.huidu.farmersdelight.api.config.MissingConfigKeyException|public class MissingConfigKeyException extends ConfigParsingException
+type|com.huidu.farmersdelight.api.content.BlockStateRef|public final class BlockStateRef
+type|com.huidu.farmersdelight.api.content.ContentId|public final class ContentId implements Comparable<ContentId>
 type|com.huidu.farmersdelight.api.content.FarmersDelightContent|public final class FarmersDelightContent
 type|com.huidu.farmersdelight.api.effect.FarmersDelightFoodEffects|public final class FarmersDelightFoodEffects
 type|com.huidu.farmersdelight.api.enchant.EnchantGroup|public enum EnchantGroup
@@ -976,6 +1082,13 @@ type|com.huidu.farmersdelight.api.registry.ContentRegistration.Bridge|public int
 type|com.huidu.farmersdelight.api.registry.ContentRegistration.Kind|public enum Kind
 type|com.huidu.farmersdelight.api.registry.ContentRegistration|public final class ContentRegistration
 type|com.huidu.farmersdelight.api.resource.CraftEngineResources|public final class CraftEngineResources
+type|com.huidu.farmersdelight.api.rule.CropRules|public final class CropRules
+type|com.huidu.farmersdelight.api.rule.CropRule|public interface CropRule
+type|com.huidu.farmersdelight.api.rule.RecipeConditions|public final class RecipeConditions
+type|com.huidu.farmersdelight.api.rule.RecipeCondition|public interface RecipeCondition
+type|com.huidu.farmersdelight.api.rule.RecipeContext|public final class RecipeContext
+type|com.huidu.farmersdelight.api.rule.StationRules|public final class StationRules
+type|com.huidu.farmersdelight.api.rule.StationRule|public interface StationRule
 type|com.huidu.farmersdelight.api.scheduler.ApiTask|public interface ApiTask
 type|com.huidu.farmersdelight.api.sound.FarmersDelightSounds|public final class FarmersDelightSounds
 type|com.huidu.farmersdelight.api.sound.ToolSoundTable.Entry|public record Entry(String soundKey, float volume, float pitchMin, float pitchMax)
