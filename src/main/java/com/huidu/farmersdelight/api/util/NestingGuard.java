@@ -1,7 +1,5 @@
 package com.huidu.farmersdelight.api.util;
 
-import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
-import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
@@ -54,7 +52,7 @@ public final class NestingGuard {
         if (meta instanceof BundleMeta) {
             return true;
         }
-        Key customId = CraftEngineItems.getCustomItemId(item);
-        return customId != null && REGISTERED.contains(customId.toString());
+        String customId = com.huidu.farmersdelight.util.compat.CraftEngineItemIds.customItemId(item);
+        return customId != null && REGISTERED.contains(customId);
     }
 }

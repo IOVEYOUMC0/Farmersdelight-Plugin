@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.tag;
 
+import com.huidu.farmersdelight.api.content.ContentId;
 import net.momirealms.craftengine.bukkit.plugin.BukkitCraftEngine;
 import net.momirealms.craftengine.core.block.BlockDefinition;
 import net.momirealms.craftengine.core.block.setting.BlockSettings;
@@ -73,6 +74,11 @@ public final class KnifeMineableBlocks {
             return false;
         }
         return matchesKnifeTag(tags);
+    }
+
+    /** Neutral-id query for callers that do not want to import CraftEngine's Key. */
+    public static boolean isKnifeMineableId(@Nullable ContentId blockId) {
+        return blockId != null && isKnifeMineable(Key.of(blockId.value()));
     }
 
     /** True once a structural API failure was seen; this query is inert from then on. */

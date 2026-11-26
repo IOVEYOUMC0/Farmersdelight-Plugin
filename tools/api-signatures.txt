@@ -850,6 +850,7 @@ member|com.huidu.farmersdelight.api.tag.FarmersDelightTags|public static final S
 member|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks.TagSource|public Set<Key>declaredTags(Key blockId)
 member|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks|public static boolean isDisabledForUnsupportedApi()
 member|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks|public static boolean isKnifeMineable(Key blockId)
+member|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks|public static boolean isKnifeMineableId(ContentId blockId)
 member|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks|public static boolean matchesKnifeTag(Set<Key>declaredTags)
 member|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks|public static boolean usingConsoleWarner()
 member|com.huidu.farmersdelight.api.tag.KnifeMineableBlocks|public static void resetState()
