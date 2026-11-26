@@ -1,6 +1,7 @@
 package com.huidu.farmersdelight.api.block;
 
 import com.huidu.farmersdelight.api.PluginAccess;
+import com.huidu.farmersdelight.api.content.ContentId;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.config.HeatSourceConfig;
 import net.momirealms.craftengine.core.util.Key;
@@ -77,6 +78,18 @@ public final class HeatSources {
         }
         this.customBlocks.add(blockIdWithOptionalState);
         return true;
+    }
+
+    /** Neutral-id overload; the state suffix, when needed, stays a string property. */
+    public boolean addCustomBlock(ContentId blockId) {
+        return blockId != null && addCustomBlock(blockId.value());
+    }
+
+    /** Neutral-id overload for a custom block tag. */
+    public void addCustomTag(ContentId tagId) {
+        if (tagId != null) {
+            addCustomTag(tagId.value());
+        }
     }
 
     /** Declares every block carrying a CraftEngine block tag to be a heat source. */

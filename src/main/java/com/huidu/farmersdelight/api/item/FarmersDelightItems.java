@@ -1,5 +1,6 @@
 package com.huidu.farmersdelight.api.item;
 
+import com.huidu.farmersdelight.api.content.ContentId;
 import com.huidu.farmersdelight.api.text.FarmersDelightText;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.kyori.adventure.text.Component;
@@ -25,6 +26,11 @@ public final class FarmersDelightItems {
 
     public static String idOf(ItemStack item) {
         return ItemUtils.resolveItemId(item);
+    }
+
+    /** Neutral-id counterpart of {@link #idOf(ItemStack)}; null when the stack has no resolvable id. */
+    public static ContentId contentIdOf(ItemStack item) {
+        return ContentId.parseOrNull(idOf(item));
     }
 
     public static List<ItemStack> createChoices(String itemSpec) {

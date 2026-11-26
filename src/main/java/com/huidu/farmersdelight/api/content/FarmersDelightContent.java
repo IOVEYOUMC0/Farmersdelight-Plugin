@@ -32,6 +32,11 @@ public final class FarmersDelightContent {
         return ContentRequirement.anyItem(itemId).isSatisfied();
     }
 
+    /** Neutral-id overload; null ids are reported absent. */
+    public static boolean isItemPresent(ContentId itemId) {
+        return itemId != null && isItemPresent(itemId.value());
+    }
+
     public static boolean isBlockPresent(String blockId) {
         if (!isCraftEngineReady()) {
             return true;
@@ -39,10 +44,20 @@ public final class FarmersDelightContent {
         return ContentRequirement.anyBlock(blockId).isSatisfied();
     }
 
+    /** Neutral-id overload; null ids are reported absent. */
+    public static boolean isBlockPresent(ContentId blockId) {
+        return blockId != null && isBlockPresent(blockId.value());
+    }
+
     public static boolean isItemOrBlockPresent(String id) {
         if (!isCraftEngineReady()) {
             return true;
         }
         return ContentRequirement.anyItemOrBlock(List.of(id)).isSatisfied();
+    }
+
+    /** Neutral-id overload; null ids are reported absent. */
+    public static boolean isItemOrBlockPresent(ContentId id) {
+        return id != null && isItemOrBlockPresent(id.value());
     }
 }

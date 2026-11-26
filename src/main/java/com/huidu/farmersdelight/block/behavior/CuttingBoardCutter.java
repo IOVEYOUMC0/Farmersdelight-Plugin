@@ -1,6 +1,8 @@
 package com.huidu.farmersdelight.block.behavior;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.rule.RecipeConditions;
+import com.huidu.farmersdelight.api.rule.RecipeContext;
 import com.huidu.farmersdelight.api.sound.ToolSoundTable;
 import com.huidu.farmersdelight.config.CuttingBoardSounds;
 import com.huidu.farmersdelight.i18n.I18n;
@@ -24,6 +26,7 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.concurrent.ThreadLocalRandom;
 import com.huidu.farmersdelight.config.DebugCategory;
@@ -100,6 +103,15 @@ final class CuttingBoardCutter {
                 .matchRecipe(recipeInput, tool);
         if (recipe == null) {
             return false;
+        }
+
+        if (RecipeConditions.hasConditions()) {
+            Location station = new Location(world, posKey.x(), posKey.y(), posKey.z());
+            if (!RecipeConditions.allMatch(RecipeContext.of(
+                    player, station, List.of(recipeInput), null, tool,
+                    "cutting_board", recipe.getId()))) {
+                return false;
+            }
         }
 
         Location location = player.getLocation();

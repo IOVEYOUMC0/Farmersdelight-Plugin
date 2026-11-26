@@ -32,7 +32,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * IDs must be namespaced, unique, and outside minecraft and farmersdelight.
  * Late registration requires CE to reread content before existing definitions use it.
  * Unregistering stops reapplication; CE retains the type until restart, so replacement needs a new ID.
+ *
+ * @deprecated advanced CE registration lives in {@code api.compat.ce}; this location stays as a
+ *             compatibility delegate for existing addons.
  */
+@Deprecated
 public final class ContentRegistration {
 
     /** The CraftEngine registry a registration belongs to. */

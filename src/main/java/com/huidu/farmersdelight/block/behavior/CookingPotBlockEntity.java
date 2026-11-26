@@ -4,6 +4,8 @@ import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.event.FarmersDelightCookStartEvent;
 import com.huidu.farmersdelight.api.event.FarmersDelightProduceEvent;
 import com.huidu.farmersdelight.recipe.CookingPotRecipe;
+import com.huidu.farmersdelight.api.rule.RecipeConditions;
+import com.huidu.farmersdelight.api.rule.RecipeContext;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.ItemUtils;
 import net.momirealms.craftengine.core.world.BlockPos;
@@ -551,6 +553,10 @@ public class CookingPotBlockEntity {
             CookingPotRecipe previousRecipe = currentRecipe.get();
             if (previousRecipe != null
                     && plugin.getCookingPotRecipes().canCraft(previousRecipe, inputItems)) {
+                if (!conditionsAllow(previousRecipe, inputItems, containerItem)) {
+                    currentRecipe.set(null);
+                    return false;
+                }
                 if (!hasRoomForResult(previousRecipe)) {
                     return false;
                 }
@@ -562,6 +568,13 @@ public class CookingPotBlockEntity {
                     .matchRecipe(inputItems, containerItem, recipeGroupId);
 
             if (recipe == null) {
+                currentRecipe.set(null);
+                return false;
+            }
+
+            // Addon conditions are evaluated on the pot's region thread and fail closed. With no
+            // registered condition this branch is skipped, so the hot path keeps its old allocation shape.
+            if (!conditionsAllow(recipe, inputItems, containerItem)) {
                 currentRecipe.set(null);
                 return false;
             }
@@ -582,6 +595,18 @@ public class CookingPotBlockEntity {
         } catch (IllegalStateException e) {
             return false;
         }
+    }
+
+    /** Cheap gate: no registered condition means no context allocation on the cooking hot path. */
+    private boolean conditionsAllow(CookingPotRecipe recipe, List<ItemStack> inputItems, ItemStack containerItem) {
+        if (!RecipeConditions.hasConditions()) {
+            return true;
+        }
+        World conditionWorld = this.world;
+        Location conditionLocation = conditionWorld == null ? null
+                : new Location(conditionWorld, posKey.x(), posKey.y(), posKey.z());
+        return RecipeConditions.allMatch(RecipeContext.of(null, conditionLocation, inputItems, containerItem,
+                null, "cooking_pot", recipe == null ? null : recipe.getId()));
     }
 
     private boolean hasRoomForResult(CookingPotRecipe recipe) {

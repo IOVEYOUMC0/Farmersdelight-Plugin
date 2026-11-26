@@ -1,5 +1,9 @@
 package com.huidu.farmersdelight.api.block;
 
+import com.huidu.farmersdelight.api.content.BlockStateRef;
+import com.huidu.farmersdelight.api.content.ContentId;
+import com.huidu.farmersdelight.api.rule.StationRule;
+import com.huidu.farmersdelight.api.rule.StationRules;
 import com.huidu.farmersdelight.api.PluginAccess;
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
@@ -12,6 +16,7 @@ import com.huidu.farmersdelight.recipe.CookingPotRecipe;
 import com.huidu.farmersdelight.util.BlockPosKey;
 import com.huidu.farmersdelight.util.CustomBlockUtils;
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
+import net.momirealms.craftengine.core.block.property.Property;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -27,13 +32,56 @@ public final class FarmersDelightBlocks {
         return CustomBlockUtils.getId(state(block));
     }
 
+    /** Neutral-id counterpart of {@link #blockIdOf(Block)}. */
+    public static ContentId blockId(Block block) {
+        return ContentId.parseOrNull(blockIdOf(block));
+    }
+
+    /**
+     * Neutral state descriptor for a custom block. Returns null for non-CE/empty blocks; property
+     * values use CraftEngine's canonical names so addon config can compare them without CE types.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static BlockStateRef blockState(Block block) {
+        ImmutableBlockState state = state(block);
+        if (state == null || state.isEmpty()) {
+            return null;
+        }
+        ContentId id = ContentId.parseOrNull(CustomBlockUtils.getId(state));
+        if (id == null) {
+            return null;
+        }
+        java.util.Map<String, String> properties = new java.util.LinkedHashMap<>();
+        state.propertyEntries().forEach((property, value) -> {
+            if (property != null && value != null) {
+                properties.put(property.name(), Property.formatValue((Property) property, (Comparable) value));
+            }
+        });
+        return BlockStateRef.of(id, properties);
+    }
+
     public static String stationIdOf(Block block) {
         ImmutableBlockState state = state(block);
-        return stationOf(state) == null ? null : CustomBlockUtils.getId(state);
+        String builtin = stationOf(state) == null ? null : CustomBlockUtils.getId(state);
+        if (builtin != null) {
+            return builtin;
+        }
+        StationRule rule = StationRules.matching(block);
+        return rule == null ? null : rule.id().value();
+    }
+
+    /** Neutral-id counterpart of {@link #stationIdOf(Block)}; null for non-stations. */
+    public static ContentId stationId(Block block) {
+        return ContentId.parseOrNull(stationIdOf(block));
+    }
+
+    /** The custom-station rule that owns this block, or null for built-in stations/non-stations. */
+    public static StationRule stationRule(Block block) {
+        return StationRules.matching(block);
     }
 
     public static boolean isStation(Block block) {
-        return stationOf(state(block)) != null;
+        return stationOf(state(block)) != null || StationRules.matching(block) != null;
     }
 
     public static FarmersDelightStation stationOf(Block block) {
