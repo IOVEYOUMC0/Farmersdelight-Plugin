@@ -242,6 +242,7 @@ member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public stat
 member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static World getBukkitWorld(BlockEntity blockEntity)
 member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static World toWorld(Object levelHandle)
 member|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public static void markDirty(BlockEntity blockEntity)
+member|com.huidu.farmersdelight.api.compat.ce.KnifeMineableBlocks|public static boolean isKnifeMineable(Key blockId)
 member|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public static ItemStack mark(String key, ItemStack base)
 member|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public static boolean is(String key, ItemStack item)
 member|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public static boolean isEmpty(String key, ItemStack item)
@@ -1018,6 +1019,7 @@ type|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public final class CeI
 type|com.huidu.farmersdelight.api.compat.ce.ContentRegistration.Kind|public enum Kind
 type|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public final class ContentRegistration
 type|com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess|public final class CraftEngineBlockAccess
+type|com.huidu.farmersdelight.api.compat.ce.KnifeMineableBlocks|public final class KnifeMineableBlocks
 type|com.huidu.farmersdelight.api.compat.ce.SlotPlaceholder|public final class SlotPlaceholder
 type|com.huidu.farmersdelight.api.compat.ce.TooltipUtils|public final class TooltipUtils
 type|com.huidu.farmersdelight.api.config.BehaviorArgRecorder|public final class BehaviorArgRecorder
