@@ -76,6 +76,12 @@ public final class RecipeConditions {
         STORE.clearForTests();
     }
 
+    /** Clears every registered condition; called during FarmersDelight's own shutdown. */
+    @ApiStatus.Internal
+    public static void clearAll() {
+        STORE.clearForTests();
+    }
+
     static int size() {
         return STORE.size();
     }

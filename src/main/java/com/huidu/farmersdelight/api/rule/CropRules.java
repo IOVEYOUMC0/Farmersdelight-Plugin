@@ -49,6 +49,12 @@ public final class CropRules {
         STORE.clearForTests();
     }
 
+    /** Clears every registered rule; called during FarmersDelight's own shutdown. */
+    @ApiStatus.Internal
+    public static void clearAll() {
+        STORE.clearForTests();
+    }
+
     static int size() {
         return STORE.size();
     }

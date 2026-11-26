@@ -4,6 +4,9 @@ import com.huidu.farmersdelight.advancement.AddonAdvancementRegistry;
 import com.huidu.farmersdelight.advancement.AdvancementManager;
 import com.huidu.farmersdelight.advancement.AdvancementSystem;
 import com.huidu.farmersdelight.api.recipe.AddonRecipeFiles;
+import com.huidu.farmersdelight.api.rule.CropRules;
+import com.huidu.farmersdelight.api.rule.RecipeConditions;
+import com.huidu.farmersdelight.api.rule.StationRules;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionHandler;
 import com.huidu.farmersdelight.api.block.CuttingBoardInteractionMode;
 import com.huidu.farmersdelight.api.enchant.FarmersDelightEnchantments;
@@ -464,6 +467,12 @@ public class FarmersDelightPlugin extends JavaPlugin implements Listener {
     public void onDisable() {
         enabled = false;
         boolean folia = scheduler != null && scheduler.isFolia();
+
+        // Rules are addon-owned static state. FD shutdown must not leave them pointing at a disabled
+        // plugin; addons re-register from onEnable after a restart, and a later unregister is a no-op.
+        StationRules.clearAll();
+        CropRules.clearAll();
+        RecipeConditions.clearAll();
 
         // Runtime disable warning: CraftEngine and per-chunk block-entity state keep references to FD listeners,
         // scheduler tasks and block behaviors, so a closed classloader throws NoClassDefFoundError on late calls.

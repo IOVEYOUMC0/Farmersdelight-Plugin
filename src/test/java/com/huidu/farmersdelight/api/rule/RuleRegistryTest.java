@@ -141,6 +141,24 @@ class RuleRegistryTest {
     }
 
     @Test
+    void stationMatchingUsesRegistrationOrder() {
+        StationRule first = station(true);
+        StationRules.register(first);
+        StationRules.register(new StationRule() {
+            @Override
+            public ContentId id() {
+                return ContentId.parse("testaddon:second");
+            }
+
+            @Override
+            public boolean matches(Block block) {
+                return true;
+            }
+        });
+        assertSame(first, StationRules.matching(anyBlock()));
+    }
+
+    @Test
     void cropRegistrationAndMatchingFollowTheSameContract() {
         CropRule rule = crop(true);
         assertTrue(CropRules.register(rule));
@@ -151,6 +169,24 @@ class RuleRegistryTest {
         assertEquals(3, CropRules.matching(anyBlock()).age(anyBlock()));
         assertTrue(CropRules.matching(anyBlock()).resetsOnHarvest(anyBlock()));
         assertTrue(CropRules.unregister(ID));
+    }
+
+    @Test
+    void pluginShutdownClearsEveryRuleTable() {
+        StationRules.register(station(true));
+        CropRules.register(crop(true));
+        RecipeConditions.register(condition(true, false));
+        assertTrue(StationRules.find(ID).isPresent());
+        assertTrue(CropRules.find(ID).isPresent());
+        assertTrue(RecipeConditions.find(ID).isPresent());
+
+        StationRules.clearAll();
+        CropRules.clearAll();
+        RecipeConditions.clearAll();
+
+        assertTrue(StationRules.find(ID).isEmpty());
+        assertTrue(CropRules.find(ID).isEmpty());
+        assertTrue(RecipeConditions.find(ID).isEmpty());
     }
 
     @Test
@@ -169,6 +205,31 @@ class RuleRegistryTest {
         RecipeConditions.clearForTests();
         assertTrue(RecipeConditions.register(condition(true, true)));
         assertFalse(RecipeConditions.allMatch(context()));
+    }
+
+    @Test
+    void aConditionCanScopeItselfAwayFromUnrelatedRecipes() {
+        RecipeCondition scoped = new RecipeCondition() {
+            @Override
+            public ContentId id() {
+                return ID;
+            }
+
+            @Override
+            public boolean appliesTo(String recipeType, String recipeId) {
+                return "myaddon:keg".equals(recipeType);
+            }
+
+            @Override
+            public boolean test(RecipeContext context) {
+                return false;
+            }
+        };
+        assertTrue(RecipeConditions.register(scoped));
+        assertTrue(RecipeConditions.allMatch(
+                RecipeContext.of(null, null, List.of(), null, null, "cooking_pot", "farmersdelight:stew")));
+        assertFalse(RecipeConditions.allMatch(
+                RecipeContext.of(null, null, List.of(), null, null, "myaddon:keg", "myaddon:booze")));
     }
 
     @Test
