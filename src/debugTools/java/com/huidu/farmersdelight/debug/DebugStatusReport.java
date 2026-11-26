@@ -1,6 +1,9 @@
 package com.huidu.farmersdelight.debug;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
+import com.huidu.farmersdelight.api.rule.CropRules;
+import com.huidu.farmersdelight.api.rule.RecipeConditions;
+import com.huidu.farmersdelight.api.rule.StationRules;
 import com.huidu.farmersdelight.datapack.FarmersDelightDatapacks;
 import com.huidu.farmersdelight.gui.GuiTickManager;
 import com.huidu.farmersdelight.manager.TickManager;
@@ -46,6 +49,10 @@ final class DebugStatusReport {
 
         line(sender, "<gray>gui:</gray> callbacks="
                 + GuiTickManager.getInstance(plugin).getActiveCallbackCount());
+
+        line(sender, "<gray>rules:</gray> stations=" + StationRules.ids().size()
+                + " crops=" + CropRules.ids().size()
+                + " recipe-conditions=" + RecipeConditions.ids().size());
 
         ItemDisplayManager displays = plugin.getItemDisplayManager();
         if (displays instanceof ProxyItemDisplayManager proxy) {

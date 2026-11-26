@@ -2,7 +2,7 @@ package com.huidu.farmersdelight.debug;
 
 import com.huidu.farmersdelight.FarmersDelightPlugin;
 import com.huidu.farmersdelight.api.util.DebugToolExtension;
-import com.huidu.farmersdelight.api.block.CraftEngineBlockAccess;
+import com.huidu.farmersdelight.api.compat.ce.CraftEngineBlockAccess;
 import com.huidu.farmersdelight.api.util.DebugToolRegistry;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockBehavior;
 import com.huidu.farmersdelight.block.behavior.CookingPotBlockEntity;

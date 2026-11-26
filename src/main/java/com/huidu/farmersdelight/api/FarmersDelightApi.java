@@ -116,7 +116,15 @@ public final class FarmersDelightApi {
             // api.util.WarningThrottle for once-per-cooldown console warnings from addons.
             "warning-throttle",
             // api.util.KeyLocks: bounded per-key monitors for addon block state.
-            "key-locks"
+            "key-locks",
+            // CE-neutral content ids and block-state descriptors (ContentId / BlockStateRef) plus the
+            // neutral overloads on the content/block/item facades.
+            "neutral-content",
+            // Registerable station/crop semantics and recipe conditions (api.rule).
+            "rule-registry",
+            // CE-pinned advanced access (api.compat.ce): block access, behaviour/factory registration,
+            // slot placeholders and tooltip helpers.
+            "compat-ce"
     );
 
     private static final FarmersDelightApi INSTANCE = new FarmersDelightApi();
