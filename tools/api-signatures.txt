@@ -204,6 +204,23 @@ member|com.huidu.farmersdelight.api.buff.CustomBuff|public default int remaining
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public default void restoreState(Player player)
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public default void saveState(Player player)
 member|com.huidu.farmersdelight.api.buff.CustomBuff|public void remove(Player player)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public Key type()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public List<LoadingStage>dependencies()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public List<Section>sections(String sectionId)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public List<String>claimedIds()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public LoadingStage loadingStage()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public String claimId()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public String[] sectionId()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public boolean hasPublished()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public boolean registered()
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public static AddonPackSections claim(JavaPlugin plugin, String typeId, String stageName, Map<String, String>roots)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public static AddonPackSections claim(PackManager packManager, String typeId, String stageName, Map<String, String>roots)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public static AddonPackSections createForTesting(Map<String, String>roots)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public static List<Entry>entries(AddonPackSections claim, String sectionId, String rootKey, File overrideFile)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public static List<Entry>entriesFromResource(JavaPlugin plugin, String resourcePath, String rootKey)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public static void warnIfEmpty(Consumer<String>warn, AddonPackSections claim, String sectionId, String rootKey, List<String>sources, List<Entry>entries)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public static void warnIfEmpty(JavaPlugin plugin, AddonPackSections claim, String sectionId, String rootKey, List<String>sources, List<Entry>entries)
+member|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public void loadAll()
 member|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public static Item normalize(Item item)
 member|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public static ItemStack asBukkitStack(Item item)
 member|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public static ItemStack toBukkitStack(Item item)
@@ -993,6 +1010,9 @@ type|com.huidu.farmersdelight.api.block.StoveSnapshot|public record StoveSnapsho
 type|com.huidu.farmersdelight.api.buff.BuffBossbar|public final class BuffBossbar
 type|com.huidu.farmersdelight.api.buff.CustomBuffRegistry|public final class CustomBuffRegistry
 type|com.huidu.farmersdelight.api.buff.CustomBuff|public interface CustomBuff
+type|com.huidu.farmersdelight.api.compat.ce.AddonPackSections.Entry|public record Entry(String id, ConfigurationSection section, String source)
+type|com.huidu.farmersdelight.api.compat.ce.AddonPackSections.Section|public record Section(String sectionId, String source, String namespace, YamlConfiguration config)
+type|com.huidu.farmersdelight.api.compat.ce.AddonPackSections|public final class AddonPackSections
 type|com.huidu.farmersdelight.api.compat.ce.CeItemInterop|public final class CeItemInterop
 type|com.huidu.farmersdelight.api.compat.ce.ContentRegistration.Kind|public enum Kind
 type|com.huidu.farmersdelight.api.compat.ce.ContentRegistration|public final class ContentRegistration
