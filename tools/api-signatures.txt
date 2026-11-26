@@ -763,6 +763,7 @@ member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static boolean 
 member|com.huidu.farmersdelight.api.rule.RecipeConditions|public static boolean unregister(ContentId id)
 member|com.huidu.farmersdelight.api.rule.RecipeCondition|public ContentId id()
 member|com.huidu.farmersdelight.api.rule.RecipeCondition|public boolean test(RecipeContext context)
+member|com.huidu.farmersdelight.api.rule.RecipeCondition|public default boolean appliesTo(String recipeType, String recipeId)
 member|com.huidu.farmersdelight.api.rule.RecipeContext|public ItemStack container()
 member|com.huidu.farmersdelight.api.rule.RecipeContext|public ItemStack tool()
 member|com.huidu.farmersdelight.api.rule.RecipeContext|public List<ItemStack>inputs()

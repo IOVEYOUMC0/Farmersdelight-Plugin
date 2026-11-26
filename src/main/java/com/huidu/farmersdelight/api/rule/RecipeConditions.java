@@ -57,6 +57,9 @@ public final class RecipeConditions {
                 continue;
             }
             try {
+                if (!condition.appliesTo(context.recipeType(), context.recipeId())) {
+                    continue;
+                }
                 if (!condition.test(context)) {
                     return false;
                 }
