@@ -286,6 +286,9 @@ public final class RecipeFileLoader {
                     for (int i = 0; i < freshIssues.size(); i++) {
                         I18n.logWarning("plugin.recipe_issue_detail", "index", i + 1, "detail", freshIssues.get(i));
                     }
+                    // A list of skipped entries is only useful with what to do about it, so the report ends with
+                    // the command that re-reads the file once they are fixed.
+                    I18n.logWarning("plugin.recipe_issues_footer");
                 }
             }
 

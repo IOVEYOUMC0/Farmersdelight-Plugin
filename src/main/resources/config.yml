@@ -73,6 +73,9 @@ enchantments:
       table:
         enabled: true
         override-offers: true
+        # Enchantability the table sees for a group member that does not declare its own
+        # farmersdelight:enchantability tool setting; vanilla uses it to decide how many offers and at
+        # what level. The skillet and durable groups below take the same option.
         default-enchantability: 14
         enchantments:
         - minecraft:sharpness
@@ -116,6 +119,8 @@ enchantments:
     combat:
       players-only: true
       require-knife: true
+      # Backstab damage is multiplied by base + (level - 1) * per-level, so the default gives 1.4x at
+      # level 1 and 1.8x at level 3.
       multiplier-base: 1.4
       multiplier-per-level: 0.2
 
@@ -221,7 +226,10 @@ performance:
     # Warn when the active plugin block count exceeds this value; only affects the warning threshold, not the
     # actual tick queue capacity.
     active-block-threshold: 1000
+    # Warn when one world holds more cooking pots than this in total.
     cooking-pot-total-threshold: 1000
+    # Warn when a single chunk holds more cooking pots than this. Checked only once the world total is
+    # above the threshold above, so a small world stays quiet.
     cooking-pot-density-threshold: 64
     # Warn when CraftEngine server block states remaining drop below this value; 0 warns only when fully exhausted.
     craftengine-free-state-threshold: 32
@@ -256,8 +264,8 @@ performance:
     sync-batch-size: 256
 
 # Master switch for the vanilla container bridge between hoppers and plugin blocks.
-# When enabled=false, the hopper container bridge for plugin blocks is fully disabled, avoiding hoppers eating items, duplicate container creation or write errors.
-# enabled=false disables the bridge for every plugin block at once.
+# When enabled=false, the bridge is fully disabled for every plugin block at once, avoiding hoppers eating
+# items, duplicate container creation or write errors.
 # Whether each block takes part is set by that block's own allow-hopper option in the cooking-pot /
 # cutting-board / skillet sections.
 hopper-interactions:

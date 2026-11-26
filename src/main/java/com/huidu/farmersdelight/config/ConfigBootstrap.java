@@ -225,6 +225,9 @@ public final class ConfigBootstrap {
             for (int i = 0; i < issues.size(); i++) {
                 I18n.logWarning("plugin.config_issue_detail", "index", i + 1, "detail", issues.get(i));
             }
+            // A list of rejected values is only useful with what to do about it, so the report ends with the
+            // command that re-reads the file once they are fixed.
+            I18n.logWarning("plugin.config_issues_footer");
         }
     }
 
