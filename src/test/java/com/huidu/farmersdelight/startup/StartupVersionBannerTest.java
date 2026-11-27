@@ -15,31 +15,29 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the startup banner line, the version floor and the once-only warning. Losing any of the four banner
- * fields, accepting a version below the floor, or warning twice has to fail here.
+ * Locks the startup banner line, the version floor and the once-only warning. Losing the plugin or
+ * CraftEngine version, accepting a version below the floor, or warning twice has to fail here.
  */
 class StartupVersionBannerTest {
 
     @Test
-    void theBannerNamesAllFourVersionsInAFixedOrder() {
-        String banner = StartupVersionBanner.format("1.0.3", "26.9.2", "Paper 1.21.8", "1.21.5");
+    void theBannerNamesThePluginAndCraftEngineVersions() {
+        String banner = StartupVersionBanner.format("1.0.3", "26.9.2");
 
-        assertEquals("FarmersDelight 1.0.3 | CraftEngine 26.9.2 | server Paper 1.21.8 | api 1.21.5", banner);
+        assertEquals("FarmersDelight 1.0.3 | CraftEngine 26.9.2", banner);
         assertTrue(banner.startsWith("FarmersDelight "), "the plugin name has to lead the line");
         assertTrue(banner.contains(" | CraftEngine "), "the CraftEngine field is what makes a jar mix visible");
-        assertTrue(banner.contains(" | server "));
-        assertTrue(banner.contains(" | api "));
+        assertEquals(2, banner.split(" \\| ").length, "the boot line stays down to two fields");
+        assertFalse(banner.contains("server "), "the server version is visible from the server itself");
+        assertFalse(banner.contains("api "), "the plugin API version is not boot-line material");
     }
 
     @Test
     void missingVersionsBecomeUnknownInsteadOfBeingDropped() {
-        String banner = StartupVersionBanner.format(null, "  ", null, "1.21.5");
+        String banner = StartupVersionBanner.format(null, "  ");
 
-        assertTrue(banner.contains("FarmersDelight unknown"));
-        assertTrue(banner.contains("CraftEngine unknown"));
-        assertTrue(banner.contains("server unknown"));
-        assertTrue(banner.contains("api 1.21.5"));
-        assertEquals(4, banner.split(" \\| ").length, "all four fields stay present");
+        assertEquals("FarmersDelight unknown | CraftEngine unknown", banner);
+        assertEquals(2, banner.split(" \\| ").length, "both fields stay present");
     }
 
     @Test
@@ -100,8 +98,13 @@ class StartupVersionBannerTest {
     void theSummaryLineCarriesTheVersionsAndTheOneWarningStays() throws Exception {
         String summary = readSource("StartupSummary.java");
         assertEquals(1, summary.split("StartupVersionBanner\\.format\\(", -1).length - 1,
-                "the summary line builds the four version fields exactly once");
+                "the summary line builds the version fields exactly once");
         assertTrue(summary.contains("\"banner\""), "and passes them into the line");
+        assertTrue(summary.contains("logInfo(\"plugin.enabled_summary\""),
+                "the boot line is the short enabled summary");
+        assertTrue(summary.contains("logDetail(DebugCategory.STARTUP, key"),
+                "the counts stay under the startup debug category");
+        assertFalse(summary.contains("logInfo(key"), "the counts are never printed at INFO");
         assertTrue(summary.contains("ToolRegistry.all().size()"), "the tool count comes from the registry");
 
         String plugin = readSource("FarmersDelightPlugin.java");
@@ -113,24 +116,37 @@ class StartupVersionBannerTest {
                 "the CraftEngine version comes from its API or its description, never from a literal");
     }
 
-    /** The line has to name the four versions and the counts that matter, in every shipped language. */
+    /**
+     * The boot line only carries the versions; the counts are debug detail. Both templates have to agree with
+     * that split in every shipped language.
+     */
     @Test
-    void theSummaryTemplatesCarryTheVersionsAndTheKeyCounts() throws Exception {
+    void theBootLineIsShortAndTheCountsAreDetail() throws Exception {
         for (String locale : new String[]{"lang/en_us.yml", "lang/zh_cn.yml"}) {
             String language = readSource(locale);
-            String line = language.lines().filter(text -> text.trim().startsWith("content_summary:"))
+            String boot = language.lines().filter(text -> text.trim().startsWith("enabled_summary:"))
                     .findFirst().orElse(null);
-            assertNotNull(line, "content_summary is missing from " + locale);
-            for (String field : new String[]{"{banner}", "{cooking_pot}", "{cutting_board}", "{drop_rules}",
-                    "{advancements}", "{tools}", "-- "}) {
-                assertTrue(line.contains(field), locale + " has to carry " + field + ": " + line);
+            assertNotNull(boot, "enabled_summary is missing from " + locale);
+            assertTrue(boot.contains("{banner}"), locale + " boot line has to carry the versions: " + boot);
+            for (String count : new String[]{"{cooking_pot}", "{cutting_board}", "{drop_rules}",
+                    "{advancements}", "{tools}"}) {
+                assertFalse(boot.contains(count), locale + " boot line must not carry " + count + ": " + boot);
             }
+
+            String summary = language.lines().filter(text -> text.trim().startsWith("content_detail:"))
+                    .findFirst().orElse(null);
+            assertNotNull(summary, "content_detail is missing from " + locale);
+            for (String field : new String[]{"{cooking_pot}", "{cutting_board}", "{drop_rules}",
+                    "{advancements}", "{tools}"}) {
+                assertTrue(summary.contains(field), locale + " detail line has to carry " + field + ": " + summary);
+            }
+            assertFalse(summary.contains("{banner}"), locale + " detail line repeats no versions: " + summary);
         }
     }
 
     /**
-     * The startup noise is startup detail now: the tool count, the settings dump, the active locale and the block
-     * state occupancy each used to be an INFO line of its own, which is what made one boot a dozen lines long.
+     * Startup noise stays under the startup detail category: the tool count, the settings dump, the active locale
+     * and the block state occupancy are not INFO lines.
      */
     @Test
     void theNoiseLinesMovedUnderTheStartupCategory() throws Exception {

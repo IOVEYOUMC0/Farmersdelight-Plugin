@@ -44,6 +44,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
     );
 
     private final FarmersDelightPlugin plugin;
+    private final DatapackStartupNotice startupNotice = new DatapackStartupNotice();
 
     public EnchantmentDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -78,7 +79,7 @@ public final class EnchantmentDatapackInstaller implements Listener {
             wrote = deletePack(DatapackSupport.managedPack(plugin.getDataFolder().toPath(), DATAPACK_DIRECTORY));
         }
         int cleaned = cleanupRedundantDatapacks(primaryWorld);
-        if (wrote || cleaned > 0) {
+        if (startupNotice.record(wrote || cleaned > 0)) {
             announceInstalled(primaryWorld);
         }
     }
@@ -124,6 +125,9 @@ public final class EnchantmentDatapackInstaller implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerLoad(ServerLoadEvent event) {
         plugin.recheckEnchantmentConflict();
+        if (startupNotice.finish(false)) {
+            announceInstalled(plugin.getPrimaryWorld());
+        }
     }
 
     private boolean shouldInstall(EnchantmentSettings settings) {

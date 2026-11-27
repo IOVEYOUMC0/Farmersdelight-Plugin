@@ -23,20 +23,9 @@ public final class StartupVersionBanner {
         this.warn = warn;
     }
 
-    /**
-     * The four version fields as one line, led by the plugin name. Missing inputs become unknown rather than
-     * being dropped.
-     */
-    public static String format(@Nullable String pluginVersion, @Nullable String ceVersion,
-                                @Nullable String serverVersion, @Nullable String apiVersion) {
-        return "FarmersDelight " + orUnknown(pluginVersion) + fields(ceVersion, serverVersion, apiVersion);
-    }
-
-    private static String fields(@Nullable String ceVersion, @Nullable String serverVersion,
-                                 @Nullable String apiVersion) {
-        return " | CraftEngine " + orUnknown(ceVersion)
-                + " | server " + orUnknown(serverVersion)
-                + " | api " + orUnknown(apiVersion);
+    /** The two versions a support request needs, led by the plugin name. Missing inputs become unknown. */
+    public static String format(@Nullable String pluginVersion, @Nullable String ceVersion) {
+        return "FarmersDelight " + orUnknown(pluginVersion) + " | CraftEngine " + orUnknown(ceVersion);
     }
 
     /** Checks the verified CraftEngine version range. Missing or unparsable versions require a warning. */

@@ -28,6 +28,7 @@ public final class TagDatapackInstaller implements Listener {
     private static final String PACK_DESCRIPTION = "FarmersDelight common-item tags (vanilla members)";
 
     private final FarmersDelightPlugin plugin;
+    private final DatapackStartupNotice startupNotice = new DatapackStartupNotice();
 
     public TagDatapackInstaller(FarmersDelightPlugin plugin) {
         this.plugin = plugin;
@@ -46,7 +47,11 @@ public final class TagDatapackInstaller implements Listener {
     // whole server has loaded; CraftEngine absorbs the written members on the next start.
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerLoad(ServerLoadEvent event) {
-        if (installToPrimaryWorld(plugin.getPrimaryWorld())) {
+        boolean changed = installToPrimaryWorld(plugin.getPrimaryWorld());
+        if (startupNotice.finish(changed)) {
+            announceInstalled();
+        }
+        if (changed) {
             plugin.queueDatapackReload(
                     I18n.formatConsole("plugin.datapack_reason_apply_tag_changes"));
         }
@@ -81,9 +86,8 @@ public final class TagDatapackInstaller implements Listener {
         }
         try {
             boolean changed = writePack(datapackDir, tags, Bukkit.getBukkitVersion());
-            if (changed) {
-                I18n.logInfo("plugin.datapack_installed", "name", DATAPACK_DIRECTORY,
-                        "dir", datapackDir, "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
+            if (startupNotice.record(changed)) {
+                announceInstalled();
             }
             return changed;
         } catch (Exception exception) {
@@ -94,6 +98,12 @@ public final class TagDatapackInstaller implements Listener {
 
     public static boolean writePack(Path root, Map<String, Set<String>> snapshot, String version) throws IOException {
         return FarmersDelightDatapacks.writeTags(root, snapshot, version);
+    }
+
+    private void announceInstalled() {
+        I18n.logInfo("plugin.datapack_installed", "name", DATAPACK_DIRECTORY,
+                "dir", DatapackSupport.managedPack(plugin.getDataFolder().toPath(), DATAPACK_DIRECTORY),
+                "hint", I18n.formatConsole("plugin.datapack_hint_restart"));
     }
 
     private boolean deletePack(Path datapackDir) {

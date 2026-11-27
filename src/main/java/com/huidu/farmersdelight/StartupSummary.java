@@ -14,8 +14,8 @@ final class StartupSummary {
 
     private final FarmersDelightPlugin plugin;
 
-    // Counts of the last report printed at INFO, used to suppress an unchanged repeat. Excludes the warmup
-    // duration on purpose: it varies between passes and would defeat the comparison on every run.
+    // Counts of the last report, used to suppress an unchanged repeat. Excludes the warmup duration on purpose:
+    // it varies between passes and would defeat the comparison on every run.
     private volatile String lastReportedCounts;
 
     // Warmup results, recorded by the warmup pass because they are produced there and nowhere else.
@@ -84,13 +84,10 @@ final class StartupSummary {
                 "pet_foods", petFoodCount,
                 "advancements", advancementCount,
                 "addon_advancements", addonAdvancementCount,
-                // The versions and the tool count are carried by the summary line as well, so a normal boot needs
-                // no second line for either of them.
-                "banner", versionBanner(),
                 "tools", ToolRegistry.all().size()
         };
-        // The split the summary line cannot show without changing an existing language string: how much of
-        // the addon figure arrived as CraftEngine pack content. Detail level, so a normal boot stays quiet.
+        // How much of the addon figure arrived as CraftEngine pack content; startup detail only.
+        // A normal boot does not print it.
         if (cookingPotPack > 0 || cuttingBoardPack > 0) {
             I18n.logDetail(DebugCategory.RECIPE, "recipe.pack_recipes", "pot", cookingPotPack, "board", cuttingBoardPack);
         }
@@ -98,7 +95,7 @@ final class StartupSummary {
         // The warmup runs on enable and on the CraftEngine readiness pass, never on a reload, so its timing is
         // only reported by the message that carries it. Repeating it after a reload would present the enable
         // pass's numbers as if the reload had just produced them.
-        String key = items > 0 && !warmupReported ? "plugin.content_summary_warmed" : "plugin.content_summary";
+        String key = items > 0 && !warmupReported ? "plugin.content_detail_warmed" : "plugin.content_detail";
         Object[] full = key.endsWith("_warmed")
                 ? concat(args, "warm_items", items, "warm_ms", warmupMillis)
                 : args;
@@ -113,21 +110,19 @@ final class StartupSummary {
             warmupReported = true;
         }
         if (firstReport) {
-            // The one line a normal boot prints: versions, the counts that matter, the tool count and the enabled
-            // marker. A later report (a reload, an addon republish) keeps its numbers under startup detail.
-            I18n.logInfo(key, full);
-        } else {
-            I18n.logDetail(DebugCategory.STARTUP, key, full);
+            // The one line a normal boot prints: the plugin and CraftEngine versions. Counts, warmup timing and
+            // the tool count stay under the startup debug category (/fd debug startup) instead of filling the log.
+            I18n.logInfo("plugin.enabled_summary", "banner", versionBanner());
         }
+        I18n.logDetail(DebugCategory.STARTUP, key, full);
     }
 
     /**
-     * The four version fields for the summary line. CraftEngine's version can be unreadable, which the banner
-     * writes as unknown, and the warning that goes with it is emitted by the plugin's enable path.
+     * The plugin and CraftEngine versions for the summary line. CraftEngine's version can be unreadable, which
+     * the banner writes as unknown, and the warning that goes with it is emitted by the plugin's enable path.
      */
     private String versionBanner() {
-        return StartupVersionBanner.format(plugin.getPluginMeta().getVersion(), plugin.resolveCraftEngineVersion(),
-                plugin.getServer().getVersion(), plugin.getPluginMeta().getAPIVersion());
+        return StartupVersionBanner.format(plugin.getPluginMeta().getVersion(), plugin.resolveCraftEngineVersion());
     }
 
     private static Object[] concat(Object[] base, Object... extra) {
