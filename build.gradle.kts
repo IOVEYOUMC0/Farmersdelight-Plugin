@@ -150,7 +150,21 @@ java {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.release.set(21)
-    options.compilerArgs.add("-Xlint:deprecation")
+    // Categories that can point at a real defect rather than a style preference: a switch that falls through by
+    // accident, a finally that cannot complete normally, a constant division by zero, an empty statement after an
+    // if, a confusing overload, an override that drops a synchronized method's guarantee, and use of an api that
+    // is marked for removal. Reported as warnings, not errors: a new warning is a prompt to look, and the build
+    // stays usable while the existing ones are triaged.
+    options.compilerArgs.addAll(listOf(
+        "-Xlint:deprecation",
+        "-Xlint:removal",
+        "-Xlint:fallthrough",
+        "-Xlint:finally",
+        "-Xlint:divzero",
+        "-Xlint:empty",
+        "-Xlint:overloads",
+        "-Xlint:synchronization",
+    ))
 }
 
 tasks.test {
