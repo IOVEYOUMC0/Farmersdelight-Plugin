@@ -33,7 +33,8 @@ public final class InventoryViewerTracker implements Listener {
     private static final ConcurrentHashMap<InventoryHolder, AtomicInteger> COUNTS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<UUID, Map<InventoryHolder, Integer>> BY_PLAYER = new ConcurrentHashMap<>();
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    // A cancelled open never shows the inventory; counting it would keep the basket paused forever.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onOpen(InventoryOpenEvent event) {
         trackOpen(event.getPlayer(), event.getInventory());
     }

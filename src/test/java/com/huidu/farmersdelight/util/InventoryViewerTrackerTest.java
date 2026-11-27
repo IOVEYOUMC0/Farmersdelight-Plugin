@@ -1,8 +1,13 @@
 package com.huidu.farmersdelight.util;
 
 import org.bukkit.entity.HumanEntity;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.InventoryView;
+import org.bukkit.plugin.RegisteredListener;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +25,28 @@ class InventoryViewerTrackerTest {
     @AfterEach
     void clear() {
         InventoryViewerTracker.clear();
+    }
+
+    @Test
+    void cancelledOpenDoesNotRegisterAViewer() throws Exception {
+        InventoryHolder holder = holder();
+        InventoryView view = view(player(), inventory(holder));
+        InventoryViewerTracker tracker = new InventoryViewerTracker();
+        EventHandler handler = InventoryViewerTracker.class.getMethod("onOpen", InventoryOpenEvent.class)
+                .getAnnotation(EventHandler.class);
+        RegisteredListener registration = new RegisteredListener(tracker,
+                (listener, event) -> ((InventoryViewerTracker) listener).onOpen((InventoryOpenEvent) event),
+                handler.priority(), null, handler.ignoreCancelled());
+
+        InventoryOpenEvent cancelled = new InventoryOpenEvent(view);
+        cancelled.setCancelled(true);
+        registration.callEvent(cancelled);
+        assertFalse(InventoryViewerTracker.hasViewer(holder), "a refused open has no matching close");
+
+        registration.callEvent(new InventoryOpenEvent(view));
+        assertTrue(InventoryViewerTracker.hasViewer(holder));
+        tracker.onClose(new InventoryCloseEvent(view));
+        assertFalse(InventoryViewerTracker.hasViewer(holder));
     }
 
     @Test
@@ -120,6 +147,16 @@ class InventoryViewerTrackerTest {
                 Inventory.class.getClassLoader(), new Class<?>[]{Inventory.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getHolder" -> holder;
+                    default -> null;
+                });
+    }
+
+    private static InventoryView view(HumanEntity player, Inventory inventory) {
+        return (InventoryView) Proxy.newProxyInstance(
+                InventoryView.class.getClassLoader(), new Class<?>[]{InventoryView.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getPlayer" -> player;
+                    case "getTopInventory" -> inventory;
                     default -> null;
                 });
     }
